@@ -17,6 +17,9 @@ namespace UnityModBase.HLogGUI
                 return;
             var list = new EntryListBinding();
             _user[service.Key] = list;
+
+            foreach (var log in service.LogDatabase.Logs)
+                list.AddEntry(new EntryBinding(log));
             service.LogDatabase.OnLogAdded += l => list.AddEntry(new EntryBinding(l));
             service.LogDatabase.OnLogRepeated += l => list.AddEntry(new EntryBinding(l));
         }

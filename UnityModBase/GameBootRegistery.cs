@@ -73,7 +73,8 @@ namespace UnityModBase
             if (assemblyName == null)
                 return true;
 
-            return assemblyName.StartsWith("UnityEngine") ||
+            return assemblyName.StartsWith("Unity.") ||
+                   assemblyName.StartsWith("UnityEngine") ||
                    assemblyName.StartsWith("UnityEditor") ||
                    assemblyName.StartsWith("System") ||
                    assemblyName.StartsWith("mscorlib") ||

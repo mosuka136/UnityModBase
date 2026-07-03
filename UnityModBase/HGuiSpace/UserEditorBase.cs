@@ -33,7 +33,7 @@ namespace UnityModBase.HGuiSpace
             UnityGui.Space(4);
 
             if (UnityGui.Button(key))
-                IsExpanded = true;
+                IsExpanded = !IsExpanded;
 
             if (IsExpanded)
             {
