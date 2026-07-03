@@ -1,0 +1,31 @@
+using UnityModBase.HConfigGUI.Bindings;
+using UnityModBase.HProvider;
+
+namespace UnityModBase.HConfigGUI.Editor.ValueEditor
+{
+    public class UnsupportedEditor : IValueEditor
+    {
+        public IUnityGuiProvider UnityGui { get; }
+
+        public static UnsupportedEditor Instance = new UnsupportedEditor();
+
+        public UnsupportedEditor()
+        {
+            UnityGui = UnityGuiProvider.Instance;
+        }
+
+        public bool CanEdit(IEntryBinding entry)
+        {
+            return false;
+        }
+
+        public void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        {
+            UnityGui.Label("Unsupported type: " + entry.ValueType.FullName);
+        }
+
+        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        {
+        }
+    }
+}

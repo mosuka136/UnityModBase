@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BepInExLauncher/UMB_BepInExLauncher.csproj" Id="4e72f2af-8c3a-4f64-9a69-982392788a31" />
+  <Project Path="UnityModBase/UnityModBase.csproj" Id="a770f3cd-c10f-40e1-908a-6bb506f2ec41" />
+</Solution>

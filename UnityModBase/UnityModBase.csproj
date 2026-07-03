@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A770F3CD-C10F-40E1-908A-6BB506F2EC41}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>UnityModBase</RootNamespace>
+    <AssemblyName>UnityModBase</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Release\UnityModBase.xml</DocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="BSpace\BLog.cs" />
+    <Compile Include="BSpace\BService.cs" />
+    <Compile Include="FrameUpdateManager.cs" />
+    <Compile Include="GameBootRegistery.cs" />
+    <Compile Include="GameQuitManager.cs" />
+    <Compile Include="HClassAttribute\ClassHelper.cs" />
+    <Compile Include="HClassAttribute\ConfigSliderAttribute.cs" />
+    <Compile Include="HClassAttribute\InitialzeOnGameBootAttribute.cs" />
+    <Compile Include="HClassAttribute\RegisterOnGameBootAttribute.cs" />
+    <Compile Include="HConfigGUI\Bindings\EntryBinding.cs" />
+    <Compile Include="HConfigGUI\Bindings\IEntryBinding.cs" />
+    <Compile Include="HConfigGUI\Bindings\SheetBinding.cs" />
+    <Compile Include="HConfigGUI\Bindings\TableBinding.cs" />
+    <Compile Include="HConfigGUI\Editor\EntryEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\HotkeyEditSession.cs" />
+    <Compile Include="HConfigGUI\Editor\PopupEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\SheetEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\TableEditor.cs" />
+    <Compile Include="HConfigGUI\Bindings\UserBinding.cs" />
+    <Compile Include="HConfigGUI\Editor\UserEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditorRegistry.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\BooleanEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\EnumEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\HotkeyEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\IValueEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\NumberEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\SliderEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\StringEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\ValueEditor\UnsupportedEditor.cs" />
+    <Compile Include="HConfigGUI\EntryChangeSink.cs" />
+    <Compile Include="HConfigGUI\GuiHost.cs" />
+    <Compile Include="HConfigGUI\GuiPipe.cs" />
+    <Compile Include="HConfigGUI\GuiStateStore.cs" />
+    <Compile Include="HConfigGUI\Resource\LayoutResource.cs" />
+    <Compile Include="HConfigGUI\Resource\StyleResource.cs" />
+    <Compile Include="HConfigGUI\Resource\TranslatorResource.cs" />
+    <Compile Include="HConfigGUI\UiMetadata.cs" />
+    <Compile Include="HConfigGUI\UiMetadataHelper.cs" />
+    <Compile Include="BSpace\BConfigManager.cs" />
+    <Compile Include="HConfigSpace\ConfigEntry.cs" />
+    <Compile Include="HConfigSpace\ConfigFileEntry.cs" />
+    <Compile Include="HConfigSpace\ConfigService.cs" />
+    <Compile Include="HConfigSpace\ConfigFileModel.cs" />
+    <Compile Include="HConfigSpace\ConfigFileResult.cs" />
+    <Compile Include="HConfigSpace\ConfigFileSheet.cs" />
+    <Compile Include="HConfigSpace\ConfigFileTable.cs" />
+    <Compile Include="HConfigSpace\ConfigSheet.cs" />
+    <Compile Include="HConfigSpace\ConfigTable.cs" />
+    <Compile Include="HConfigSpace\IConfigEntryAdapter.cs" />
+    <Compile Include="HEnumHelper\DisplayEnumAttribute.cs" />
+    <Compile Include="HEnumHelper\EnumHelper.cs" />
+    <Compile Include="HGuiSpace\IStyleResource.cs" />
+    <Compile Include="HGuiSpace\ToastEditor.cs" />
+    <Compile Include="HGuiSpace\TooltipEditor.cs" />
+    <Compile Include="HLogGUI\EntryBinding.cs" />
+    <Compile Include="HLogGUI\EntryContentType.cs" />
+    <Compile Include="HLogGUI\EntryEditor.cs" />
+    <Compile Include="HLogGUI\EntryListBinding.cs" />
+    <Compile Include="HLogGUI\GuiHost.cs" />
+    <Compile Include="HLogGUI\ListEditor.cs" />
+    <Compile Include="HLogGUI\Resource\StyleResource.cs" />
+    <Compile Include="HLogGUI\Resource\TranslatorResource.cs" />
+    <Compile Include="HLogGUI\UserBinding.cs" />
+    <Compile Include="HLogGUI\UserEditor.cs" />
+    <Compile Include="HLogSpace\LogWriter.cs" />
+    <Compile Include="HLogSpace\LogDatabase.cs" />
+    <Compile Include="HLogSpace\LogEntry.cs" />
+    <Compile Include="HLogSpace\LogLevel.cs" />
+    <Compile Include="HotkeyManager\Hotkey.cs" />
+    <Compile Include="HotkeyManager\HotkeyChord.cs" />
+    <Compile Include="HotkeyManager\HotkeyEditState.cs" />
+    <Compile Include="HotkeyManager\HotkeyResult.cs" />
+    <Compile Include="HotkeyManager\HotkeyTrigger.cs" />
+    <Compile Include="HProvider\IUnityGuiProvider.cs" />
+    <Compile Include="HProvider\IUnityProvider.cs" />
+    <Compile Include="HProvider\UnityGuiProvider.cs" />
+    <Compile Include="HProvider\UnityProvider.cs" />
+    <Compile Include="HTranslatorSpace\LanguageType.cs" />
+    <Compile Include="HTranslatorSpace\Translator.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ServiceRegistry.cs" />
+    <Compile Include="UnityModBase.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Unity.InputSystem">
+      <HintPath>..\ReferenceLibrary\Unity.InputSystem.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\ReferenceLibrary\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\ReferenceLibrary\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\ReferenceLibrary\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\ReferenceLibrary\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
