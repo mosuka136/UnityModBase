@@ -1,52 +1,22 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HProvider;
 
-namespace UnityModBase
+namespace UnityModBase.HUserSpace
 {
-    public class ServiceRegistry : IDisposable
+    public class UserService : IDisposable
     {
-        private static readonly Dictionary<string, ServiceRegistry> _services = new Dictionary<string, ServiceRegistry>();
-
-        public static IEnumerable<string> ServiceKeys => _services.Keys;
-        public static IEnumerable<ServiceRegistry> Services => _services.Values;
-
-        public static event Action<ServiceRegistry> OnServiceRegistered;
-
-        public string Key { get; }
-        public string Name { get; }
+        public string UserId { get; }
         public LogDatabase LogDatabase { get; private set; }
         public LogWriter LogWriter { get; private set; }
         public ConfigService Config { get; private set; }
         public Type ConfigManagerType { get; private set; }
 
-        private ServiceRegistry(string key, string name)
+        public UserService(string userId)
         {
-            if (string.IsNullOrEmpty(key))
-                key = $"Service_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
-
-            while (_services.ContainsKey(key))
-                key += $"_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
-
-            Key = key;
-            Name = name ?? string.Empty;
-
+            UserId = userId;
             LogDatabase = new LogDatabase(UnityProvider.Instance);
-        }
-
-        public static ServiceRegistry Register(string key, string name)
-        {
-            var service = new ServiceRegistry(key, name);
-            _services.Add(service.Key, service);
-            foreach (var handler in (OnServiceRegistered?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<ServiceRegistry>>())
-            {
-                try { handler.Invoke(service); }
-                catch { }
-            }
-            return service;
         }
 
         public void RegisterLog(string directory, string fileName, LogLevel level)
@@ -80,7 +50,6 @@ namespace UnityModBase
                 LogWriter?.Dispose();
                 LogWriter = null;
                 Config = null;
-                _services.Remove(Key);
             }
             catch { }
         }

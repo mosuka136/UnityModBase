@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI.Bindings
 {
@@ -6,7 +7,7 @@ namespace UnityModBase.HConfigGUI.Bindings
     {
         public List<TableBinding> Sheet { get; }
 
-        public SheetBinding(ServiceRegistry service)
+        public SheetBinding(UserService service)
         {
             var tableBindings = new List<TableBinding>();
 

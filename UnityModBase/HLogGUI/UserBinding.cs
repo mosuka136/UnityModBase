@@ -1,4 +1,5 @@
 using UnityModBase.HGuiSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HLogGUI
 {
@@ -6,22 +7,22 @@ namespace UnityModBase.HLogGUI
     {
         public UserBinding() : base((service) => new EntryListBinding())
         {
-            foreach (var service in ServiceRegistry.Services)
-                AddData(service);
-            ServiceRegistry.OnServiceRegistered += AddData;
+            foreach (var context in UserManager.UserContexts)
+                AddData(context);
+            UserManager.OnUserRegistered += AddData;
         }
 
-        public override void AddData(ServiceRegistry service)
+        public override void AddData(UserContext context)
         {
-            if (service == null || _user.ContainsKey(service.Name))
+            if (context == null || _user.ContainsKey(context.UserId))
                 return;
             var list = new EntryListBinding();
-            _user[service.Key] = list;
+            _user[context.UserId] = list;
 
-            foreach (var log in service.LogDatabase.Logs)
+            foreach (var log in context.Service.LogDatabase.Logs)
                 list.AddEntry(new EntryBinding(log));
-            service.LogDatabase.OnLogAdded += l => list.AddEntry(new EntryBinding(l));
-            service.LogDatabase.OnLogRepeated += l => list.AddEntry(new EntryBinding(l));
+            context.Service.LogDatabase.OnLogAdded += l => list.AddEntry(new EntryBinding(l));
+            context.Service.LogDatabase.OnLogRepeated += l => list.AddEntry(new EntryBinding(l));
         }
     }
 }

@@ -114,8 +114,11 @@
     <Compile Include="HProvider\UnityProvider.cs" />
     <Compile Include="HTranslatorSpace\LanguageType.cs" />
     <Compile Include="HTranslatorSpace\Translator.cs" />
+    <Compile Include="HUserSpace\IUserContext.cs" />
+    <Compile Include="HUserSpace\UserContext.cs" />
+    <Compile Include="HUserSpace\UserManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ServiceRegistry.cs" />
+    <Compile Include="HUserSpace\UserService.cs" />
     <Compile Include="UnityModBase.cs" />
   </ItemGroup>
   <ItemGroup>

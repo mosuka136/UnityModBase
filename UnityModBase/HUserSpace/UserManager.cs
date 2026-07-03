@@ -1,0 +1,86 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityModBase.BSpace;
+
+namespace UnityModBase.HUserSpace
+{
+    public static class UserManager
+    {
+        private static readonly Dictionary<string, UserContext> _userContexts = new Dictionary<string, UserContext>();
+
+        public static event Action<UserContext> OnUserRegistered;
+
+        public static IEnumerable<string> UserIds => _userContexts.Keys;
+        public static IEnumerable<UserContext> UserContexts => _userContexts.Values;
+
+        public static bool ContainsUser(string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return false;
+            return _userContexts.ContainsKey(userId);
+        }
+
+        public static UserContext Register(string userId, string name)
+        {
+            if (string.IsNullOrEmpty(userId))
+                userId = $"User_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+
+            while (ContainsUser(userId))
+                userId += $"_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+
+            var context = CreateUser(userId, name);
+            context.Service = new UserService(userId);
+
+            foreach (var handler in (OnUserRegistered?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<UserContext>>())
+            {
+                try
+                {
+                    handler.Invoke(context);
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error("Error invoking OnUserRegistered handler!", ex);
+                }
+            }
+
+            return context;
+        }
+
+        public static UserContext CreateUser(string userId, string name)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return null;
+
+            if (_userContexts.ContainsKey(userId))
+                return _userContexts[userId];
+
+            var context = new UserContext(userId, name);
+            _userContexts.Add(userId, context);
+            return context;
+        }
+
+        public static UserContext GetUser(string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return null;
+
+            if (_userContexts.TryGetValue(userId, out var context))
+                return context;
+
+            return null;
+        }
+
+        public static void RemoveUser(string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return;
+
+            if (_userContexts.TryGetValue(userId, out var context))
+            {
+                context.Dispose();
+                _userContexts.Remove(userId);
+            }
+        }
+    }
+}

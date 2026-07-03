@@ -1,30 +1,31 @@
 using System;
 using System.Collections.Generic;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HGuiSpace
 {
     public abstract class UserBindingBase<T> : IDisposable where T : class
     {
         protected readonly Dictionary<string, T> _user = new Dictionary<string, T>();
-        protected readonly Func<ServiceRegistry, T> _dataFactory;
+        protected readonly Func<UserService, T> _dataFactory;
 
         public IEnumerable<string> UserKeys => _user.Keys;
         public IEnumerable<T> UserSheets => _user.Values;
 
 
-        public UserBindingBase(Func<ServiceRegistry, T> factory)
+        public UserBindingBase(Func<UserService, T> factory)
         {
             _dataFactory = factory;
-            foreach (var service in ServiceRegistry.Services)
-                AddData(service);
-            ServiceRegistry.OnServiceRegistered += AddData;
+            foreach (var context in UserManager.UserContexts)
+                AddData(context);
+            UserManager.OnUserRegistered += AddData;
         }
 
-        public virtual void AddData(ServiceRegistry service)
+        public virtual void AddData(UserContext context)
         {
-            if (service == null || _user.ContainsKey(service.Key))
+            if (context == null || _user.ContainsKey(context.UserId))
                 return;
-            _user[service.Key] = _dataFactory(service);
+            _user[context.UserId] = _dataFactory(context.Service);
         }
 
         public virtual T GetData(string key)
@@ -36,7 +37,7 @@ namespace UnityModBase.HGuiSpace
 
         public virtual void Dispose()
         {
-            ServiceRegistry.OnServiceRegistered -= AddData;
+            UserManager.OnUserRegistered -= AddData;
             _user.Clear();
         }
     }

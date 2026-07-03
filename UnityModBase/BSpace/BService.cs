@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.BSpace
 {
@@ -10,7 +11,8 @@ namespace UnityModBase.BSpace
         public const string DirectoryName = nameof(UnityModBase);
         public static string BaseDirectory { get; private set; }
 
-        public static ServiceRegistry Service { get; private set; }
+        public static UserContext Context { get; private set; }
+        public static UserService Service => Context.Service;
         public static LogDatabase LogDatabase => Service.LogDatabase;
         public static LogWriter LogWriter => Service.LogWriter;
         public static ConfigService Config => Service.Config;
@@ -19,7 +21,7 @@ namespace UnityModBase.BSpace
         {
             try
             {
-                Service = ServiceRegistry.Register(nameof(UnityModBase), nameof(UnityModBase));
+                Context = UserManager.Register(nameof(UnityModBase), nameof(UnityModBase));
 
                 BaseDirectory = baseDirectory;
                 if (!string.Equals(new DirectoryInfo(BaseDirectory).Name, DirectoryName, StringComparison.OrdinalIgnoreCase))
@@ -47,8 +49,8 @@ namespace UnityModBase.BSpace
         {
             try
             {
-                Service?.Dispose();
-                Service = null;
+                Context?.Service.Dispose();
+                Context = null;
             }
             catch (Exception ex)
             {

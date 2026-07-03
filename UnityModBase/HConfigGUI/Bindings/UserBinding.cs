@@ -1,4 +1,5 @@
 using UnityModBase.HGuiSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI.Bindings
 {
@@ -6,9 +7,9 @@ namespace UnityModBase.HConfigGUI.Bindings
     {
         public UserBinding() : base(service => new SheetBinding(service))
         {
-            foreach (var service in ServiceRegistry.Services)
-                AddData(service);
-            ServiceRegistry.OnServiceRegistered += AddData;
+            foreach (var context in UserManager.UserContexts)
+                AddData(context);
+            UserManager.OnUserRegistered += AddData;
         }
     }
 }
