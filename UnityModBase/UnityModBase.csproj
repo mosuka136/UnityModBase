@@ -83,9 +83,12 @@
     <Compile Include="HConfigSpace\IConfigEntryAdapter.cs" />
     <Compile Include="HEnumHelper\DisplayEnumAttribute.cs" />
     <Compile Include="HEnumHelper\EnumHelper.cs" />
+    <Compile Include="HGuiSpace\GuiHostBase.cs" />
     <Compile Include="HGuiSpace\IStyleResource.cs" />
     <Compile Include="HGuiSpace\ToastEditor.cs" />
     <Compile Include="HGuiSpace\TooltipEditor.cs" />
+    <Compile Include="HGuiSpace\UserBindingBase.cs" />
+    <Compile Include="HGuiSpace\UserEditorBase.cs" />
     <Compile Include="HLogGUI\EntryBinding.cs" />
     <Compile Include="HLogGUI\EntryContentType.cs" />
     <Compile Include="HLogGUI\EntryEditor.cs" />
