@@ -9,7 +9,7 @@ using Moq;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
-    public class TableEditorTests
+    public class GroupEditorTests
     {
         [Fact]
         public void Constructor_ValidDependencies_InitializesPropertiesAndRegistersEditors()
@@ -19,22 +19,29 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var guiStateStore = new GuiStateStore();
             var styleResource = new StyleResource(null);
+            var layoutResource = new LayoutResource(unityGui.Object);
 
             // Act
-            var editor = new TableEditor(unityProvider.Object, unityGui.Object, guiStateStore, styleResource);
+            var editor = new GroupEditor(
+                unityProvider.Object,
+                unityGui.Object,
+                guiStateStore,
+                styleResource,
+                layoutResource);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
             Assert.Same(unityGui.Object, editor.UnityGui);
             Assert.Same(guiStateStore, editor.GuiStateStore);
             Assert.Same(styleResource, editor.StyleProvider);
+            Assert.Same(layoutResource, editor.LayoutProvider);
             Assert.NotNull(editor.EditorRegistry);
             Assert.NotNull(editor.ChangeSink);
-            Assert.NotNull(editor.EntryRenderer);
-            Assert.Same(editor.EditorRegistry, editor.EntryRenderer.Registry);
-            Assert.Same(guiStateStore, editor.EntryRenderer.State);
-            Assert.Same(editor.ChangeSink, editor.EntryRenderer.ChangeSink);
-            Assert.Same(unityGui.Object, editor.EntryRenderer.UnityGui);
+            Assert.NotNull(editor.EntryEditor);
+            Assert.Same(editor.EditorRegistry, editor.EntryEditor.Registry);
+            Assert.Same(guiStateStore, editor.EntryEditor.State);
+            Assert.Same(editor.ChangeSink, editor.EntryEditor.ChangeSink);
+            Assert.Same(unityGui.Object, editor.EntryEditor.UnityGui);
             Assert.IsType<BooleanEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(bool)).Object));
             Assert.IsType<StringEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(string)).Object));
             Assert.IsType<SliderEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(int), metadata: new UiSliderMetadata(0f, 10f, 1f)).Object));
@@ -54,7 +61,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var entry = CreateEntryBindingMock(typeof(string), value: "old", key: "DelayedEntry");
             entry.SetupGet(x => x.Value).Returns("old");
             entry.SetupSet(x => x.Value = "new");
-            var editor = new TableEditor(unityProvider.Object, unityGui.Object, guiStateStore, styleResource);
+            var editor = new GroupEditor(
+                unityProvider.Object,
+                unityGui.Object,
+                guiStateStore,
+                styleResource,
+                new LayoutResource(unityGui.Object));
             editor.ChangeSink.SetValue(entry.Object, "new", 0.5f);
 
             // Act

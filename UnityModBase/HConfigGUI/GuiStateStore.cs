@@ -8,7 +8,7 @@ namespace UnityModBase.HConfigGUI
     {
         public const string Separator = "+";
         public static string IsPopupOpenKey => "IsPopupOpen";
-        public static string SelectedTableIndexKey => "SelectedTableIndex";
+        public static string SelectedGroupKey => "SelectedGroup";
         public static string LeadingBlankWidthKey => "LeadingBlankWidth";
         public static string RearBlankWidthKey => "RearBlankWidth";
 

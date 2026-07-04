@@ -20,7 +20,7 @@ namespace UnityModBase.Test.HConfigGUI.Resource
         }
 
         [Fact]
-        public void GetEntryLabelWidth_WhenSheetIsNull_ReturnsZero()
+        public void GetEntryLabelWidth_WhenRootIsNull_ReturnsZero()
         {
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
@@ -35,14 +35,14 @@ namespace UnityModBase.Test.HConfigGUI.Resource
         }
 
         [Fact]
-        public void GetTableButtonWidth_WhenSheetIsNull_ReturnsZero()
+        public void GetGroupButtonWidth_WhenRootIsNull_ReturnsZero()
         {
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var resource = new LayoutResource(unityGuiMock.Object);
 
             // Act
-            var result = resource.GetTableButtonWidth(null);
+            var result = resource.GetGroupButtonWidth(null);
 
             // Assert
             Assert.Equal(0f, result);

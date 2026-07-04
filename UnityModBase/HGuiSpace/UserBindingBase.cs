@@ -7,13 +7,13 @@ namespace UnityModBase.HGuiSpace
     public abstract class UserBindingBase<T> : IDisposable where T : class
     {
         protected readonly Dictionary<string, T> _user = new Dictionary<string, T>();
-        protected readonly Func<UserService, T> _dataFactory;
+        protected readonly Func<UserContext, T> _dataFactory;
 
         public IEnumerable<string> UserKeys => _user.Keys;
         public IEnumerable<T> UserSheets => _user.Values;
 
 
-        public UserBindingBase(Func<UserService, T> factory)
+        public UserBindingBase(Func<UserContext, T> factory)
         {
             _dataFactory = factory;
             foreach (var context in UserManager.UserContexts)
@@ -25,7 +25,7 @@ namespace UnityModBase.HGuiSpace
         {
             if (context == null || _user.ContainsKey(context.UserId))
                 return;
-            _user[context.UserId] = _dataFactory(context.Service);
+            _user[context.UserId] = _dataFactory(context);
         }
 
         public virtual T GetData(string key)

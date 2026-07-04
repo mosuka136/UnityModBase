@@ -1,13 +1,9 @@
 using System;
-using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigGUI.Bindings
 {
-    public interface IEntryBinding
+    public interface IEntryBinding : INodeBinding
     {
-        string Key { get; }
-        Translator Name { get; }
-        Translator Description { get; }
         Type ValueType { get; }
         object Value { get; set; }
         IUiMetadata Metadata { get; }

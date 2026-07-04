@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HProvider;
 
@@ -16,39 +17,57 @@ namespace UnityModBase.HConfigGUI.Resource
             UnityGui = unityGui;
         }
 
-        public float GetEntryLabelWidth(SheetBinding sheet)
+        public float GetEntryLabelWidth(GroupBinding root)
         {
-            if (UnityGui == null || sheet == null)
+            if (UnityGui == null || root == null)
                 return 0f;
 
             float maxWidth = 0f;
-            foreach (var table in sheet.Sheet)
+            foreach (var entry in EnumerateEntries(root))
             {
-                foreach (var entry in table.Table)
-                {
-                    var width = UnityGui.LabelStyle.CalcSize(UnityGui.GetContent(entry.Name)).x;
-                    if (width > maxWidth)
-                        maxWidth = width;
-                }
+                var width = UnityGui.LabelStyle.CalcSize(UnityGui.GetContent(entry.Name)).x;
+                if (width > maxWidth)
+                    maxWidth = width;
             }
 
             return maxWidth + 10f;
         }
 
-        public float GetTableButtonWidth(SheetBinding sheet)
+        public float GetGroupButtonWidth(GroupBinding root)
         {
-            if (UnityGui == null || sheet == null)
+            if (UnityGui == null || root == null)
                 return 0f;
 
             float maxWidth = 0f;
-            foreach (var table in sheet.Sheet)
+            foreach (var node in root.Children)
             {
-                var width = UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(table.Name)).x;
+                if (!(node is GroupBinding group))
+                    continue;
+
+                var width = UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(group.Name)).x;
                 if (width > maxWidth)
                     maxWidth = width;
             }
 
             return maxWidth + 60f;
+        }
+
+        private static IEnumerable<IEntryBinding> EnumerateEntries(GroupBinding group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (child is IEntryBinding entry)
+                {
+                    yield return entry;
+                    continue;
+                }
+
+                if (!(child is GroupBinding childGroup))
+                    continue;
+
+                foreach (var descendant in EnumerateEntries(childGroup))
+                    yield return descendant;
+            }
         }
     }
 }

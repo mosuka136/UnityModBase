@@ -8,32 +8,38 @@ namespace UnityModBase.HConfigGUI.Editor
     public class UserEditor : UserEditorBase
     {
         public StyleResource StyleProvider { get; }
-        public SheetEditor SheetEditor { get; }
+        public GroupEditor GroupEditor { get; }
 
         public UserEditor(
             IUnityProvider unityService,
             IUnityGuiProvider unityGui,
             GuiStateStore guiStateStore,
-            StyleResource styleProvider) : base(unityService, unityGui)
+            StyleResource styleProvider,
+            LayoutResource layoutProvider) : base(unityService, unityGui)
         {
             StyleProvider = styleProvider;
-            SheetEditor = new SheetEditor(unityService, unityGui, guiStateStore, styleProvider);
+            GroupEditor = new GroupEditor(
+                unityService,
+                unityGui,
+                guiStateStore,
+                styleProvider,
+                layoutProvider);
         }
 
         public override void Draw<T>(UserBindingBase<T> user)
         {
             base.Draw(user);
-            SheetEditor.DrawSheet(user.GetData(SelectedKey) as SheetBinding);
+            GroupEditor.Draw(user.GetData(SelectedKey) as GroupBinding);
         }
 
         public void Update(float unscaledDeltaTime)
         {
-            SheetEditor.Update(unscaledDeltaTime);
+            GroupEditor.Update(unscaledDeltaTime);
         }
 
         public void UpdateLayout()
         {
-            SheetEditor.UpdateLayout();
+            GroupEditor.UpdateLayout();
         }
     }
 }

@@ -42,14 +42,13 @@
     <Compile Include="HClassAttribute\InitialzeOnGameBootAttribute.cs" />
     <Compile Include="HClassAttribute\RegisterOnGameBootAttribute.cs" />
     <Compile Include="HConfigGUI\Bindings\EntryBinding.cs" />
+    <Compile Include="HConfigGUI\Bindings\GroupBinding.cs" />
     <Compile Include="HConfigGUI\Bindings\IEntryBinding.cs" />
-    <Compile Include="HConfigGUI\Bindings\SheetBinding.cs" />
-    <Compile Include="HConfigGUI\Bindings\TableBinding.cs" />
+    <Compile Include="HConfigGUI\Bindings\INodeBinding.cs" />
     <Compile Include="HConfigGUI\Editor\EntryEditor.cs" />
+    <Compile Include="HConfigGUI\Editor\GroupEditor.cs" />
     <Compile Include="HConfigGUI\Editor\HotkeyEditSession.cs" />
     <Compile Include="HConfigGUI\Editor\PopupEditor.cs" />
-    <Compile Include="HConfigGUI\Editor\SheetEditor.cs" />
-    <Compile Include="HConfigGUI\Editor\TableEditor.cs" />
     <Compile Include="HConfigGUI\Bindings\UserBinding.cs" />
     <Compile Include="HConfigGUI\Editor\UserEditor.cs" />
     <Compile Include="HConfigGUI\Editor\ValueEditorRegistry.cs" />

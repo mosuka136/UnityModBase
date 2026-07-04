@@ -16,7 +16,7 @@ namespace UnityModBase.HConfigGUI
     /// 该组件在游戏启动后由 <see cref="GameBootRegistery"/> 创建，负责接收热键并在 OnGUI 中绘制窗口。
     /// </summary>
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase<SheetBinding>
+    public class GuiHost : GuiHostBase<GroupBinding>
     {
         public PopupEditor PopupEditor { get; private set; }
 
@@ -38,7 +38,7 @@ namespace UnityModBase.HConfigGUI
                 LayoutProvider = new LayoutResource(UnityGui);
 
                 User = new UserBinding();
-                var userEditor = new UserEditor(UnityService, UnityGui, GuiStateStore, styleProvider);
+                var userEditor = new UserEditor(UnityService, UnityGui, GuiStateStore, styleProvider, LayoutProvider);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
                 UserEditor = userEditor;
 
