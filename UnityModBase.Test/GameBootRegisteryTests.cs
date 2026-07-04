@@ -1,0 +1,112 @@
+using System.Reflection;
+using UnityEngine;
+
+namespace UnityModBase.Test
+{
+    public class GameBootRegisteryTests
+    {
+        [Fact]
+        public void RegisterComponentOnGameBoot_NonComponentType_PostfixInvokesOtherHandlersNormally()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameBootRegisteryStateScope.Create();
+            Action handler = () => invocationCount++;
+
+            GameBootRegistery.OnGameBoot += handler;
+            GameBootRegistery.RegisterComponentOnGameBoot(typeof(string));
+
+            // Act
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(1, invocationCount);
+        }
+
+        [Fact]
+        public void RegisterComponentOnGameBoot_AbstractComponentType_PostfixSwallowsComponentCreationFailure()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameBootRegisteryStateScope.Create();
+            Action handler = () => invocationCount++;
+
+            GameBootRegistery.OnGameBoot += handler;
+            GameBootRegistery.RegisterComponentOnGameBoot(typeof(AbstractTestComponent));
+
+            // Act
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(1, invocationCount);
+        }
+
+        [Fact]
+        public void LoadScenePatch_Postfix_CalledTwiceInvokesCustomHandlerOnlyOnce()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameBootRegisteryStateScope.Create();
+            Action handler = () => invocationCount++;
+
+            GameBootRegistery.OnGameBoot += handler;
+
+            // Act
+            GameBootRegistery.Boot();
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(1, invocationCount);
+        }
+
+        private abstract class AbstractTestComponent : MonoBehaviour
+        {
+        }
+
+        private sealed class GameBootRegisteryStateScope : IDisposable
+        {
+            private static readonly FieldInfo InitializedField = GetRequiredField("_initialized");
+            private static readonly FieldInfo OnGameBootField = GetRequiredField("OnGameBoot");
+
+            private readonly bool _originalInitialized;
+            private readonly Action _originalOnGameBoot;
+
+            private GameBootRegisteryStateScope(
+                bool originalInitialized,
+                Action originalOnGameBoot)
+            {
+                _originalInitialized = originalInitialized;
+                _originalOnGameBoot = originalOnGameBoot;
+            }
+
+            public static GameBootRegisteryStateScope Create()
+            {
+                var scope = new GameBootRegisteryStateScope(
+                    (bool)InitializedField.GetValue(null),
+                    (Action)OnGameBootField.GetValue(null));
+
+                InitializedField.SetValue(null, false);
+                OnGameBootField.SetValue(null, null);
+
+                return scope;
+            }
+
+            public void Dispose()
+            {
+                OnGameBootField.SetValue(null, _originalOnGameBoot);
+                InitializedField.SetValue(null, _originalInitialized);
+            }
+
+            private static FieldInfo GetRequiredField(string fieldName)
+            {
+                var field = typeof(GameBootRegistery).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static);
+                if (field == null)
+                {
+                    throw new InvalidOperationException($"Field '{fieldName}' was not found on {typeof(GameBootRegistery).FullName}.");
+                }
+
+                return field;
+            }
+        }
+    }
+}
