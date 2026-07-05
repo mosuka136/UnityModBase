@@ -33,9 +33,8 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 return;
             }
 
-            var key = context.GetKey(entry, "_slider");
-            var valueString = context.GetText(key, entry.Value.ToString());
-            var value = float.TryParse(valueString, out var result) ? result : metadata.Min;
+            var valueString = ValueProvider.GetValue(entry).ToString();
+            var value = ValueProvider.GetValidValue<float>(entry);
             var displayValue = UnityService.Clamp(value, metadata.Min, metadata.Max);
             var newSliderValue = UnityGui.HorizontalSlider(
                 displayValue,
@@ -56,10 +55,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             var newValueString = UnityGui.TextField(sliderString, UnityGui.MinWidth(50f), UnityGui.ExpandWidth(false));
 
             if (valueString != newValueString)
-            {
-                context.SetText(key, newValueString);
-                SetValue(entry, newValueString, context.ChangeSink);
-            }
+                context.ChangeSink.SetConvertedValue(entry, newValueString, DelayApplyDuration);
         }
     }
 }

@@ -45,6 +45,7 @@
     <Compile Include="HConfigGUI\Bindings\GroupBinding.cs" />
     <Compile Include="HConfigGUI\Bindings\IEntryBinding.cs" />
     <Compile Include="HConfigGUI\Bindings\INodeBinding.cs" />
+    <Compile Include="HConfigGUI\TypeConvert.cs" />
     <Compile Include="HConfigGUI\Editor\EntryEditor.cs" />
     <Compile Include="HConfigGUI\Editor\GroupEditor.cs" />
     <Compile Include="HConfigGUI\Editor\HotkeyEditSession.cs" />
@@ -71,6 +72,7 @@
     <Compile Include="HConfigGUI\UiMetadata.cs" />
     <Compile Include="HConfigGUI\UiMetadataHelper.cs" />
     <Compile Include="BSpace\BConfigManager.cs" />
+    <Compile Include="HConfigGUI\ValueProvider.cs" />
     <Compile Include="HConfigSpace\ConfigEntry.cs" />
     <Compile Include="HConfigSpace\ConfigFileEntry.cs" />
     <Compile Include="HConfigSpace\ConfigService.cs" />

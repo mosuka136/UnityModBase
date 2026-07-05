@@ -292,20 +292,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void BeginEdit_WhenEntryValueIsNotHotkey_DoesNothing()
-        {
-            var entry = CreateEntryBinding("value");
-            var session = new HotkeyEditSession();
-
-            session.BeginEdit(entry.Object);
-
-            Assert.Null(session.Entry);
-            Assert.Equal(HotkeyEditState.Idle, session.State);
-            Assert.Null(session.OriginalValue);
-            Assert.Null(session.WorkingValue);
-        }
-
-        [Fact]
         public void BeginRecord_WhenSessionIsNotExpanded_DoesNothing()
         {
             var unityProvider = UnityProvider.Instance;

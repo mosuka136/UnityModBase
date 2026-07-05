@@ -85,12 +85,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
-            unityGuiMock.Setup(x => x.Button("Displayed Hotkey", It.IsAny<GUILayoutOption[]>())).Returns(false);
             var editor = CreateEditor(unityGuiMock);
             var state = new GuiStateStore();
             var hotkey = CreateHotkey(UnityProvider.Instance, Key.A);
             var entryMock = CreateHotkeyEntry(hotkey);
-            state.SetText(state.GetKey(entryMock.Object, "_hotkey"), "Displayed Hotkey");
+            var displayedValue = hotkey.ToString();
+            unityGuiMock.Setup(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>())).Returns(false);
 
             // Act
             editor.DrawValue(entryMock.Object, state);
@@ -99,7 +99,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             Assert.Null(editor.Session.Entry);
             Assert.Equal(HotkeyEditState.Idle, editor.Session.State);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
-            unityGuiMock.Verify(x => x.Button("Displayed Hotkey", It.IsAny<GUILayoutOption[]>()), Times.Once);
+            unityGuiMock.Verify(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>()), Times.Once);
         }
 
         [Fact]
@@ -132,13 +132,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
-            unityGuiMock.Setup(x => x.Button("New Hotkey", It.IsAny<GUILayoutOption[]>())).Returns(true);
             var editor = CreateEditor(unityGuiMock);
             var unityProvider = UnityProvider.Instance;
             var oldEntryMock = CreateHotkeyEntry(CreateHotkey(unityProvider, Key.A), "OldEntry");
             var newEntryMock = CreateHotkeyEntry(CreateHotkey(unityProvider, Key.B), "NewEntry");
             var state = new GuiStateStore();
-            state.SetText(state.GetKey(newEntryMock.Object, "_hotkey"), "New Hotkey");
+            var displayedValue = newEntryMock.Object.Value.ToString();
+            unityGuiMock.Setup(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>())).Returns(true);
             editor.Session.BeginEdit(oldEntryMock.Object);
 
             // Act
@@ -149,7 +149,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             Assert.Equal(HotkeyEditState.Expanded, editor.Session.State);
             Assert.NotNull(editor.Session.WorkingValue);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
-            unityGuiMock.Verify(x => x.Button("New Hotkey", It.IsAny<GUILayoutOption[]>()), Times.Once);
+            unityGuiMock.Verify(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>()), Times.Once);
         }
 
         [Fact]
@@ -495,21 +495,18 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
-        public void GetHotkeyDisplayString_WhenSessionEntryDoesNotMatch_ReturnsStateText()
+        public void GetHotkeyDisplayString_WhenSessionEntryDoesNotMatch_ReturnsEntryValue()
         {
             // Arrange
             var editor = CreateEditor();
-            var state = new GuiStateStore();
             var hotkey = CreateHotkey(UnityProvider.Instance, Key.A);
             var entryMock = CreateHotkeyEntry(hotkey, "Entry");
-            var key = state.GetKey(entryMock.Object, "_hotkey");
-            state.SetText(key, "Displayed Hotkey");
 
             // Act
-            var result = editor.GetHotkeyDisplayString(entryMock.Object, state);
+            var result = editor.GetHotkeyDisplayString(entryMock.Object, new GuiStateStore());
 
             // Assert
-            Assert.Equal("Displayed Hotkey", result);
+            Assert.Equal(hotkey.ToString(), result);
         }
 
         private static HotkeyEditor CreateEditor(Mock<IUnityGuiProvider> unityGuiMock = null)

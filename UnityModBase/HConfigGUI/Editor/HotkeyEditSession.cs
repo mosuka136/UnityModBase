@@ -46,7 +46,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
         public void Clear()
         {
-            if (Entry?.Value is Hotkey hotkey)
+            if (Entry != null && ValueProvider.GetValidValue(Entry) is Hotkey hotkey)
                 hotkey.Valid = true;
             Hotkey.GlobalValid = true;
 
@@ -64,9 +64,7 @@ namespace UnityModBase.HConfigGUI.Editor
             if (entry == null || State != HotkeyEditState.Idle)
                 return;
 
-            var current = entry.Value as Hotkey;
-            if (current == null)
-                return;
+            var current = ValueProvider.GetValidValue<Hotkey>(entry);
 
             Entry = entry;
             State = HotkeyEditState.Expanded;
@@ -159,7 +157,7 @@ namespace UnityModBase.HConfigGUI.Editor
             WorkingChord = null;
             PreviewGamepadChord = null;
             PreviewKeyboardChord = null;
-            OriginalValue = Entry.Value as Hotkey;
+            OriginalValue = ValueProvider.GetValidValue<Hotkey>(Entry);
             WorkingValue = OriginalValue.Clone();
             WorkingValue.Valid = false;
             State = HotkeyEditState.Expanded;

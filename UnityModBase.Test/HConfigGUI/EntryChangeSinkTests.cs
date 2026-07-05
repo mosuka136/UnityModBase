@@ -6,6 +6,53 @@ namespace UnityModBase.Test.HConfigGUI
 {
     public class EntryChangeSinkTests
     {
+        [Theory]
+        [MemberData(nameof(GetSupportedNumberConversions))]
+        public void SetConvertedValue_WhenInputIsValid_QueuesTargetTypeValue(
+            Type valueType,
+            object initialValue,
+            string input,
+            object expectedValue)
+        {
+            var sink = new EntryChangeSink();
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var storedValue = initialValue;
+            entryMock.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            entryMock.SetupGet(x => x.ValueType).Returns(valueType);
+            entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
+            entryMock.SetupSet(x => x.Value = It.IsAny<object>()).Callback<object>(value => storedValue = value);
+
+            sink.SetConvertedValue(entryMock.Object, input, 0.5f);
+            sink.FlushValue(0.4f);
+
+            Assert.Equal(initialValue, storedValue);
+
+            sink.FlushValue(0.1f);
+
+            Assert.IsType(valueType, storedValue);
+            Assert.Equal(expectedValue, storedValue);
+        }
+
+        [Fact]
+        public void SetConvertedValue_WhenInputIsInvalid_DoesNotChangeEntryValue()
+        {
+            var sink = new EntryChangeSink();
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var editBuffer = new EntryEditBuffer();
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(int));
+            entryMock.SetupGet(x => x.Value).Returns(10);
+
+            sink.SetConvertedValue(entryMock.Object, "invalid", 0.5f);
+
+            Assert.Equal("invalid", editBuffer.GetLatestValue().Value);
+            Assert.False(editBuffer.GetLatestValue().IsValid);
+
+            sink.FlushValue(0.5f);
+
+            entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
+        }
+
         [Fact]
         public void SetValue_WhenDelayIsNotPositiveAndValueIsUnchanged_DoesNotSetValueOrRaiseEvent()
         {
@@ -256,6 +303,20 @@ namespace UnityModBase.Test.HConfigGUI
             {
                 GuiPipe.OnEntryValueChanged -= handler;
             }
+        }
+
+        public static IEnumerable<object[]> GetSupportedNumberConversions()
+        {
+            yield return new object[] { typeof(byte), (byte)1, "200", (byte)200 };
+            yield return new object[] { typeof(sbyte), (sbyte)1, "-100", (sbyte)-100 };
+            yield return new object[] { typeof(short), (short)1, "-32000", (short)-32000 };
+            yield return new object[] { typeof(ushort), (ushort)1, "65000", (ushort)65000 };
+            yield return new object[] { typeof(int), 1, "123456", 123456 };
+            yield return new object[] { typeof(uint), (uint)1, "123456", (uint)123456 };
+            yield return new object[] { typeof(long), 1L, "1234567890123", 1234567890123L };
+            yield return new object[] { typeof(ulong), 1UL, "1234567890123", 1234567890123UL };
+            yield return new object[] { typeof(float), 1.0f, "12.5", 12.5f };
+            yield return new object[] { typeof(double), 1.0d, "12.5", 12.5d };
         }
     }
 }

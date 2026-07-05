@@ -56,26 +56,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
-        public void DrawValue_WhenEntryValueIsNull_ReturnsWithoutDrawing()
-        {
-            // Arrange
-            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new StringEditor(unityGuiMock.Object);
-            var state = new GuiStateStore();
-            var changeSink = state.ChangeSink;
-            var entryMock = CreateEntry("NullEntry", null);
-            var key = state.GetKey(entryMock.Object, "_string");
-
-            // Act
-            editor.DrawValue(entryMock.Object, state);
-
-            // Assert
-            Assert.Null(state.GetText(key, "fallback"));
-            Assert.Null(entryMock.Object.Value);
-            unityGuiMock.VerifyNoOtherCalls();
-        }
-
-        [Fact]
         public void DrawValue_WhenTextFieldReturnsSameValue_DoesNotQueueChange()
         {
             // Arrange
@@ -89,14 +69,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("SameEntry", currentValue);
-            var key = state.GetKey(entryMock.Object, "_string");
 
             // Act
             editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(1.0f);
 
             // Assert
-            Assert.Equal(currentValue, state.GetText(key, "fallback"));
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
             Assert.Equal(currentValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.TextField(currentValue, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
@@ -120,16 +99,16 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("ChangedEntry", currentValue);
-            var key = state.GetKey(entryMock.Object, "_string");
 
             // Act
             editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(0.4f);
             var valueBeforeDelayExpires = entryMock.Object.Value;
+            var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
             changeSink.FlushValue(0.1f);
 
             // Assert
-            Assert.Equal(newValue, state.GetText(key, "fallback"));
+            Assert.Equal(newValue, bufferedValueBeforeDelayExpires);
             Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);

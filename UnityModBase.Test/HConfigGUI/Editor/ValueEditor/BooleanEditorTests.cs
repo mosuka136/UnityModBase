@@ -56,22 +56,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
-        public void DrawValue_WhenEntryValueIsNotBoolean_DoesNothing()
-        {
-            // Arrange
-            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new BooleanEditor(unityGuiMock.Object);
-            var entryMock = CreateEntry("NonBooleanEntry", "text");
-
-            // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore());
-
-            // Assert
-            Assert.Equal("text", entryMock.Object.Value);
-            unityGuiMock.VerifyNoOtherCalls();
-        }
-
-        [Fact]
         public void DrawValue_WhenToggleReturnsSameValue_DoesNotChangeEntry()
         {
             // Arrange

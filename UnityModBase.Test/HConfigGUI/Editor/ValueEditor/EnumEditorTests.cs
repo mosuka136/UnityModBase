@@ -61,24 +61,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
-        public void DrawValue_WhenEntryValueIsNull_DoesNothing()
-        {
-            // Arrange
-            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EnumEditor(unityGuiMock.Object);
-            var entryMock = CreateEntry("NullEnumEntry", typeof(VisibleEnum), null);
-            var state = new GuiStateStore();
-            var changeSink = state.ChangeSink;
-
-            // Act
-            editor.DrawValue(entryMock.Object, state);
-
-            // Assert
-            Assert.Null(entryMock.Object.Value);
-            unityGuiMock.VerifyNoOtherCalls();
-        }
-
-        [Fact]
         public void DrawValue_WhenButtonIsNotClicked_DoesNotChangeExpandedState()
         {
             // Arrange
@@ -197,22 +179,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
 
             // Assert
             Assert.Equal("text", entryMock.Object.Value);
-            unityGuiMock.VerifyNoOtherCalls();
-        }
-
-        [Fact]
-        public void DrawExtra_WhenEntryValueIsNull_DoesNothing()
-        {
-            // Arrange
-            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EnumEditor(unityGuiMock.Object);
-            var entryMock = CreateEntry("NullEnumEntry", typeof(VisibleEnum), null);
-
-            // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore());
-
-            // Assert
-            Assert.Null(entryMock.Object.Value);
             unityGuiMock.VerifyNoOtherCalls();
         }
 

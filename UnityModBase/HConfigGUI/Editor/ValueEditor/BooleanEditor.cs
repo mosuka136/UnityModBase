@@ -20,12 +20,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
-            if (entry.Value is bool value)
-            {
-                bool newValue = UnityGui.Toggle(value, value ? TranslatorResource.On : TranslatorResource.Off, UnityGui.ExpandWidth(true));
-                if (newValue != value)
-                    context.ChangeSink.SetValue(entry, newValue);
-            }
+            var value = ValueProvider.GetValidValue<bool>(entry);
+            bool newValue = UnityGui.Toggle(value, value ? TranslatorResource.On : TranslatorResource.Off, UnityGui.ExpandWidth(true));
+            if (newValue != value)
+                context.ChangeSink.SetValue(entry, newValue);
         }
 
         public void DrawExtra(IEntryBinding entry, GuiContext context)

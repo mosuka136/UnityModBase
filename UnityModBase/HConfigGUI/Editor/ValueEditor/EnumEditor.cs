@@ -28,9 +28,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (!entry.ValueType.IsEnum)
                 return;
 
-            var value = entry.Value as Enum;
-            if (value == null)
-                return;
+            var value = ValueProvider.GetValidValue<Enum>(entry);
 
             const string expandedEntryKey = "expandedEntryKey";
 
@@ -59,9 +57,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (!entry.ValueType.IsEnum)
                 return;
 
-            var value = entry.Value as Enum;
-            if (value == null)
-                return;
+            var value = ValueProvider.GetValidValue<Enum>(entry);
 
             var key = context.GetKey(entry, "_enumExpanded");
             var expanded = context.GetBool(key, false);

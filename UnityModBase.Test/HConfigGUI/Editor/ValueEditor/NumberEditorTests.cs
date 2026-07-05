@@ -81,21 +81,19 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("SameNumberEntry", typeof(int), currentValue);
-            var key = state.GetKey(entryMock.Object, "_number");
-
             // Act
             editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(1.0f);
 
             // Assert
-            Assert.Equal(currentValueText, state.GetText(key, "fallback"));
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
             Assert.Equal(currentValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.TextField(currentValueText, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
         }
 
         [Fact]
-        public void DrawValue_WhenTextFieldReturnsDifferentValue_UpdatesStateAndQueuesDelayedChange()
+        public void DrawValue_WhenTextFieldReturnsDifferentValue_QueuesConvertedChange()
         {
             // Arrange
             const int currentValue = 123;
@@ -114,104 +112,52 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("ChangedNumberEntry", typeof(int), currentValue);
-            var key = state.GetKey(entryMock.Object, "_number");
-
             // Act
             editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(0.4f);
             var valueBeforeDelayExpires = entryMock.Object.Value;
+            var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
             changeSink.FlushValue(0.1f);
 
             // Assert
-            Assert.Equal(newValueText, state.GetText(key, "fallback"));
+            Assert.Equal(newValue, bufferedValueBeforeDelayExpires);
             Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.TextField(currentValueText, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
         }
 
-        [Theory]
-        [MemberData(nameof(GetSupportedNumberTypes))]
-        public void SetValue_WhenInputIsValidForSupportedType_QueuesDelayedParsedValue(Type valueType, object initialValue, string newValueText, object expectedValue)
-        {
-            // Arrange
-            var editor = CreateEditor();
-            var changeSink = new EntryChangeSink();
-            var entryMock = CreateEntry("ValidSetValueEntry", valueType, initialValue);
-
-            // Act
-            editor.SetValue(entryMock.Object, newValueText, changeSink);
-            changeSink.FlushValue(0.4f);
-            var valueBeforeDelayExpires = entryMock.Object.Value;
-            changeSink.FlushValue(0.1f);
-
-            // Assert
-            Assert.Equal(initialValue, valueBeforeDelayExpires);
-            Assert.IsType(valueType, entryMock.Object.Value);
-            Assert.Equal(expectedValue, entryMock.Object.Value);
-        }
-
-        [Theory]
-        [MemberData(nameof(GetInvalidNumberInputs))]
-        public void SetValue_WhenInputIsInvalidForSupportedType_DoesNotChangeEntryValue(Type valueType, object initialValue, string invalidValueText)
-        {
-            // Arrange
-            var editor = CreateEditor();
-            var changeSink = new EntryChangeSink();
-            var entryMock = CreateEntry("InvalidSetValueEntry", valueType, initialValue);
-
-            // Act
-            editor.SetValue(entryMock.Object, invalidValueText, changeSink);
-            changeSink.FlushValue(1.0f);
-
-            // Assert
-            Assert.Equal(initialValue, entryMock.Object.Value);
-            Assert.IsType(valueType, entryMock.Object.Value);
-        }
-
         [Fact]
-        public void SetValue_WhenTypeIsUnsupported_DoesNotChangeEntryValue()
+        public void DrawValue_WhenInputIsInvalid_UsesBufferedTextWithoutChangingEntry()
         {
-            // Arrange
-            var editor = CreateEditor();
-            var changeSink = new EntryChangeSink();
-            var entryMock = CreateEntry("UnsupportedSetValueEntry", typeof(decimal), 1.25m);
+            const int currentValue = 123;
+            const string currentValueText = "123";
+            const string invalidValueText = "invalid";
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .SetupSequence(x => x.TextField(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(invalidValueText)
+                .Returns(invalidValueText);
+            var editor = new NumberEditor(unityGuiMock.Object);
+            var context = new GuiStateStore();
+            var entryMock = CreateEntry("InvalidNumberEntry", typeof(int), currentValue);
 
-            // Act
-            editor.SetValue(entryMock.Object, "2.50", changeSink);
-            changeSink.FlushValue(1.0f);
+            editor.DrawValue(entryMock.Object, context);
 
-            // Assert
-            Assert.Equal(1.25m, entryMock.Object.Value);
-            Assert.IsType<decimal>(entryMock.Object.Value);
-        }
+            Assert.Equal(invalidValueText, ValueProvider.GetValue(entryMock.Object));
+            Assert.Equal(currentValue, ValueProvider.GetValidValue(entryMock.Object));
 
-        public static IEnumerable<object[]> GetSupportedNumberTypes()
-        {
-            yield return new object[] { typeof(byte), (byte)1, "200", (byte)200 };
-            yield return new object[] { typeof(sbyte), (sbyte)1, "-100", (sbyte)-100 };
-            yield return new object[] { typeof(short), (short)1, "-32000", (short)-32000 };
-            yield return new object[] { typeof(ushort), (ushort)1, "65000", (ushort)65000 };
-            yield return new object[] { typeof(int), 1, "123456", 123456 };
-            yield return new object[] { typeof(uint), (uint)1, "123456", (uint)123456 };
-            yield return new object[] { typeof(long), (long)1, "1234567890123", (long)1234567890123 };
-            yield return new object[] { typeof(ulong), (ulong)1, "1234567890123", (ulong)1234567890123 };
-            yield return new object[] { typeof(float), 1.0f, "12.5", 12.5f };
-            yield return new object[] { typeof(double), 1.0d, "12.5", 12.5d };
-        }
+            editor.DrawValue(entryMock.Object, context);
+            context.ChangeSink.FlushValue(0.5f);
 
-        public static IEnumerable<object[]> GetInvalidNumberInputs()
-        {
-            yield return new object[] { typeof(byte), (byte)1, "invalid" };
-            yield return new object[] { typeof(sbyte), (sbyte)1, "invalid" };
-            yield return new object[] { typeof(short), (short)1, "invalid" };
-            yield return new object[] { typeof(ushort), (ushort)1, "invalid" };
-            yield return new object[] { typeof(int), 1, "invalid" };
-            yield return new object[] { typeof(uint), (uint)1, "invalid" };
-            yield return new object[] { typeof(long), (long)1, "invalid" };
-            yield return new object[] { typeof(ulong), (ulong)1, "invalid" };
-            yield return new object[] { typeof(float), 1.0f, "invalid" };
-            yield return new object[] { typeof(double), 1.0d, "invalid" };
+            Assert.Equal(currentValue, entryMock.Object.Value);
+            unityGuiMock.Verify(
+                x => x.TextField(currentValueText, It.IsAny<GUILayoutOption[]>()),
+                Times.Once);
+            unityGuiMock.Verify(
+                x => x.TextField(invalidValueText, It.IsAny<GUILayoutOption[]>()),
+                Times.Once);
         }
 
         private static NumberEditor CreateEditor()

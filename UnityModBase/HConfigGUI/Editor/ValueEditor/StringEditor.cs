@@ -21,17 +21,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
-            var key = context.GetKey(entry, "_string");
-            var value = context.GetText(key, entry.Value as string);
-            if (value == null)
-                return;
-
-            string newValue = UnityGui.TextField(value, UnityGui.ExpandWidth(true));
+            var value = ValueProvider.GetValidValue<string>(entry);
+            var newValue = UnityGui.TextField(value, UnityGui.ExpandWidth(true));
             if (newValue != value)
-            {
-                context.SetText(key, newValue);
-                context.ChangeSink.SetValue(entry, newValue, true, DelayApplyDuration);
-            }
+                context.ChangeSink.SetValue(entry, newValue, delay: DelayApplyDuration);
         }
 
         public void DrawExtra(IEntryBinding entry, GuiContext context)

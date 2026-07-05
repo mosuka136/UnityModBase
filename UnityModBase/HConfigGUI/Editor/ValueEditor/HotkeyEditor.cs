@@ -123,8 +123,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (Session.Entry == entry)
                 return Session.WorkingValue?.ToString() ?? string.Empty;
 
-            var key = context.GetKey(entry, "_hotkey");
-            return context.GetText(key, entry.Value.ToString());
+            return ValueProvider.GetValidValue(entry)?.ToString();
         }
     }
 }

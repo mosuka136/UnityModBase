@@ -7,6 +7,15 @@ namespace UnityModBase.HConfigGUI
     {
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
+        public void SetConvertedValue(IEntryBinding entry, object value, float delay = 0.0f)
+        {
+            if (entry == null)
+                return;
+
+            var isValid = TypeConvert.TryTo(value, entry.ValueType, out var convertedValue);
+            SetValue(entry, isValid ? convertedValue : value, isValid, delay);
+        }
+
         public void SetValue(IEntryBinding entry, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
