@@ -144,6 +144,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         private static Mock<IEntryBinding> CreateEntry(string key, string value)
         {
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             entryMock.SetupGet(x => x.Key).Returns(key);
             entryMock.SetupProperty(x => x.Value, value);
             return entryMock;

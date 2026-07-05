@@ -941,6 +941,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         private static Mock<IEntryBinding> CreateEntryBinding(object value)
         {
             var entry = new Mock<IEntryBinding>();
+            entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             entry.SetupProperty(x => x.Value, value);
             return entry;
         }

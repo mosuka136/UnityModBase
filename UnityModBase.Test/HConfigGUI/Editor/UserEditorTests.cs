@@ -15,7 +15,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             // Arrange
             var unityProvider = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var guiStateStore = new GuiStateStore();
+            var guiContext = new GuiContext();
             var styleResource = new StyleResource(null);
             var layoutResource = new LayoutResource(unityGui.Object);
 
@@ -23,9 +23,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var editor = new UserEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                guiStateStore,
                 styleResource,
-                layoutResource);
+                layoutResource,
+                guiContext);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
@@ -34,7 +34,8 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.NotNull(editor.GroupEditor);
             Assert.Same(unityProvider.Object, editor.GroupEditor.UnityService);
             Assert.Same(unityGui.Object, editor.GroupEditor.UnityGui);
-            Assert.Same(guiStateStore, editor.GroupEditor.GuiStateStore);
+            Assert.Same(guiContext.GuiStateStore, editor.GroupEditor.GuiStateStore);
+            Assert.Same(guiContext.ChangeSink, editor.GroupEditor.ChangeSink);
             Assert.Same(styleResource, editor.GroupEditor.StyleProvider);
             Assert.Same(layoutResource, editor.GroupEditor.LayoutProvider);
         }
@@ -46,18 +47,20 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             // Arrange
             var unityProvider = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var guiContext = new GuiContext();
             var editor = new UserEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                new GuiStateStore(),
                 new StyleResource(null),
-                new LayoutResource(unityGui.Object));
+                new LayoutResource(unityGui.Object),
+                guiContext);
             var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             object currentValue = "old";
             entry.SetupGet(x => x.Value).Returns(() => currentValue);
             entry.SetupSet(x => x.Value = It.IsAny<object>())
                 .Callback<object>(value => currentValue = value);
-            editor.GroupEditor.ChangeSink.SetValue(entry.Object, "new", 0.25f);
+            editor.GroupEditor.ChangeSink.SetValue(entry.Object, "new", delay: 0.25f);
 
             // Act
             editor.Update(0.25f);

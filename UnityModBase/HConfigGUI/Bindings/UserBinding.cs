@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HTranslatorSpace;
@@ -8,7 +9,11 @@ namespace UnityModBase.HConfigGUI.Bindings
 {
     public class UserBinding : UserBindingBase<GroupBinding>
     {
-        public UserBinding() : base(CreateRoot)
+        public UserBinding() : this(UserManager.UserContexts)
+        {
+        }
+
+        public UserBinding(IEnumerable<UserContext> contexts) : base(contexts, CreateRoot)
         {
         }
 

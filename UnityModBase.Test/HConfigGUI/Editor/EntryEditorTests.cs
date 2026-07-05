@@ -26,7 +26,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 
             // Act
             var editor = new EntryEditor(registry, state, changeSink, unityGuiMock.Object);
-            GuiPipe.InvokeOnEntryValueChanged(entryMock.Object);
+            GuiPipe.InvokeOnEntryEditFinished(entryMock.Object);
             state.SetText(textKey, "value");
             state.SetBool(boolKey, true);
             GuiPipe.InvokeOnEntryValueReset(entryMock.Object);

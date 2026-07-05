@@ -5,22 +5,19 @@ namespace UnityModBase.HConfigGUI
 {
     public class EntryChangeSink
     {
-        private readonly Dictionary<IEntryBinding, (object value, float delay)> _values = new Dictionary<IEntryBinding, (object value, float delay)>();
+        private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
-        public void SetValue(IEntryBinding entry, object newValue, float delay = 0.0f)
+        public void SetValue(IEntryBinding entry, object newValue, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
                 return;
 
+            entry.EditBuffer.SetValue(newValue, isValid);
+
             if (delay <= 0.0f)
-            {
-                if (Equals(entry.Value, newValue))
-                    return;
-                entry.Value = newValue;
-                GuiPipe.InvokeOnEntryValueChanged(entry);
-            }
+                Commit(entry);
             else
-                _values[entry] = (newValue, delay);
+                _pendingEntries[entry] = delay;
         }
 
         public void ResetValue(IEntryBinding entry)
@@ -28,8 +25,8 @@ namespace UnityModBase.HConfigGUI
             if (entry == null)
                 return;
 
-            if (_values.ContainsKey(entry))
-                _values.Remove(entry);
+            _pendingEntries.Remove(entry);
+            entry.EditBuffer.Clear();
 
             entry.ResetValue();
             GuiPipe.InvokeOnEntryValueReset(entry);
@@ -37,22 +34,28 @@ namespace UnityModBase.HConfigGUI
 
         public void FlushValue(float deltaTime)
         {
-            var keys = new List<IEntryBinding>(_values.Keys);
-            foreach (var key in keys)
+            var entries = new List<IEntryBinding>(_pendingEntries.Keys);
+            foreach (var entry in entries)
             {
-                var (value, delay) = _values[key];
-                delay -= deltaTime;
-                if (delay <= 0.0f)
+                var remainingDelay = _pendingEntries[entry] - deltaTime;
+                if (remainingDelay <= 0.0f)
                 {
-                    _values.Remove(key);
-                    if (Equals(key.Value, value))
-                        continue;
-                    key.Value = value;
-                    GuiPipe.InvokeOnEntryValueChanged(key);
+                    _pendingEntries.Remove(entry);
+                    Commit(entry);
                 }
                 else
-                    _values[key] = (value, delay);
+                    _pendingEntries[entry] = remainingDelay;
             }
+        }
+
+        private static void Commit(IEntryBinding entry)
+        {
+            var valueChanged = entry.EditBuffer.Commit(entry);
+
+            if (valueChanged)
+                GuiPipe.InvokeOnEntryValueChanged(entry);
+
+            GuiPipe.InvokeOnEntryEditFinished(entry);
         }
     }
 }

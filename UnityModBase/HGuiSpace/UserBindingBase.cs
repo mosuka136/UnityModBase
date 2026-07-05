@@ -13,10 +13,10 @@ namespace UnityModBase.HGuiSpace
         public IEnumerable<T> UserSheets => _user.Values;
 
 
-        public UserBindingBase(Func<UserContext, T> factory)
+        public UserBindingBase(IEnumerable<UserContext> contexts, Func<UserContext, T> factory)
         {
             _dataFactory = factory;
-            foreach (var context in UserManager.UserContexts)
+            foreach (var context in contexts)
                 AddData(context);
             UserManager.OnUserRegistered += AddData;
         }

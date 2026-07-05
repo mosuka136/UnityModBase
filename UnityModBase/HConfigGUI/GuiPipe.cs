@@ -14,25 +14,26 @@ namespace UnityModBase.HConfigGUI
 
         public static event Action<IEntryBinding> OnEntryValueChanged;
         public static event Action<IEntryBinding> OnEntryValueReset;
+        public static event Action<IEntryBinding> OnEntryEditFinished;
 
         public static void InvokeOnEntryValueChanged(IEntryBinding entry)
         {
-            foreach (var handler in (OnEntryValueChanged?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<IEntryBinding>>())
-            {
-                try
-                {
-                    handler?.Invoke(entry);
-                }
-                catch (Exception ex)
-                {
-                    BLog.Error($"Error invoking OnEntryValueChanged handler: {handler?.Method.Name}", ex);
-                }
-            }
+            InvokeHandlers(OnEntryValueChanged, entry, nameof(OnEntryValueChanged));
         }
 
         public static void InvokeOnEntryValueReset(IEntryBinding entry)
         {
-            foreach (var handler in (OnEntryValueReset?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<IEntryBinding>>())
+            InvokeHandlers(OnEntryValueReset, entry, nameof(OnEntryValueReset));
+        }
+
+        public static void InvokeOnEntryEditFinished(IEntryBinding entry)
+        {
+            InvokeHandlers(OnEntryEditFinished, entry, nameof(OnEntryEditFinished));
+        }
+
+        private static void InvokeHandlers(Action<IEntryBinding> handlers, IEntryBinding entry, string eventName)
+        {
+            foreach (var handler in (handlers?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<IEntryBinding>>())
             {
                 try
                 {
@@ -40,7 +41,7 @@ namespace UnityModBase.HConfigGUI
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Error invoking OnEntryValueReset handler: {handler?.Method.Name}", ex);
+                    BLog.Error($"Error invoking {eventName} handler: {handler?.Method.Name}", ex);
                 }
             }
         }

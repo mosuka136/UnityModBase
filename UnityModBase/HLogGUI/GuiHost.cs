@@ -6,6 +6,7 @@ using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI.Resource;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HLogGUI
 {
@@ -21,7 +22,7 @@ namespace UnityModBase.HLogGUI
                 StyleProvider = styleProvider;
                 base.Awake();
 
-                User = new UserBinding();
+                User = new UserBinding(UserManager.UserContexts);
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, ToastEditor);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.ListEditor.IsColumnWidthDirty = true;
                 UserEditor = userEditor;

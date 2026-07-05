@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HUserSpace;
 
@@ -5,9 +6,9 @@ namespace UnityModBase.HLogGUI
 {
     public class UserBinding : UserBindingBase<EntryListBinding>
     {
-        public UserBinding() : base((service) => new EntryListBinding())
+        public UserBinding(IEnumerable<UserContext> contexts) : base(contexts, (service) => new EntryListBinding())
         {
-            foreach (var context in UserManager.UserContexts)
+            foreach (var context in contexts)
                 AddData(context);
             UserManager.OnUserRegistered += AddData;
         }

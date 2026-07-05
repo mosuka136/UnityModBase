@@ -21,6 +21,7 @@ namespace UnityModBase.HConfigGUI.Editor
             UnityGui = unity;
 
             GuiPipe.OnEntryValueChanged += e => { State.DeleteText(e); State.DeleteBool(e); };
+            GuiPipe.OnEntryEditFinished += e => { State.DeleteText(e); State.DeleteBool(e); };
             GuiPipe.OnEntryValueReset += e => { State.DeleteText(e); State.DeleteBool(e); };
         }
 

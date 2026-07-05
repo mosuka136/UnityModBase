@@ -30,7 +30,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (newValue != value)
             {
                 state.SetText(key, newValue);
-                changeSink.SetValue(entry, newValue, DelayApplyDuration);
+                changeSink.SetValue(entry, newValue, true, DelayApplyDuration);
             }
         }
 

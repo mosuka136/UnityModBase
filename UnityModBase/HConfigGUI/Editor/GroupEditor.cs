@@ -32,7 +32,8 @@ namespace UnityModBase.HConfigGUI.Editor
             IUnityGuiProvider unityGui,
             GuiStateStore guiStateStore,
             StyleResource styleProvider,
-            LayoutResource layoutProvider)
+            LayoutResource layoutProvider,
+            EntryChangeSink changeSink)
         {
             UnityService = unityService;
             UnityGui = unityGui;
@@ -48,7 +49,7 @@ namespace UnityModBase.HConfigGUI.Editor
             EditorRegistry.RegisterEditor(new EnumEditor(unityGui));
             EditorRegistry.RegisterEditor(new HotkeyEditor(unityGui, styleProvider));
 
-            ChangeSink = new EntryChangeSink();
+            ChangeSink = changeSink;
             EntryEditor = new EntryEditor(EditorRegistry, guiStateStore, ChangeSink, unityGui);
         }
 

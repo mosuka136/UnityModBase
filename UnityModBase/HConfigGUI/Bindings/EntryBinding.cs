@@ -12,6 +12,7 @@ namespace UnityModBase.HConfigGUI.Bindings
         public Translator Description => Entry.Description;
         public Type ValueType => Entry.ValueType;
         public IUiMetadata Metadata { get; }
+        public EntryEditBuffer EditBuffer { get; }
 
         public object Value
         {
@@ -28,12 +29,17 @@ namespace UnityModBase.HConfigGUI.Bindings
             }
         }
 
-        public void ResetValue() => Entry.BoxedValue = Entry.BoxedDefaultValue;
+        public void ResetValue()
+        {
+            EditBuffer.Clear();
+            Entry.BoxedValue = Entry.BoxedDefaultValue;
+        }
 
         public EntryBinding(Type classType, IConfigEntry entry)
         {
-            Entry = entry;
+            Entry = entry ?? throw new ArgumentNullException(nameof(entry));
             Metadata = UiMetadataHelper.GetMetadata(classType, entry);
+            EditBuffer = new EntryEditBuffer();
         }
     }
 }

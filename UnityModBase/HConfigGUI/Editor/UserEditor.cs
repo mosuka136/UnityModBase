@@ -13,17 +13,18 @@ namespace UnityModBase.HConfigGUI.Editor
         public UserEditor(
             IUnityProvider unityService,
             IUnityGuiProvider unityGui,
-            GuiStateStore guiStateStore,
             StyleResource styleProvider,
-            LayoutResource layoutProvider) : base(unityService, unityGui)
+            LayoutResource layoutProvider,
+            GuiContext guiContext) : base(unityService, unityGui)
         {
             StyleProvider = styleProvider;
             GroupEditor = new GroupEditor(
                 unityService,
                 unityGui,
-                guiStateStore,
+                guiContext.GuiStateStore,
                 styleProvider,
-                layoutProvider);
+                layoutProvider,
+                guiContext.ChangeSink);
         }
 
         public override void Draw<T>(UserBindingBase<T> user)

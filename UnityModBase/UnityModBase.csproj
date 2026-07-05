@@ -61,6 +61,8 @@
     <Compile Include="HConfigGUI\Editor\ValueEditor\StringEditor.cs" />
     <Compile Include="HConfigGUI\Editor\ValueEditor\UnsupportedEditor.cs" />
     <Compile Include="HConfigGUI\EntryChangeSink.cs" />
+    <Compile Include="HConfigGUI\EntryEditBuffer.cs" />
+    <Compile Include="HConfigGUI\GuiContext.cs" />
     <Compile Include="HConfigGUI\GuiHost.cs" />
     <Compile Include="HConfigGUI\GuiPipe.cs" />
     <Compile Include="HConfigGUI\GuiStateStore.cs" />

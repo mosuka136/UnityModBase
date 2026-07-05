@@ -20,6 +20,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var guiStateStore = new GuiStateStore();
             var styleResource = new StyleResource(null);
             var layoutResource = new LayoutResource(unityGui.Object);
+            var changeSink = new EntryChangeSink();
 
             // Act
             var editor = new GroupEditor(
@@ -27,7 +28,8 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 unityGui.Object,
                 guiStateStore,
                 styleResource,
-                layoutResource);
+                layoutResource,
+                changeSink);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
@@ -36,7 +38,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.Same(styleResource, editor.StyleProvider);
             Assert.Same(layoutResource, editor.LayoutProvider);
             Assert.NotNull(editor.EditorRegistry);
-            Assert.NotNull(editor.ChangeSink);
+            Assert.Same(changeSink, editor.ChangeSink);
             Assert.NotNull(editor.EntryEditor);
             Assert.Same(editor.EditorRegistry, editor.EntryEditor.Registry);
             Assert.Same(guiStateStore, editor.EntryEditor.State);
@@ -58,6 +60,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var guiStateStore = new GuiStateStore();
             var styleResource = new StyleResource(null);
+            var changeSink = new EntryChangeSink();
             var entry = CreateEntryBindingMock(typeof(string), value: "old", key: "DelayedEntry");
             entry.SetupGet(x => x.Value).Returns("old");
             entry.SetupSet(x => x.Value = "new");
@@ -66,8 +69,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 unityGui.Object,
                 guiStateStore,
                 styleResource,
-                new LayoutResource(unityGui.Object));
-            editor.ChangeSink.SetValue(entry.Object, "new", 0.5f);
+                new LayoutResource(unityGui.Object),
+                changeSink);
+            editor.ChangeSink.SetValue(entry.Object, "new", delay: 0.5f);
 
             // Act
             editor.Update(0.5f);
@@ -79,6 +83,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         private static Mock<IEntryBinding> CreateEntryBindingMock(System.Type valueType, object value = null, IUiMetadata metadata = null, string key = "Entry")
         {
             var mock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            mock.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             mock.SetupGet(x => x.Key).Returns(key);
             mock.SetupGet(x => x.ValueType).Returns(valueType);
             mock.SetupGet(x => x.Value).Returns(value);

@@ -38,51 +38,56 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
         public void SetValue(IEntryBinding entry, string newValueString, EntryChangeSink changeSink)
         {
+            object parsedValue;
+            bool isValid;
+
             switch (entry.ValueType)
             {
                 case Type t when t == typeof(byte):
-                    if (byte.TryParse(newValueString, out var byteValue))
-                        changeSink.SetValue(entry, byteValue, DelayApplyDuration);
+                    isValid = byte.TryParse(newValueString, out var byteValue);
+                    parsedValue = byteValue;
                     break;
                 case Type t when t == typeof(sbyte):
-                    if (sbyte.TryParse(newValueString, out var sbyteValue))
-                        changeSink.SetValue(entry, sbyteValue, DelayApplyDuration);
+                    isValid = sbyte.TryParse(newValueString, out var sbyteValue);
+                    parsedValue = sbyteValue;
                     break;
                 case Type t when t == typeof(short):
-                    if (short.TryParse(newValueString, out var shortValue))
-                        changeSink.SetValue(entry, shortValue, DelayApplyDuration);
+                    isValid = short.TryParse(newValueString, out var shortValue);
+                    parsedValue = shortValue;
                     break;
                 case Type t when t == typeof(ushort):
-                    if (ushort.TryParse(newValueString, out var ushortValue))
-                        changeSink.SetValue(entry, ushortValue, DelayApplyDuration);
+                    isValid = ushort.TryParse(newValueString, out var ushortValue);
+                    parsedValue = ushortValue;
                     break;
                 case Type t when t == typeof(int):
-                    if (int.TryParse(newValueString, out var intValue))
-                        changeSink.SetValue(entry, intValue, DelayApplyDuration);
+                    isValid = int.TryParse(newValueString, out var intValue);
+                    parsedValue = intValue;
                     break;
                 case Type t when t == typeof(uint):
-                    if (uint.TryParse(newValueString, out var uintValue))
-                        changeSink.SetValue(entry, uintValue, DelayApplyDuration);
+                    isValid = uint.TryParse(newValueString, out var uintValue);
+                    parsedValue = uintValue;
                     break;
                 case Type t when t == typeof(long):
-                    if (long.TryParse(newValueString, out var longValue))
-                        changeSink.SetValue(entry, longValue, DelayApplyDuration);
+                    isValid = long.TryParse(newValueString, out var longValue);
+                    parsedValue = longValue;
                     break;
                 case Type t when t == typeof(ulong):
-                    if (ulong.TryParse(newValueString, out var ulongValue))
-                        changeSink.SetValue(entry, ulongValue, DelayApplyDuration);
+                    isValid = ulong.TryParse(newValueString, out var ulongValue);
+                    parsedValue = ulongValue;
                     break;
                 case Type t when t == typeof(float):
-                    if (float.TryParse(newValueString, out var floatValue))
-                        changeSink.SetValue(entry, floatValue, DelayApplyDuration);
+                    isValid = float.TryParse(newValueString, out var floatValue);
+                    parsedValue = floatValue;
                     break;
                 case Type t when t == typeof(double):
-                    if (double.TryParse(newValueString, out var doubleValue))
-                        changeSink.SetValue(entry, doubleValue, DelayApplyDuration);
+                    isValid = double.TryParse(newValueString, out var doubleValue);
+                    parsedValue = doubleValue;
                     break;
                 default:
-                    break;
+                    return;
             }
+
+            changeSink.SetValue(entry, isValid ? parsedValue : newValueString, isValid, DelayApplyDuration);
         }
 
         public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)

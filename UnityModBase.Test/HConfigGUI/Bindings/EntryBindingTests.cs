@@ -197,6 +197,32 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             Assert.Null(binding.Metadata);
         }
 
+        [Fact]
+        public void Constructor_ValidEntry_CreatesOwnedEditBuffer()
+        {
+            var entryMock = CreateEntryMock();
+
+            var binding = new EntryBinding(typeof(TestConfig), entryMock.Object);
+
+            Assert.NotNull(binding.EditBuffer);
+            Assert.False(binding.EditBuffer.IsUsing);
+        }
+
+        [Fact]
+        public void ResetValue_WhenEditBufferContainsValue_ClearsBufferAndRestoresDefaultValue()
+        {
+            var entryMock = CreateEntryMock();
+            entryMock.SetupGet(entry => entry.BoxedDefaultValue).Returns(99);
+            entryMock.SetupProperty(entry => entry.BoxedValue, 1);
+            var binding = new EntryBinding(typeof(TestConfig), entryMock.Object);
+            binding.EditBuffer.SetValue(2, true);
+
+            binding.ResetValue();
+
+            Assert.False(binding.EditBuffer.IsUsing);
+            Assert.Equal(99, entryMock.Object.BoxedValue);
+        }
+
 
         private static Mock<IConfigEntry> CreateEntryMock()
         {

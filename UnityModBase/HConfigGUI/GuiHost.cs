@@ -8,6 +8,7 @@ using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI
 {
@@ -20,6 +21,7 @@ namespace UnityModBase.HConfigGUI
     {
         public PopupEditor PopupEditor { get; private set; }
 
+        public GuiContext GuiContext { get; private set; }
         public GuiStateStore GuiStateStore { get; private set; }
         public LayoutResource LayoutProvider { get; private set; }
 
@@ -34,11 +36,14 @@ namespace UnityModBase.HConfigGUI
 
                 Translator.DefaultLanguage = BConfigManager.SetLanguage.Value;
 
-                GuiStateStore = new GuiStateStore();
+                GuiContext = new GuiContext();
+                GuiStateStore = GuiContext.GuiStateStore;
                 LayoutProvider = new LayoutResource(UnityGui);
 
-                User = new UserBinding();
-                var userEditor = new UserEditor(UnityService, UnityGui, GuiStateStore, styleProvider, LayoutProvider);
+                User = new UserBinding(UserManager.UserContexts);
+                foreach (var context in UserManager.UserContexts)
+                    context.AddContext(nameof(HConfigGUI), new GuiContext());
+                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider, GuiContext);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
                 UserEditor = userEditor;
 
