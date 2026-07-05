@@ -21,18 +21,18 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return type.IsPrimitive && type != typeof(bool) && type != typeof(char);
         }
 
-        public virtual void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public virtual void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsPrimitive || entry.ValueType == typeof(bool) || entry.ValueType == typeof(char))
                 return;
 
-            var key = state.GetKey(entry, "_number");
-            var valueString = state.GetText(key, entry.Value.ToString());
+            var key = context.GetKey(entry, "_number");
+            var valueString = context.GetText(key, entry.Value.ToString());
             string newValueString = UnityGui.TextField(valueString, UnityGui.ExpandWidth(true));
             if (valueString != newValueString)
             {
-                state.SetText(key, newValueString);
-                SetValue(entry, newValueString, changeSink);
+                context.SetText(key, newValueString);
+                SetValue(entry, newValueString, context.ChangeSink);
             }
         }
 
@@ -90,7 +90,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             changeSink.SetValue(entry, isValid ? parsedValue : newValueString, isValid, DelayApplyDuration);
         }
 
-        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
     }

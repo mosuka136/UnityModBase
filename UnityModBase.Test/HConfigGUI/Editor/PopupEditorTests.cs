@@ -26,7 +26,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             // Assert
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
             Assert.Same(styleResource, editor.StyleProvider);
-            Assert.Same(guiStateStore, editor.GuiStateStore);
+            Assert.Same(guiStateStore, editor.Context);
             Assert.Equal(new Rect(300f, 255f, 200f, 90f), editor.PopupRect);
             unityGuiMock.VerifyGet(x => x.ScreenWidth, Times.Exactly(2));
             unityGuiMock.VerifyGet(x => x.ScreenHeight, Times.Exactly(2));

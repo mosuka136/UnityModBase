@@ -7,22 +7,20 @@ namespace UnityModBase.HConfigGUI.Editor
     public class EntryEditor
     {
         public ValueEditorRegistry Registry { get; }
-        public GuiStateStore State { get; }
-        public EntryChangeSink ChangeSink { get; }
+        public GuiContext Context { get; }
 
         public float RearBlankWidth => UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(TranslatorResource.Reset)).x;
         public IUnityGuiProvider UnityGui { get; }
 
-        public EntryEditor(ValueEditorRegistry registry, GuiStateStore state, EntryChangeSink changeSink, IUnityGuiProvider unity)
+        public EntryEditor(ValueEditorRegistry registry, GuiContext context, IUnityGuiProvider unity)
         {
             Registry = registry;
-            State = state;
-            ChangeSink = changeSink;
+            Context = context;
             UnityGui = unity;
 
-            GuiPipe.OnEntryValueChanged += e => { State.DeleteText(e); State.DeleteBool(e); };
-            GuiPipe.OnEntryEditFinished += e => { State.DeleteText(e); State.DeleteBool(e); };
-            GuiPipe.OnEntryValueReset += e => { State.DeleteText(e); State.DeleteBool(e); };
+            GuiPipe.OnEntryValueChanged += e => { Context.DeleteText(e); Context.DeleteBool(e); };
+            GuiPipe.OnEntryEditFinished += e => { Context.DeleteText(e); Context.DeleteBool(e); };
+            GuiPipe.OnEntryValueReset += e => { Context.DeleteText(e); Context.DeleteBool(e); };
         }
 
         public void Render(IEntryBinding entry)
@@ -32,16 +30,16 @@ namespace UnityModBase.HConfigGUI.Editor
             if (UnityGui == null || entry == null)
                 return;
 
-            State.SetFloat(GuiStateStore.RearBlankWidthKey, RearBlankWidth);
+            Context.SetFloat(GuiContext.RearBlankWidthKey, RearBlankWidth);
 
             UnityGui.BeginHorizontal();
-            UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(State.GetFloat(GuiStateStore.LeadingBlankWidthKey)));
-            editor.DrawValue(entry, State, ChangeSink);
+            UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(Context.GetFloat(GuiContext.LeadingBlankWidthKey)));
+            editor.DrawValue(entry, Context);
             if (UnityGui.Button(TranslatorResource.Reset, UnityGui.ExpandWidth(false)))
-                ChangeSink.ResetValue(entry);
+                Context.ChangeSink.ResetValue(entry);
             UnityGui.EndHorizontal();
 
-            editor.DrawExtra(entry, State, ChangeSink);
+            editor.DrawExtra(entry, Context);
         }
     }
 }

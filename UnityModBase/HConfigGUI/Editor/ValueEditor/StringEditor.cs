@@ -19,22 +19,22 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return entry.ValueType == typeof(string);
         }
 
-        public void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawValue(IEntryBinding entry, GuiContext context)
         {
-            var key = state.GetKey(entry, "_string");
-            var value = state.GetText(key, entry.Value as string);
+            var key = context.GetKey(entry, "_string");
+            var value = context.GetText(key, entry.Value as string);
             if (value == null)
                 return;
 
             string newValue = UnityGui.TextField(value, UnityGui.ExpandWidth(true));
             if (newValue != value)
             {
-                state.SetText(key, newValue);
-                changeSink.SetValue(entry, newValue, true, DelayApplyDuration);
+                context.SetText(key, newValue);
+                context.ChangeSink.SetValue(entry, newValue, true, DelayApplyDuration);
             }
         }
 
-        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
     }

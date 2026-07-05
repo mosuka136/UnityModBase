@@ -7,12 +7,25 @@ namespace UnityModBase.HConfigGUI
     {
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
-        public void SetValue(IEntryBinding entry, object newValue, bool isValid = true, float delay = 0.0f)
+        public void SetValue(IEntryBinding entry, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
                 return;
 
-            entry.EditBuffer.SetValue(newValue, isValid);
+            entry.EditBuffer.SetValue(value, isValid);
+
+            if (delay <= 0.0f)
+                Commit(entry);
+            else
+                _pendingEntries[entry] = delay;
+        }
+
+        public void SetValue(IEntryBinding entry, string key, object value, bool isValid = true, float delay = 0.0f)
+        {
+            if (entry == null)
+                return;
+
+            entry.EditBuffer.SetValue(key, value, isValid);
 
             if (delay <= 0.0f)
                 Commit(entry);

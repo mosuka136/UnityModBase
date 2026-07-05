@@ -12,7 +12,7 @@ namespace UnityModBase.HConfigGUI.Editor
     {
         public IUnityProvider UnityService { get; }
         public IUnityGuiProvider UnityGui { get; }
-        public GuiStateStore GuiStateStore { get; }
+        public GuiContext Context { get; }
         public StyleResource StyleProvider { get; }
         public LayoutResource LayoutProvider { get; }
 
@@ -20,7 +20,6 @@ namespace UnityModBase.HConfigGUI.Editor
         public float GroupButtonWidth { get; private set; } = -1f;
 
         public ValueEditorRegistry EditorRegistry { get; }
-        public EntryChangeSink ChangeSink { get; }
         public EntryEditor EntryEditor { get; }
 
         private Vector2 _sidebarScrollPosition = Vector2.zero;
@@ -30,14 +29,13 @@ namespace UnityModBase.HConfigGUI.Editor
         public GroupEditor(
             IUnityProvider unityService,
             IUnityGuiProvider unityGui,
-            GuiStateStore guiStateStore,
+            GuiContext context,
             StyleResource styleProvider,
-            LayoutResource layoutProvider,
-            EntryChangeSink changeSink)
+            LayoutResource layoutProvider)
         {
             UnityService = unityService;
             UnityGui = unityGui;
-            GuiStateStore = guiStateStore;
+            Context = context;
             StyleProvider = styleProvider;
             LayoutProvider = layoutProvider;
 
@@ -49,8 +47,7 @@ namespace UnityModBase.HConfigGUI.Editor
             EditorRegistry.RegisterEditor(new EnumEditor(unityGui));
             EditorRegistry.RegisterEditor(new HotkeyEditor(unityGui, styleProvider));
 
-            ChangeSink = changeSink;
-            EntryEditor = new EntryEditor(EditorRegistry, guiStateStore, ChangeSink, unityGui);
+            EntryEditor = new EntryEditor(EditorRegistry, context, unityGui);
         }
 
         public void Draw(GroupBinding root)
@@ -86,12 +83,12 @@ namespace UnityModBase.HConfigGUI.Editor
             DrawContent(selectedGroup, true);
             UnityGui.EndHorizontal();
 
-            GuiStateStore.SetText(GetSelectedGroupStateKey(root), selectedGroup.Key);
+            Context.SetText(GetSelectedGroupStateKey(root), selectedGroup.Key);
         }
 
         public void Update(float deltaTime)
         {
-            ChangeSink.FlushValue(deltaTime);
+            Context.ChangeSink.FlushValue(deltaTime);
         }
 
         public void UpdateLayout()
@@ -105,7 +102,7 @@ namespace UnityModBase.HConfigGUI.Editor
             if (EntryLabelWidth < 0f)
             {
                 EntryLabelWidth = LayoutProvider.GetEntryLabelWidth(root);
-                GuiStateStore.SetFloat(GuiStateStore.LeadingBlankWidthKey, EntryLabelWidth);
+                Context.SetFloat(GuiContext.LeadingBlankWidthKey, EntryLabelWidth);
             }
 
             if (GroupButtonWidth < 0f)
@@ -135,7 +132,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 {
                     selectedGroup = group;
                     _contentScrollPosition = Vector2.zero;
-                    GuiStateStore.SetText(GetSelectedGroupStateKey(root), group.Key);
+                    Context.SetText(GetSelectedGroupStateKey(root), group.Key);
                 }
             }
 
@@ -187,7 +184,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
         private GroupBinding GetSelectedGroup(GroupBinding root, IReadOnlyList<GroupBinding> groups)
         {
-            var selectedKey = GuiStateStore.GetText(GetSelectedGroupStateKey(root), groups[0].Key);
+            var selectedKey = Context.GetText(GetSelectedGroupStateKey(root), groups[0].Key);
             foreach (var group in groups)
             {
                 if (group.Key == selectedKey)
@@ -211,7 +208,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
         private static string GetSelectedGroupStateKey(GroupBinding root)
         {
-            return root.Key + GuiStateStore.Separator + GuiStateStore.SelectedGroupKey;
+            return root.Key + GuiContext.Separator + GuiContext.SelectedGroupKey;
         }
     }
 }

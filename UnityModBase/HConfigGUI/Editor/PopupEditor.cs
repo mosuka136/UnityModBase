@@ -13,17 +13,17 @@ namespace UnityModBase.HConfigGUI.Editor
         public Rect PopupRect { get; private set; }
         public IUnityGuiProvider UnityGui { get; }
         public StyleResource StyleProvider { get; }
-        public GuiStateStore GuiStateStore { get; }
+        public GuiContext Context { get; }
 
         public Translator Title { get; set; }
         public Action DrawContentAction { get; set; }
         public Action ClosePopupAction { get; set; }
 
-        public PopupEditor(IUnityGuiProvider unityGui, StyleResource styleProvider, GuiStateStore guiStateStore)
+        public PopupEditor(IUnityGuiProvider unityGui, StyleResource styleProvider, GuiContext context)
         {
             UnityGui = unityGui;
             StyleProvider = styleProvider;
-            GuiStateStore = guiStateStore;
+            Context = context;
 
             float width = UnityGui.ScreenWidth * 0.25f;
             float height = UnityGui.ScreenHeight * 0.15f;
@@ -54,7 +54,7 @@ namespace UnityModBase.HConfigGUI.Editor
             if (UnityGui.Button(TranslatorResource.Close, UnityGui.ExpandWidth(true)))
             {
                 ClosePopupAction?.Invoke();
-                GuiStateStore.SetBool(GuiStateStore.IsPopupOpenKey, false);
+                Context.SetBool(GuiContext.IsPopupOpenKey, false);
             }
 
             UnityGui.EndVertical();

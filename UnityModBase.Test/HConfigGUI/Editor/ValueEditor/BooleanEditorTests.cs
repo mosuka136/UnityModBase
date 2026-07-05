@@ -64,7 +64,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateEntry("NonBooleanEntry", "text");
 
             // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Equal("text", entryMock.Object.Value);
@@ -85,7 +85,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateEntry("BooleanEntry", currentValue);
 
             // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Equal(currentValue, entryMock.Object.Value);
@@ -108,7 +108,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateEntry("BooleanEntry", currentValue);
 
             // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Equal(newValue, entryMock.Object.Value);

@@ -4,7 +4,7 @@ using Moq;
 
 namespace UnityModBase.Test.HConfigGUI
 {
-    public class GuiStateStoreTests
+    public class GuiContextTests
     {
         [Fact]
         public void GetKey_WhenSuffixProvided_ReturnsConcatenatedKey()

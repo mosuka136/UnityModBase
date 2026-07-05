@@ -18,17 +18,17 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return entry.ValueType == typeof(bool);
         }
 
-        public void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (entry.Value is bool value)
             {
                 bool newValue = UnityGui.Toggle(value, value ? TranslatorResource.On : TranslatorResource.Off, UnityGui.ExpandWidth(true));
                 if (newValue != value)
-                    changeSink.SetValue(entry, newValue);
+                    context.ChangeSink.SetValue(entry, newValue);
             }
         }
 
-        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
     }

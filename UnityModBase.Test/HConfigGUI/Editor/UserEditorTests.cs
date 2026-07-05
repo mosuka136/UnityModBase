@@ -34,8 +34,8 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.NotNull(editor.GroupEditor);
             Assert.Same(unityProvider.Object, editor.GroupEditor.UnityService);
             Assert.Same(unityGui.Object, editor.GroupEditor.UnityGui);
-            Assert.Same(guiContext.GuiStateStore, editor.GroupEditor.GuiStateStore);
-            Assert.Same(guiContext.ChangeSink, editor.GroupEditor.ChangeSink);
+            Assert.Same(guiContext, editor.GroupEditor.Context);
+            Assert.Same(guiContext.ChangeSink, editor.GroupEditor.Context.ChangeSink);
             Assert.Same(styleResource, editor.GroupEditor.StyleProvider);
             Assert.Same(layoutResource, editor.GroupEditor.LayoutProvider);
         }
@@ -60,7 +60,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             entry.SetupGet(x => x.Value).Returns(() => currentValue);
             entry.SetupSet(x => x.Value = It.IsAny<object>())
                 .Callback<object>(value => currentValue = value);
-            editor.GroupEditor.ChangeSink.SetValue(entry.Object, "new", delay: 0.25f);
+            editor.GroupEditor.Context.ChangeSink.SetValue(entry.Object, "new", delay: 0.25f);
 
             // Act
             editor.Update(0.25f);

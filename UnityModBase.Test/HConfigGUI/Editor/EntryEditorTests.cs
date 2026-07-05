@@ -15,7 +15,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             // Arrange
             var registry = new ValueEditorRegistry();
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.Key).Returns("EntryKey");
@@ -25,7 +25,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             state.SetBool(boolKey, true);
 
             // Act
-            var editor = new EntryEditor(registry, state, changeSink, unityGuiMock.Object);
+            var editor = new EntryEditor(registry, state, unityGuiMock.Object);
             GuiPipe.InvokeOnEntryEditFinished(entryMock.Object);
             state.SetText(textKey, "value");
             state.SetBool(boolKey, true);
@@ -33,8 +33,8 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 
             // Assert
             Assert.Same(registry, editor.Registry);
-            Assert.Same(state, editor.State);
-            Assert.Same(changeSink, editor.ChangeSink);
+            Assert.Same(state, editor.Context);
+            Assert.Same(changeSink, editor.Context.ChangeSink);
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
             Assert.Equal(string.Empty, state.GetText(textKey));
             Assert.False(state.GetBool(boolKey));
@@ -45,7 +45,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         {
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EntryEditor(new ValueEditorRegistry(), new GuiStateStore(), new EntryChangeSink(), unityGuiMock.Object);
+            var editor = new EntryEditor(new ValueEditorRegistry(), new GuiStateStore(), unityGuiMock.Object);
 
             // Act
             editor.Render(null);
@@ -63,7 +63,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var valueEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
             valueEditorMock.Setup(x => x.CanEdit(entryMock.Object)).Returns(true);
             registry.RegisterEditor(valueEditorMock.Object);
-            var editor = new EntryEditor(registry, new GuiStateStore(), new EntryChangeSink(), null);
+            var editor = new EntryEditor(registry, new GuiStateStore(), null);
 
             // Act
             editor.Render(entryMock.Object);

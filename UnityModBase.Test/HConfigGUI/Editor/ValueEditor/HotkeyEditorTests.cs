@@ -72,7 +72,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             entryMock.SetupGet(x => x.ValueType).Returns(typeof(string));
 
             // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
 
             // Assert
             entryMock.VerifyGet(x => x.ValueType, Times.Once);
@@ -93,7 +93,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetText(state.GetKey(entryMock.Object, "_hotkey"), "Displayed Hotkey");
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.Null(editor.Session.Entry);
@@ -116,7 +116,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             unityGuiMock.Setup(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>())).Returns(true);
 
             // Act
-            editor.DrawValue(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Null(editor.Session.Entry);
@@ -142,7 +142,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.BeginEdit(oldEntryMock.Object);
 
             // Act
-            editor.DrawValue(newEntryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(newEntryMock.Object, state);
 
             // Assert
             Assert.Same(newEntryMock.Object, editor.Session.Entry);
@@ -163,7 +163,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.Entry = otherEntryMock.Object;
 
             // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, new GuiStateStore());
 
             // Assert
             unityGuiMock.VerifyNoOtherCalls();
@@ -181,7 +181,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.WorkingValue = null;
 
             // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, new GuiStateStore());
 
             // Assert
             unityGuiMock.VerifyNoOtherCalls();
@@ -216,7 +216,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetFloat(GuiStateStore.LeadingBlankWidthKey, leadingBlank);
 
             // Act
-            editor.DrawExtra(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, state);
 
             // Assert
             Assert.Equal(1, editor.Session.WorkingValue.Count);
@@ -268,7 +268,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             try
             {
                 // Act
-                editor.DrawExtra(entryMock.Object, state, new EntryChangeSink());
+                editor.DrawExtra(entryMock.Object, state);
 
                 // Assert
                 Assert.False(chord.IsValid);
@@ -326,10 +326,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.State = HotkeyEditState.Expanded;
             editor.Session.OriginalValue = originalHotkey;
             editor.Session.WorkingValue = workingHotkey;
-            var changeSink = new EntryChangeSink();
+            var context = new GuiStateStore();
+            var changeSink = context.ChangeSink;
 
             // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore(), changeSink);
+            editor.DrawExtra(entryMock.Object, context);
 
             // Assert
             var updatedHotkey = Assert.IsType<Hotkey>(entryMock.Object.Value);
@@ -374,7 +375,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             try
             {
                 // Act
-                editor.DrawExtra(entryMock.Object, state, new EntryChangeSink());
+                editor.DrawExtra(entryMock.Object, state);
 
                 // Assert
                 Assert.Equal(2, editor.Session.WorkingValue.Count);

@@ -65,7 +65,6 @@
     <Compile Include="HConfigGUI\GuiContext.cs" />
     <Compile Include="HConfigGUI\GuiHost.cs" />
     <Compile Include="HConfigGUI\GuiPipe.cs" />
-    <Compile Include="HConfigGUI\GuiStateStore.cs" />
     <Compile Include="HConfigGUI\Resource\LayoutResource.cs" />
     <Compile Include="HConfigGUI\Resource\StyleResource.cs" />
     <Compile Include="HConfigGUI\Resource\TranslatorResource.cs" />

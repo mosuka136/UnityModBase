@@ -82,10 +82,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new SliderEditor(unityGuiMock.Object, new Mock<IUnityProvider>(MockBehavior.Strict).Object, new StyleResource(null));
             var entryMock = CreateEntry(valueType, value, new UiSliderMetadata(0f, 10f, 1f));
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(1.0f);
 
             // Assert
@@ -109,7 +109,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             unityGuiMock.Verify(x => x.GetContent(invalidMetadataText), Times.Once);

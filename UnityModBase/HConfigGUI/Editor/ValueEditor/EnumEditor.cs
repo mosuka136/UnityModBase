@@ -23,7 +23,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return entry.ValueType.IsEnum;
         }
 
-        public void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsEnum)
                 return;
@@ -34,27 +34,27 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
             const string expandedEntryKey = "expandedEntryKey";
 
-            var key = state.GetKey(entry, "_enumExpanded");
-            var expanded = state.GetBool(key, false);
+            var key = context.GetKey(entry, "_enumExpanded");
+            var expanded = context.GetBool(key, false);
 
             if (UnityGui.Button(EnumHelper.GetDescription(entry.ValueType, value), UnityGui.ExpandWidth(true)))
             {
                 if (expanded)
                 {
-                    state.SetBool(key, false);
-                    state.SetText(expandedEntryKey, string.Empty);
+                    context.SetBool(key, false);
+                    context.SetText(expandedEntryKey, string.Empty);
                 }
                 else
                 {
-                    if (state.GetText(expandedEntryKey) != string.Empty)
-                        state.SetBool(state.GetText(expandedEntryKey), false);
-                    state.SetBool(key, true);
-                    state.SetText(expandedEntryKey, key);
+                    if (context.GetText(expandedEntryKey) != string.Empty)
+                        context.SetBool(context.GetText(expandedEntryKey), false);
+                    context.SetBool(key, true);
+                    context.SetText(expandedEntryKey, key);
                 }
             }
         }
 
-        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsEnum)
                 return;
@@ -63,8 +63,8 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (value == null)
                 return;
 
-            var key = state.GetKey(entry, "_enumExpanded");
-            var expanded = state.GetBool(key, false);
+            var key = context.GetKey(entry, "_enumExpanded");
+            var expanded = context.GetBool(key, false);
             if (!expanded)
                 return;
 
@@ -75,19 +75,19 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             currentIndex = currentIndex >= 0 ? currentIndex : 0;
 
             UnityGui.BeginHorizontal();
-            UnityGui.Space(state.GetFloat(GuiStateStore.LeadingBlankWidthKey, 0f));
+            UnityGui.Space(context.GetFloat(GuiContext.LeadingBlankWidthKey, 0f));
 
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             int newIndex = UnityGui.SelectionGrid(currentIndex, names, 1, UnityGui.ExpandWidth(true));
             UnityGui.EndVertical();
 
-            UnityGui.Space(state.GetFloat(GuiStateStore.RearBlankWidthKey, 0f));
+            UnityGui.Space(context.GetFloat(GuiContext.RearBlankWidthKey, 0f));
             UnityGui.EndHorizontal();
 
             if (currentIndex != newIndex)
             {
-                state.SetBool(key, false);
-                changeSink.SetValue(entry, values.GetValue(mapIndexList[newIndex]));
+                context.SetBool(key, false);
+                context.ChangeSink.SetValue(entry, values.GetValue(mapIndexList[newIndex]));
             }
         }
 

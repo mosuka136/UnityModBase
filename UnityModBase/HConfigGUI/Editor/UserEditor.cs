@@ -21,10 +21,9 @@ namespace UnityModBase.HConfigGUI.Editor
             GroupEditor = new GroupEditor(
                 unityService,
                 unityGui,
-                guiContext.GuiStateStore,
+                guiContext,
                 styleProvider,
-                layoutProvider,
-                guiContext.ChangeSink);
+                layoutProvider);
         }
 
         public override void Draw<T>(UserBindingBase<T> user)

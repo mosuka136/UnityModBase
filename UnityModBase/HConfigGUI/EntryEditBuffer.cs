@@ -37,9 +37,7 @@ namespace UnityModBase.HConfigGUI
         {
             if (string.IsNullOrEmpty(key))
                 throw new ArgumentException("Key cannot be null or empty.", nameof(key));
-            if (entry == null)
-                throw new ArgumentNullException(nameof(entry));
-            _buffer[key] = entry;
+            _buffer[key] = entry ?? throw new ArgumentNullException(nameof(entry));
             IsUsing = true;
         }
 
@@ -84,6 +82,9 @@ namespace UnityModBase.HConfigGUI
 
         public bool Commit(string key, IEntryBinding entry, Func<object, object> transform = null)
         {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("Key cannot be null or empty.", nameof(key));
+
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry));
 

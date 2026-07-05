@@ -22,7 +22,6 @@ namespace UnityModBase.HConfigGUI
         public PopupEditor PopupEditor { get; private set; }
 
         public GuiContext GuiContext { get; private set; }
-        public GuiStateStore GuiStateStore { get; private set; }
         public LayoutResource LayoutProvider { get; private set; }
 
         public override void Awake()
@@ -37,7 +36,6 @@ namespace UnityModBase.HConfigGUI
                 Translator.DefaultLanguage = BConfigManager.SetLanguage.Value;
 
                 GuiContext = new GuiContext();
-                GuiStateStore = GuiContext.GuiStateStore;
                 LayoutProvider = new LayoutResource(UnityGui);
 
                 User = new UserBinding(UserManager.UserContexts);
@@ -47,8 +45,8 @@ namespace UnityModBase.HConfigGUI
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
                 UserEditor = userEditor;
 
-                PopupEditor = new PopupEditor(UnityGui, styleProvider, GuiStateStore);
-                GuiStateStore.SetBool(GuiStateStore.IsPopupOpenKey, false);
+                PopupEditor = new PopupEditor(UnityGui, styleProvider, GuiContext);
+                GuiContext.SetBool(GuiContext.IsPopupOpenKey, false);
 
                 GuiPipe.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
                 GuiPipe.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
@@ -81,7 +79,7 @@ namespace UnityModBase.HConfigGUI
             if (!IsVisible)
                 return;
 
-            if (GuiStateStore.GetBool(GuiStateStore.IsPopupOpenKey))
+            if (GuiContext.GetBool(GuiContext.IsPopupOpenKey))
             {
                 PopupEditor.DrawPopup(GuiPipe.PopupTitle, GuiPipe.PopupWindowAction, GuiPipe.ClosePopupWindowAction);
                 return;

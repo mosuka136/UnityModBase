@@ -53,12 +53,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var editor = new NumberEditor(unityGuiMock.Object);
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("NonEditableEntry", valueType, value);
             var originalValue = entryMock.Object.Value;
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(1.0f);
 
             // Assert
@@ -79,12 +79,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
                 .Returns(currentValueText);
             var editor = new NumberEditor(unityGuiMock.Object);
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("SameNumberEntry", typeof(int), currentValue);
             var key = state.GetKey(entryMock.Object, "_number");
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(1.0f);
 
             // Assert
@@ -112,12 +112,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
                 DelayApplyDuration = 0.5f,
             };
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("ChangedNumberEntry", typeof(int), currentValue);
             var key = state.GetKey(entryMock.Object, "_number");
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
             changeSink.FlushValue(0.4f);
             var valueBeforeDelayExpires = entryMock.Object.Value;
             changeSink.FlushValue(0.1f);

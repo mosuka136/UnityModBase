@@ -50,10 +50,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("NotEnumEntry", typeof(string), "text");
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.Equal("text", entryMock.Object.Value);
@@ -68,10 +68,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("NullEnumEntry", typeof(VisibleEnum), null);
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
 
             // Act
-            editor.DrawValue(entryMock.Object, state, changeSink);
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.Null(entryMock.Object.Value);
@@ -94,7 +94,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var key = state.GetKey(entryMock.Object, "_enumExpanded");
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.False(state.GetBool(key, true));
@@ -121,7 +121,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetText("expandedEntryKey", key);
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.False(state.GetBool(key, true));
@@ -149,7 +149,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetBool(previousKey, true);
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.False(state.GetBool(previousKey, true));
@@ -175,7 +175,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var key = state.GetKey(entryMock.Object, "_enumExpanded");
 
             // Act
-            editor.DrawValue(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawValue(entryMock.Object, state);
 
             // Assert
             Assert.True(state.GetBool(key, false));
@@ -193,7 +193,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateEntry("NotEnumEntry", typeof(string), "text");
 
             // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Equal("text", entryMock.Object.Value);
@@ -209,7 +209,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateEntry("NullEnumEntry", typeof(VisibleEnum), null);
 
             // Act
-            editor.DrawExtra(entryMock.Object, new GuiStateStore(), new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, new GuiStateStore());
 
             // Assert
             Assert.Null(entryMock.Object.Value);
@@ -228,7 +228,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetBool(key, false);
 
             // Act
-            editor.DrawExtra(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, state);
 
             // Assert
             Assert.Equal(VisibleEnum.Visible, entryMock.Object.Value);
@@ -262,7 +262,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             state.SetBool(key, true);
 
             // Act
-            editor.DrawExtra(entryMock.Object, state, new EntryChangeSink());
+            editor.DrawExtra(entryMock.Object, state);
 
             // Assert
             Assert.True(state.GetBool(key, false));
@@ -301,10 +301,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             var key = state.GetKey(entryMock.Object, "_enumExpanded");
             state.SetBool(key, true);
-            var changeSink = new EntryChangeSink();
+            var changeSink = state.ChangeSink;
 
             // Act
-            editor.DrawExtra(entryMock.Object, state, changeSink);
+            editor.DrawExtra(entryMock.Object, state);
 
             // Assert
             Assert.False(state.GetBool(key, true));

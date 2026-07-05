@@ -21,7 +21,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return base.CanEdit(entry) && entry.Metadata is UiSliderMetadata;
         }
 
-        public override void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public override void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsPrimitive || entry.ValueType == typeof(bool) || entry.ValueType == typeof(char))
                 return;
@@ -33,8 +33,8 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 return;
             }
 
-            var key = state.GetKey(entry, "_slider");
-            var valueString = state.GetText(key, entry.Value.ToString());
+            var key = context.GetKey(entry, "_slider");
+            var valueString = context.GetText(key, entry.Value.ToString());
             var value = float.TryParse(valueString, out var result) ? result : metadata.Min;
             var displayValue = UnityService.Clamp(value, metadata.Min, metadata.Max);
             var newSliderValue = UnityGui.HorizontalSlider(
@@ -57,8 +57,8 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
             if (valueString != newValueString)
             {
-                state.SetText(key, newValueString);
-                SetValue(entry, newValueString, changeSink);
+                context.SetText(key, newValueString);
+                SetValue(entry, newValueString, context.ChangeSink);
             }
         }
     }

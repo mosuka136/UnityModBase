@@ -19,12 +19,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return false;
         }
 
-        public void DrawValue(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawValue(IEntryBinding entry, GuiContext contextk)
         {
             UnityGui.Label("Unsupported type: " + entry.ValueType.FullName);
         }
 
-        public void DrawExtra(IEntryBinding entry, GuiStateStore state, EntryChangeSink changeSink)
+        public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
     }
