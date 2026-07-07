@@ -64,7 +64,7 @@ namespace UnityModBase.Test.HConfigGUI
             var eventCallCount = 0;
             Action<IEntryBinding> handler = _ => eventCallCount++;
             entryMock.SetupGet(x => x.Value).Returns(value);
-            GuiPipe.OnEntryValueChanged += handler;
+            sink.OnEntryValueChanged += handler;
 
             try
             {
@@ -78,7 +78,7 @@ namespace UnityModBase.Test.HConfigGUI
             }
             finally
             {
-                GuiPipe.OnEntryValueChanged -= handler;
+                sink.OnEntryValueChanged -= handler;
             }
         }
 
@@ -100,7 +100,7 @@ namespace UnityModBase.Test.HConfigGUI
             };
             entryMock.SetupGet(x => x.Value).Returns(originalValue);
             entryMock.SetupSet(x => x.Value = newValue);
-            GuiPipe.OnEntryValueChanged += handler;
+            sink.OnEntryValueChanged += handler;
 
             try
             {
@@ -115,7 +115,7 @@ namespace UnityModBase.Test.HConfigGUI
             }
             finally
             {
-                GuiPipe.OnEntryValueChanged -= handler;
+                sink.OnEntryValueChanged -= handler;
             }
         }
 
@@ -139,7 +139,7 @@ namespace UnityModBase.Test.HConfigGUI
             };
             entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
             entryMock.SetupSet(x => x.Value = delayedValue).Callback<object>(x => storedValue = x);
-            GuiPipe.OnEntryValueChanged += handler;
+            sink.OnEntryValueChanged += handler;
 
             try
             {
@@ -166,12 +166,12 @@ namespace UnityModBase.Test.HConfigGUI
             }
             finally
             {
-                GuiPipe.OnEntryValueChanged -= handler;
+                sink.OnEntryValueChanged -= handler;
             }
         }
 
         [Fact]
-        public void FlushValue_WhenBufferedValueIsInvalid_DiscardsValueAndRaisesEditFinishedOnly()
+        public void FlushValue_WhenBufferedValueIsInvalid_DiscardsValueWithoutRaisingChangedEvent()
         {
             var sink = new EntryChangeSink();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
@@ -179,11 +179,8 @@ namespace UnityModBase.Test.HConfigGUI
             entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
             entryMock.SetupGet(x => x.Value).Returns(10);
             var changedCount = 0;
-            var finishedCount = 0;
             Action<IEntryBinding> changedHandler = _ => changedCount++;
-            Action<IEntryBinding> finishedHandler = _ => finishedCount++;
-            GuiPipe.OnEntryValueChanged += changedHandler;
-            GuiPipe.OnEntryEditFinished += finishedHandler;
+            sink.OnEntryValueChanged += changedHandler;
 
             try
             {
@@ -192,14 +189,12 @@ namespace UnityModBase.Test.HConfigGUI
                 sink.FlushValue(0.5f);
 
                 Assert.Equal(0, changedCount);
-                Assert.Equal(1, finishedCount);
                 Assert.False(editBuffer.IsUsing);
                 entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
             }
             finally
             {
-                GuiPipe.OnEntryValueChanged -= changedHandler;
-                GuiPipe.OnEntryEditFinished -= finishedHandler;
+                sink.OnEntryValueChanged -= changedHandler;
             }
         }
 
@@ -249,7 +244,7 @@ namespace UnityModBase.Test.HConfigGUI
             entryMock.SetupGet(x => x.Key).Returns("TestKey");
             entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
             entryMock.Setup(x => x.ResetValue()).Callback(() => storedValue = currentValue);
-            GuiPipe.OnEntryValueReset += handler;
+            sink.OnEntryValueReset += handler;
 
             try
             {
@@ -268,7 +263,7 @@ namespace UnityModBase.Test.HConfigGUI
             }
             finally
             {
-                GuiPipe.OnEntryValueReset -= handler;
+                sink.OnEntryValueReset -= handler;
             }
         }
 
@@ -284,7 +279,7 @@ namespace UnityModBase.Test.HConfigGUI
             var eventCallCount = 0;
             Action<IEntryBinding> handler = _ => eventCallCount++;
             entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
-            GuiPipe.OnEntryValueChanged += handler;
+            sink.OnEntryValueChanged += handler;
 
             try
             {
@@ -301,7 +296,7 @@ namespace UnityModBase.Test.HConfigGUI
             }
             finally
             {
-                GuiPipe.OnEntryValueChanged -= handler;
+                sink.OnEntryValueChanged -= handler;
             }
         }
 

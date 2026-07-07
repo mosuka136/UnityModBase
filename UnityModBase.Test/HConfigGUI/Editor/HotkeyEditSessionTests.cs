@@ -73,7 +73,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void Constructor_WhenEntryValueResetInvoked_CancelsEdit()
+        public void CancelEdit_WhenEditing_ClearsEditingState()
         {
             var session = new HotkeyEditSession
             {
@@ -86,7 +86,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 PreviewKeyboardChord = new KeyboardChord(UnityProvider.Instance, new KeyboardTrigger(Key.A, UnityProvider.Instance))
             };
 
-            GuiPipe.InvokeOnEntryValueReset(null);
+            session.CancelEdit();
 
             Assert.Null(session.Entry);
             Assert.Equal(HotkeyEditState.Idle, session.State);
