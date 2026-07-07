@@ -20,7 +20,7 @@ namespace UnityModBase.HGuiSpace
             UnityGui = unityGui;
         }
 
-        public virtual void Draw(IEnumerable<UserContext> users, ref string selectedKey)
+        public virtual void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
             if (users == null)
                 throw new ArgumentNullException(nameof(users));

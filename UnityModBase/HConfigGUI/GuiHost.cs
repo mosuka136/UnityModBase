@@ -21,7 +21,6 @@ namespace UnityModBase.HConfigGUI
     {
         public PopupEditor PopupEditor { get; private set; }
 
-        public GuiContext GuiContext { get; private set; }
         public LayoutResource LayoutProvider { get; private set; }
 
         public override void Awake()
@@ -31,19 +30,17 @@ namespace UnityModBase.HConfigGUI
                 UnityGui = UnityGuiProvider.Instance;
                 var styleProvider = new StyleResource(UnityGui);
                 StyleProvider = styleProvider;
+                LayoutProvider = new LayoutResource(UnityGui);
                 base.Awake();
 
                 Translator.DefaultLanguage = BConfigManager.SetLanguage.Value;
 
                 GuiContextKey = nameof(HConfigGUI);
-                LayoutProvider = new LayoutResource(UnityGui);
-
                 Users = UserManager.UserContexts;
                 foreach (var context in Users)
                     RegisterContext(context);
                 UserManager.OnUserRegistered += RegisterContext;
-
-                SynchronizeSelectedUser();
+                CurrentContext = GetContext(_selectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
@@ -74,22 +71,18 @@ namespace UnityModBase.HConfigGUI
         private void RegisterContext(UserContext context)
         {
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
-            context.AddContext(nameof(HConfigGUI), guiContext);
+            context.AddContext(GuiContextKey, guiContext);
         }
 
         public override void Update()
         {
             base.Update();
-            (UserEditor as UserEditor)?.Update(GuiContext, UnityService.UnscaledDeltaTime);
+            (UserEditor as UserEditor)?.Update(CurrentContext as GuiContext, UnityService.UnscaledDeltaTime);
         }
 
         public override void DrawWindow(int id)
         {
-            var selectedUserKey = _selectedUserKey;
             base.DrawWindow(id);
-
-            if (selectedUserKey != _selectedUserKey)
-                SynchronizeSelectedUser();
         }
 
         public override void OnGUI()
@@ -97,9 +90,10 @@ namespace UnityModBase.HConfigGUI
             if (!IsVisible)
                 return;
 
-            if (GuiContext.Popup.IsOpen)
+            var context = CurrentContext as GuiContext;
+            if (context.Popup.IsOpen == true)
             {
-                PopupEditor.DrawPopup(GuiContext);
+                PopupEditor.DrawPopup(context);
                 return;
             }
 
@@ -109,11 +103,6 @@ namespace UnityModBase.HConfigGUI
         public void OnDestroy()
         {
             UserManager.OnUserRegistered -= RegisterContext;
-        }
-
-        private void SynchronizeSelectedUser()
-        {
-            GuiContext = GetContext(_selectedUserKey) as GuiContext ?? GuiContext.InvalidGuiContext;
         }
     }
 }

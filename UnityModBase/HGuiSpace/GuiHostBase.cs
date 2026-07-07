@@ -15,9 +15,10 @@ namespace UnityModBase.HGuiSpace
 
         protected string _selectedUserKey = string.Empty;
         public string SelectedUserKey => _selectedUserKey;
-        public static string GuiContextKey { get; protected set; } = string.Empty;
+        public string GuiContextKey { get; protected set; } = string.Empty;
 
         public IEnumerable<UserContext> Users { get; protected set; }
+        public IUserContext CurrentContext { get; protected set; }
         public UserEditorBase UserEditor { get; protected set; }
         public ToastEditor ToastEditor { get; protected set; }
         public TooltipEditor TooltipEditor { get; protected set; }
@@ -80,9 +81,14 @@ namespace UnityModBase.HGuiSpace
 
         public virtual void DrawWindow(int id)
         {
+            var selectedUserKey = _selectedUserKey;
+
             UnityGui.BeginArea(new Rect(10f, 30f, WindowRect.width - 20f, WindowRect.height - 40f));
-            UserEditor.Draw(Users, ref _selectedUserKey);
+            UserEditor.Draw(Users, ref _selectedUserKey, CurrentContext);
             UnityGui.EndArea();
+
+            if (selectedUserKey != _selectedUserKey)
+                CurrentContext = GetContext(_selectedUserKey);
 
             ToastEditor.DrawToast(WindowRect);
             TooltipEditor.DrawTooltip(WindowRect);
@@ -134,7 +140,7 @@ namespace UnityModBase.HGuiSpace
             }
         }
 
-        public static IUserContext GetContext(string key)
+        public IUserContext GetContext(string key)
         {
             if (string.IsNullOrEmpty(key))
                 throw new ArgumentNullException(nameof(key));

@@ -23,9 +23,9 @@ namespace UnityModBase.HLogGUI
             ListEditor = new ListEditor(unityGui, unityService, styleProvider, toastEditor);
         }
 
-        public override void Draw(IEnumerable<UserContext> users, ref string selectedKey)
+        public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
-            base.Draw(users, ref selectedKey);
+            base.Draw(users, ref selectedKey, guiContext);
             ListEditor.Render(UserBinding.GetData(selectedKey));
         }
     }

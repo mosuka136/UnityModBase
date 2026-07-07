@@ -25,11 +25,11 @@ namespace UnityModBase.HConfigGUI.Editor
                 layoutProvider);
         }
 
-        public override void Draw(IEnumerable<UserContext> users, ref string selectedKey)
+        public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
-            base.Draw(users, ref selectedKey);
-            var context = GuiHost.GetContext(selectedKey) as GuiContext;
-            GroupEditor.Draw(context?.UserData, context);
+            base.Draw(users, ref selectedKey, guiContext);
+            var context = guiContext as GuiContext;
+            GroupEditor.Draw(context.UserData, context);
         }
 
         public void Update(GuiContext context, float unscaledDeltaTime)
