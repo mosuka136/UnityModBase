@@ -19,31 +19,31 @@ namespace UnityModBase.Test.HUserSpace
         [InlineData(null)]
         [InlineData("")]
         [InlineData("   ")]
-        public void AddContext_WhenKeyIsInvalid_ReturnsFalse(string key)
+        public void AddContext_WhenKeyIsInvalid_ThrowsArgumentException(string key)
         {
             // Arrange
             using var context = new UserContext("user", "User");
             using var child = new TrackingContext();
 
             // Act
-            var result = context.AddContext(key, child);
+            var exception = Assert.Throws<ArgumentException>(() => context.AddContext(key, child));
 
             // Assert
-            Assert.False(result);
+            Assert.Equal("key", exception.ParamName);
         }
 
         [Fact]
-        public void AddContext_WhenContextIsNull_ReturnsFalse()
+        public void AddContext_WhenContextIsNull_ThrowsArgumentNullException()
         {
             // Arrange
             using var context = new UserContext("user", "User");
 
             // Act
-            var result = context.AddContext("child", null);
+            var exception = Assert.Throws<ArgumentNullException>(() => context.AddContext("child", null));
 
             // Assert
-            Assert.False(result);
-            Assert.Null(context.GetContext("child"));
+            Assert.Equal("context", exception.ParamName);
+            Assert.Same(UserContext.InvalidUserContext, context.GetContext("child"));
         }
 
         [Fact]
@@ -68,17 +68,30 @@ namespace UnityModBase.Test.HUserSpace
         [InlineData(null)]
         [InlineData("")]
         [InlineData("   ")]
-        [InlineData("missing")]
-        public void GetContext_WhenKeyIsInvalidOrMissing_ReturnsNull(string key)
+        public void GetContext_WhenKeyIsInvalid_ThrowsArgumentException(string key)
         {
             // Arrange
             using var context = new UserContext("user", "User");
 
             // Act
-            var result = context.GetContext(key);
+            var exception = Assert.Throws<ArgumentException>(() => context.GetContext(key));
 
             // Assert
-            Assert.Null(result);
+            Assert.Equal("key", exception.ParamName);
+        }
+
+        [Fact]
+        public void GetContext_WhenKeyIsMissing_ReturnsInvalidContext()
+        {
+            // Arrange
+            using var context = new UserContext("user", "User");
+
+            // Act
+            var result = context.GetContext("missing");
+
+            // Assert
+            Assert.Same(UserContext.InvalidUserContext, result);
+            Assert.False(((UserContext)result).IsValid);
         }
 
         [Fact]
@@ -101,8 +114,8 @@ namespace UnityModBase.Test.HUserSpace
             Assert.True(first.IsDisposed);
             Assert.True(second.IsDisposed);
             Assert.Null(context.Service.LogDatabase);
-            Assert.Null(context.GetContext("first"));
-            Assert.Null(context.GetContext("second"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetContext("first"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetContext("second"));
         }
 
         private sealed class TrackingContext : IUserContext

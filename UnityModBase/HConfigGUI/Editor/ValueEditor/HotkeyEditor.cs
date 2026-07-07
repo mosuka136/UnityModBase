@@ -29,7 +29,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (!typeof(Hotkey).IsAssignableFrom(entry.ValueType))
                 return;
 
-            var valueString = GetHotkeyDisplayString(entry, context);
+            var valueString = GetHotkeyDisplayString(entry);
             if (valueString == null)
                 return;
 
@@ -71,7 +71,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 {
                     chord.Clear();
                     Session.SetWorkingChord(chord, context.ChangeSink);
-                    SetPopupWindow(context, context.ChangeSink);
+                    SetPopupWindow(context);
                 }
 
                 if (value.Count > 1 && UnityGui.Button(TranslatorResource.Remove, UnityGui.ExpandWidth(false)))
@@ -84,7 +84,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (UnityGui.Button(TranslatorResource.Add, UnityGui.ExpandWidth(true)))
             {
                 Session.AddChord(new HotkeyChord(value.UnityService), context.ChangeSink);
-                SetPopupWindow(context, context.ChangeSink);
+                SetPopupWindow(context);
             }
             UnityGui.EndHorizontal();
 
@@ -92,15 +92,15 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             UnityGui.EndHorizontal();
         }
 
-        public void SetPopupWindow(GuiContext context, EntryChangeSink changeSink)
+        public void SetPopupWindow(GuiContext context)
         {
-            context.SetBool(GuiContext.IsPopupOpenKey, true);
-            GuiPipe.PopupTitle = TranslatorResource.RecordHotkeyPopupTitle;
-            GuiPipe.PopupWindowAction = () => RecordHotkey(context, changeSink);
-            GuiPipe.ClosePopupWindowAction = Session.CancelRecord;
+            context.Popup.IsOpen = true;
+            context.Popup.Title = TranslatorResource.RecordHotkeyPopupTitle;
+            context.Popup.DrawAction = () => RecordHotkey(context);
+            context.Popup.CloseAction = Session.CancelRecord;
         }
 
-        public void RecordHotkey(GuiContext context, EntryChangeSink changeSink)
+        public void RecordHotkey(GuiContext context)
         {
             if (!Session.IsRecording)
                 return;
@@ -113,12 +113,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             UnityGui.FlexibleSpace();
             if (UnityGui.Button(TranslatorResource.Apply, UnityGui.ExpandWidth(true)))
             {
-                Session.ConfirmRecord(changeSink);
-                context.SetBool(GuiContext.IsPopupOpenKey, false);
+                Session.ConfirmRecord(context.ChangeSink);
+                context.Popup.IsOpen = false;
             }
         }
 
-        public string GetHotkeyDisplayString(IEntryBinding entry, GuiContext context)
+        public string GetHotkeyDisplayString(IEntryBinding entry)
         {
             if (Session.Entry == entry)
                 return Session.WorkingValue?.ToString() ?? string.Empty;

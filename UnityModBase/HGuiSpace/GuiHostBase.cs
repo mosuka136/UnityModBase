@@ -1,17 +1,23 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HGuiSpace
 {
-    public abstract class GuiHostBase<T> : MonoBehaviour where T : class
+    public abstract class GuiHostBase : MonoBehaviour
     {
         public readonly int WindowID = Guid.NewGuid().GetHashCode();
 
-        public UserBindingBase<T> User { get; protected set; }
+        protected string _selectedUserKey = string.Empty;
+        public string SelectedUserKey => _selectedUserKey;
+        public static string GuiContextKey { get; protected set; } = string.Empty;
+
+        public IEnumerable<UserContext> Users { get; protected set; }
         public UserEditorBase UserEditor { get; protected set; }
         public ToastEditor ToastEditor { get; protected set; }
         public TooltipEditor TooltipEditor { get; protected set; }
@@ -37,6 +43,8 @@ namespace UnityModBase.HGuiSpace
 
                 ToastEditor = new ToastEditor(UnityService, UnityGui, StyleProvider);
                 TooltipEditor = new TooltipEditor(UnityService, UnityGui, StyleProvider);
+
+                _selectedUserKey = GetDefaultUserKey();
 
                 BLog.Debug($"[{WindowID}] GUI host created.");
             }
@@ -73,7 +81,7 @@ namespace UnityModBase.HGuiSpace
         public virtual void DrawWindow(int id)
         {
             UnityGui.BeginArea(new Rect(10f, 30f, WindowRect.width - 20f, WindowRect.height - 40f));
-            UserEditor.Draw(User);
+            UserEditor.Draw(Users, ref _selectedUserKey);
             UnityGui.EndArea();
 
             ToastEditor.DrawToast(WindowRect);
@@ -124,6 +132,23 @@ namespace UnityModBase.HGuiSpace
                 IsVisible = true;
                 BLog.Debug($"[{WindowID}] GUI shown.");
             }
+        }
+
+        public static IUserContext GetContext(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentNullException(nameof(key));
+
+            var context = UserManager.GetUser(key);
+            if (context.IsValid)
+                return context.GetContext(GuiContextKey);
+            else
+                return UserContext.InvalidUserContext;
+        }
+
+        public string GetDefaultUserKey()
+        {
+            return UserManager.GetDefaultUserId();
         }
     }
 }

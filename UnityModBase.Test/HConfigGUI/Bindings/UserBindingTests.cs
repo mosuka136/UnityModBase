@@ -7,7 +7,7 @@ using System.IO;
 
 namespace UnityModBase.Test.HConfigGUI.Bindings
 {
-    public class UserBindingTests : IDisposable
+    public class GroupBindingCreateRootTests : IDisposable
     {
         private readonly List<string> _registeredUserIds = new List<string>();
 
@@ -19,14 +19,13 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         }
 
         [Fact]
-        public void Constructor_UserWithoutConfig_ReturnsEmptyRootGroupWithUserIdentity()
+        public void CreateRoot_UserWithoutConfig_ReturnsEmptyRootGroupWithUserIdentity()
         {
             // Arrange
             var context = CreateUser();
 
             // Act
-            using var binding = new UserBinding();
-            var result = binding.GetData(context.UserId);
+            var result = GroupBinding.CreateRoot(context);
 
             // Assert
             Assert.NotNull(result);
@@ -37,7 +36,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         }
 
         [Fact]
-        public void Constructor_UserWithTablesAndEntries_ReturnsGroupsMatchingConfigStructure()
+        public void CreateRoot_UserWithTablesAndEntries_ReturnsGroupsMatchingConfigStructure()
         {
             // Arrange
             var context = CreateUser();
@@ -59,8 +58,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             context.Service.Config.CreateTable("SecondTable", secondTableName, secondTableDescription);
 
             // Act
-            using var binding = new UserBinding();
-            var result = binding.GetData(context.UserId);
+            var result = GroupBinding.CreateRoot(context);
 
             // Assert
             Assert.NotNull(result);

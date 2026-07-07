@@ -2,16 +2,11 @@ using System;
 using System.Linq;
 using UnityModBase.BSpace;
 using UnityModBase.HConfigGUI.Bindings;
-using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigGUI
 {
     public static class GuiPipe
     {
-        public static Translator PopupTitle { get; set; }
-        public static Action PopupWindowAction { get; set; }
-        public static Action ClosePopupWindowAction { get; set; }
-
         public static event Action<IEntryBinding> OnEntryValueChanged;
         public static event Action<IEntryBinding> OnEntryValueReset;
         public static event Action<IEntryBinding> OnEntryEditFinished;

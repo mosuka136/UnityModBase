@@ -236,9 +236,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         public void DrawExtra_WhenRecordClicked_ClearsChordAndOpensPopup()
         {
             // Arrange
-            var originalPopupTitle = GuiPipe.PopupTitle;
-            var originalPopupWindowAction = GuiPipe.PopupWindowAction;
-            var originalClosePopupWindowAction = GuiPipe.ClosePopupWindowAction;
             Hotkey.GlobalValid = true;
             GUIStyle boxStyle = null;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
@@ -275,17 +272,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
                 Assert.Same(chord, editor.Session.WorkingChord);
                 Assert.Equal(HotkeyEditState.WaitingPress, editor.Session.State);
                 Assert.False(Hotkey.GlobalValid);
-                Assert.True(state.GetBool(GuiStateStore.IsPopupOpenKey));
-                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, GuiPipe.PopupTitle);
-                Assert.NotNull(GuiPipe.PopupWindowAction);
-                Assert.NotNull(GuiPipe.ClosePopupWindowAction);
+                Assert.True(state.Popup.IsOpen);
+                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, state.Popup.Title);
+                Assert.NotNull(state.Popup.DrawAction);
+                Assert.NotNull(state.Popup.CloseAction);
             }
             finally
             {
                 Hotkey.GlobalValid = true;
-                GuiPipe.PopupTitle = originalPopupTitle;
-                GuiPipe.PopupWindowAction = originalPopupWindowAction;
-                GuiPipe.ClosePopupWindowAction = originalClosePopupWindowAction;
             }
         }
 
@@ -344,9 +338,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         public void DrawExtra_WhenAddClicked_AddsChordAndOpensPopup()
         {
             // Arrange
-            var originalPopupTitle = GuiPipe.PopupTitle;
-            var originalPopupWindowAction = GuiPipe.PopupWindowAction;
-            var originalClosePopupWindowAction = GuiPipe.ClosePopupWindowAction;
             Hotkey.GlobalValid = true;
             GUIStyle boxStyle = null;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
@@ -383,17 +374,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
                 Assert.False(editor.Session.WorkingChord.IsValid);
                 Assert.Equal(HotkeyEditState.WaitingPress, editor.Session.State);
                 Assert.False(Hotkey.GlobalValid);
-                Assert.True(state.GetBool(GuiStateStore.IsPopupOpenKey));
-                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, GuiPipe.PopupTitle);
-                Assert.NotNull(GuiPipe.PopupWindowAction);
-                Assert.NotNull(GuiPipe.ClosePopupWindowAction);
+                Assert.True(state.Popup.IsOpen);
+                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, state.Popup.Title);
+                Assert.NotNull(state.Popup.DrawAction);
+                Assert.NotNull(state.Popup.CloseAction);
             }
             finally
             {
                 Hotkey.GlobalValid = true;
-                GuiPipe.PopupTitle = originalPopupTitle;
-                GuiPipe.PopupWindowAction = originalPopupWindowAction;
-                GuiPipe.ClosePopupWindowAction = originalClosePopupWindowAction;
             }
         }
 
@@ -401,9 +389,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         public void SetPopupWindow_WhenCalled_SetsPopupStateAndCloseActionCancelsRecording()
         {
             // Arrange
-            var originalPopupTitle = GuiPipe.PopupTitle;
-            var originalPopupWindowAction = GuiPipe.PopupWindowAction;
-            var originalClosePopupWindowAction = GuiPipe.ClosePopupWindowAction;
             Hotkey.GlobalValid = false;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var editor = CreateEditor(unityGuiMock);
@@ -417,20 +402,19 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.WorkingValue = originalHotkey.Clone();
             editor.Session.WorkingChord = new HotkeyChord(unityProvider);
             var state = new GuiStateStore();
-            var changeSink = new EntryChangeSink();
 
             try
             {
                 // Act
-                editor.SetPopupWindow(state, changeSink);
-                GuiPipe.ClosePopupWindowAction();
-                GuiPipe.PopupWindowAction();
+                editor.SetPopupWindow(state);
+                state.Popup.CloseAction();
+                state.Popup.DrawAction();
 
                 // Assert
-                Assert.True(state.GetBool(GuiStateStore.IsPopupOpenKey));
-                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, GuiPipe.PopupTitle);
-                Assert.NotNull(GuiPipe.PopupWindowAction);
-                Assert.NotNull(GuiPipe.ClosePopupWindowAction);
+                Assert.True(state.Popup.IsOpen);
+                Assert.Same(TranslatorResource.RecordHotkeyPopupTitle, state.Popup.Title);
+                Assert.NotNull(state.Popup.DrawAction);
+                Assert.NotNull(state.Popup.CloseAction);
                 Assert.Equal(HotkeyEditState.Expanded, editor.Session.State);
                 Assert.True(Hotkey.GlobalValid);
                 Assert.True(originalHotkey.Valid);
@@ -439,9 +423,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             finally
             {
                 Hotkey.GlobalValid = true;
-                GuiPipe.PopupTitle = originalPopupTitle;
-                GuiPipe.PopupWindowAction = originalPopupWindowAction;
-                GuiPipe.ClosePopupWindowAction = originalClosePopupWindowAction;
             }
         }
 
@@ -456,7 +437,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.WorkingValue = null;
 
             // Act
-            var result = editor.GetHotkeyDisplayString(entryMock.Object, new GuiStateStore());
+            var result = editor.GetHotkeyDisplayString(entryMock.Object);
 
             // Assert
             Assert.Equal(string.Empty, result);
@@ -471,7 +452,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = CreateEditor(unityGuiMock);
 
             // Act
-            editor.RecordHotkey(new GuiStateStore(), new EntryChangeSink());
+            editor.RecordHotkey(new GuiStateStore());
 
             // Assert
             unityGuiMock.VerifyNoOtherCalls();
@@ -488,7 +469,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.WorkingValue = workingValue;
 
             // Act
-            var result = editor.GetHotkeyDisplayString(entryMock.Object, new GuiStateStore());
+            var result = editor.GetHotkeyDisplayString(entryMock.Object);
 
             // Assert
             Assert.Equal(workingValue.ToString(), result);
@@ -503,7 +484,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var entryMock = CreateHotkeyEntry(hotkey, "Entry");
 
             // Act
-            var result = editor.GetHotkeyDisplayString(entryMock.Object, new GuiStateStore());
+            var result = editor.GetHotkeyDisplayString(entryMock.Object);
 
             // Assert
             Assert.Equal(hotkey.ToString(), result);

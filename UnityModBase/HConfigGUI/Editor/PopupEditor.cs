@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HProvider;
-using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
@@ -13,48 +12,45 @@ namespace UnityModBase.HConfigGUI.Editor
         public Rect PopupRect { get; private set; }
         public IUnityGuiProvider UnityGui { get; }
         public StyleResource StyleProvider { get; }
-        public GuiContext Context { get; }
 
-        public Translator Title { get; set; }
-        public Action DrawContentAction { get; set; }
-        public Action ClosePopupAction { get; set; }
-
-        public PopupEditor(IUnityGuiProvider unityGui, StyleResource styleProvider, GuiContext context)
+        public PopupEditor(IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             UnityGui = unityGui;
             StyleProvider = styleProvider;
-            Context = context;
 
             float width = UnityGui.ScreenWidth * 0.25f;
             float height = UnityGui.ScreenHeight * 0.15f;
             PopupRect = new Rect((UnityGui.ScreenWidth - width) / 2f, (UnityGui.ScreenHeight - height) / 2f, width, height);
         }
 
-        public void DrawPopup(Translator title, Action drawContentAction, Action closePopupAction)
+        public void DrawPopup(GuiContext context)
         {
-            Title = title;
-            DrawContentAction = drawContentAction;
-            ClosePopupAction = closePopupAction;
+            if (context == null || !context.IsValid)
+                return;
 
             var color = UnityGui.Color;
             UnityGui.Color = new Color(0f, 0f, 0f, 0.55f);
             UnityGui.Box(new Rect(0f, 0f, UnityGui.ScreenWidth, UnityGui.ScreenHeight), string.Empty);
             UnityGui.Color = color;
 
-            PopupRect = UnityGui.ModalWindow(PopupID, PopupRect, DrawPopupWindow, string.Empty, UnityGui.BoxStyle);
+            PopupRect = UnityGui.ModalWindow(PopupID, PopupRect, id => DrawPopupWindow(id, context), string.Empty, UnityGui.BoxStyle);
         }
 
-        private void DrawPopupWindow(int id)
+        private void DrawPopupWindow(int id, GuiContext context)
         {
-            UnityGui.BeginVertical();
-            UnityGui.Label(Title, StyleProvider.PopupTitleStyle, UnityGui.ExpandWidth(true));
+            var title = context.Popup.Title;
+            var drawAction = context.Popup.DrawAction;
+            var closeAction = context.Popup.CloseAction;
 
-            DrawContentAction?.Invoke();
+            UnityGui.BeginVertical();
+            UnityGui.Label(title, StyleProvider.PopupTitleStyle, UnityGui.ExpandWidth(true));
+
+            drawAction?.Invoke();
 
             if (UnityGui.Button(TranslatorResource.Close, UnityGui.ExpandWidth(true)))
             {
-                ClosePopupAction?.Invoke();
-                Context.SetBool(GuiContext.IsPopupOpenKey, false);
+                closeAction?.Invoke();
+                context.Popup.IsOpen = false;
             }
 
             UnityGui.EndVertical();

@@ -43,25 +43,35 @@ namespace UnityModBase.Test.HUserSpace
         [Theory]
         [InlineData(null)]
         [InlineData("")]
-        public void ContainsAndGetUser_WhenIdIsEmpty_ReturnFalseAndNull(string userId)
+        public void ContainsUser_WhenIdIsEmpty_ReturnsFalse(string userId)
         {
             // Act
             var contains = UserManager.ContainsUser(userId);
-            var context = UserManager.GetUser(userId);
 
             // Assert
             Assert.False(contains);
-            Assert.Null(context);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void GetUser_WhenIdIsEmpty_ThrowsArgumentNullException(string userId)
+        {
+            // Act
+            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.GetUser(userId));
+
+            // Assert
+            Assert.Equal("userId", exception.ParamName);
         }
 
         [Fact]
-        public void CreateUser_WhenIdIsEmpty_ReturnsNullWithoutRegistration()
+        public void CreateUser_WhenIdIsEmpty_ThrowsArgumentNullException()
         {
             // Act
-            var context = UserManager.CreateUser(string.Empty, "Name");
+            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.CreateUser(string.Empty, "Name"));
 
             // Assert
-            Assert.Null(context);
+            Assert.Equal("userId", exception.ParamName);
             Assert.Empty(UserManager.UserIds);
             Assert.Empty(UserManager.UserContexts);
         }
@@ -142,7 +152,7 @@ namespace UnityModBase.Test.HUserSpace
             // Assert
             Assert.True(child.IsDisposed);
             Assert.False(UserManager.ContainsUser("user"));
-            Assert.Null(UserManager.GetUser("user"));
+            Assert.Same(UserContext.InvalidUserContext, UserManager.GetUser("user"));
         }
 
         [Theory]

@@ -18,15 +18,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             unityGuiMock.SetupGet(x => x.ScreenWidth).Returns(800f);
             unityGuiMock.SetupGet(x => x.ScreenHeight).Returns(600f);
             var styleResource = new StyleResource(unityGuiMock.Object);
-            var guiStateStore = new GuiStateStore();
 
             // Act
-            var editor = new PopupEditor(unityGuiMock.Object, styleResource, guiStateStore);
+            var editor = new PopupEditor(unityGuiMock.Object, styleResource);
 
             // Assert
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
             Assert.Same(styleResource, editor.StyleProvider);
-            Assert.Same(guiStateStore, editor.Context);
             Assert.Equal(new Rect(300f, 255f, 200f, 90f), editor.PopupRect);
             unityGuiMock.VerifyGet(x => x.ScreenWidth, Times.Exactly(2));
             unityGuiMock.VerifyGet(x => x.ScreenHeight, Times.Exactly(2));
@@ -56,15 +54,15 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 .Returns(updatedPopupRect);
             var styleResource = new StyleResource(unityGuiMock.Object);
             var guiStateStore = new GuiStateStore();
-            var editor = new PopupEditor(unityGuiMock.Object, styleResource, guiStateStore);
+            guiStateStore.Popup.Title = title;
+            guiStateStore.Popup.DrawAction = drawContentAction;
+            guiStateStore.Popup.CloseAction = closePopupAction;
+            var editor = new PopupEditor(unityGuiMock.Object, styleResource);
 
             // Act
-            editor.DrawPopup(title, drawContentAction, closePopupAction);
+            editor.DrawPopup(guiStateStore);
 
             // Assert
-            Assert.Same(title, editor.Title);
-            Assert.Same(drawContentAction, editor.DrawContentAction);
-            Assert.Same(closePopupAction, editor.ClosePopupAction);
             Assert.Equal(originalColor, unityGuiMock.Object.Color);
             Assert.Equal(updatedPopupRect, editor.PopupRect);
             unityGuiMock.VerifySet(x => x.Color = overlayColor, Times.Once);

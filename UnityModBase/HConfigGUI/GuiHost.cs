@@ -17,7 +17,7 @@ namespace UnityModBase.HConfigGUI
     /// 该组件在游戏启动后由 <see cref="GameBootRegistery"/> 创建，负责接收热键并在 OnGUI 中绘制窗口。
     /// </summary>
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase<GroupBinding>
+    public class GuiHost : GuiHostBase
     {
         public PopupEditor PopupEditor { get; private set; }
 
@@ -35,18 +35,21 @@ namespace UnityModBase.HConfigGUI
 
                 Translator.DefaultLanguage = BConfigManager.SetLanguage.Value;
 
-                GuiContext = new GuiContext();
+                GuiContextKey = nameof(HConfigGUI);
                 LayoutProvider = new LayoutResource(UnityGui);
 
-                User = new UserBinding(UserManager.UserContexts);
-                foreach (var context in UserManager.UserContexts)
-                    context.AddContext(nameof(HConfigGUI), new GuiContext());
-                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider, GuiContext);
+                Users = UserManager.UserContexts;
+                foreach (var context in Users)
+                    RegisterContext(context);
+                UserManager.OnUserRegistered += RegisterContext;
+
+                SynchronizeSelectedUser();
+
+                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
                 UserEditor = userEditor;
 
-                PopupEditor = new PopupEditor(UnityGui, styleProvider, GuiContext);
-                GuiContext.SetBool(GuiContext.IsPopupOpenKey, false);
+                PopupEditor = new PopupEditor(UnityGui, styleProvider);
 
                 GuiPipe.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
                 GuiPipe.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
@@ -68,10 +71,25 @@ namespace UnityModBase.HConfigGUI
             }
         }
 
+        private void RegisterContext(UserContext context)
+        {
+            var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
+            context.AddContext(nameof(HConfigGUI), guiContext);
+        }
+
         public override void Update()
         {
             base.Update();
-            (UserEditor as UserEditor)?.Update(UnityService.UnscaledDeltaTime);
+            (UserEditor as UserEditor)?.Update(GuiContext, UnityService.UnscaledDeltaTime);
+        }
+
+        public override void DrawWindow(int id)
+        {
+            var selectedUserKey = _selectedUserKey;
+            base.DrawWindow(id);
+
+            if (selectedUserKey != _selectedUserKey)
+                SynchronizeSelectedUser();
         }
 
         public override void OnGUI()
@@ -79,13 +97,23 @@ namespace UnityModBase.HConfigGUI
             if (!IsVisible)
                 return;
 
-            if (GuiContext.GetBool(GuiContext.IsPopupOpenKey))
+            if (GuiContext.Popup.IsOpen)
             {
-                PopupEditor.DrawPopup(GuiPipe.PopupTitle, GuiPipe.PopupWindowAction, GuiPipe.ClosePopupWindowAction);
+                PopupEditor.DrawPopup(GuiContext);
                 return;
             }
 
             base.OnGUI();
+        }
+
+        public void OnDestroy()
+        {
+            UserManager.OnUserRegistered -= RegisterContext;
+        }
+
+        private void SynchronizeSelectedUser()
+        {
+            GuiContext = GetContext(_selectedUserKey) as GuiContext ?? GuiContext.InvalidGuiContext;
         }
     }
 }

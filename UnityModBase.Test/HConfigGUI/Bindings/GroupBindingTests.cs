@@ -27,27 +27,49 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         }
 
         [Fact]
-        public void Constructor_WithNullValues_UsesSafeDefaultsAndNoChildren()
+        public void Constructor_WithNullNameAndDescription_UsesSafeDefaultsAndNoChildren()
         {
             // Act
-            var result = new GroupBinding(null, null, null, null);
+            var result = new GroupBinding("Group", null, null, null);
 
             // Assert
-            Assert.Equal(string.Empty, result.Key);
+            Assert.Equal("Group", result.Key);
             Assert.NotNull(result.Name);
             Assert.NotNull(result.Description);
             Assert.Empty(result.Children);
         }
 
         [Fact]
-        public void Add_WithNullDuplicateOrSelfReference_IgnoresInvalidChildren()
+        public void Constructor_WhenKeyIsNull_ThrowsArgumentNullException()
+        {
+            // Act
+            var exception = Assert.Throws<ArgumentNullException>(() => new GroupBinding(null, null, null, null));
+
+            // Assert
+            Assert.Equal("key", exception.ParamName);
+        }
+
+        [Fact]
+        public void Add_WhenChildIsNull_ThrowsArgumentNullException()
+        {
+            // Arrange
+            var group = new GroupBinding("Group", null, null);
+
+            // Act
+            var exception = Assert.Throws<ArgumentNullException>(() => group.Add(null));
+
+            // Assert
+            Assert.Equal("child", exception.ParamName);
+        }
+
+        [Fact]
+        public void Add_WithDuplicateOrSelfReference_IgnoresInvalidChildren()
         {
             // Arrange
             var group = new GroupBinding("Group", null, null);
             var childMock = new Mock<INodeBinding>();
 
             // Act
-            group.Add(null);
             group.Add(childMock.Object);
             group.Add(childMock.Object);
             group.Add(group);

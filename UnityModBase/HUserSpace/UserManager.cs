@@ -14,6 +14,11 @@ namespace UnityModBase.HUserSpace
         public static IEnumerable<string> UserIds => _userContexts.Keys;
         public static IEnumerable<UserContext> UserContexts => _userContexts.Values;
 
+        public static string GetDefaultUserId()
+        {
+            return UserIds.FirstOrDefault() ?? string.Empty;
+        }
+
         public static bool ContainsUser(string userId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -50,7 +55,7 @@ namespace UnityModBase.HUserSpace
         public static UserContext CreateUser(string userId, string name)
         {
             if (string.IsNullOrEmpty(userId))
-                return null;
+                throw new ArgumentNullException(nameof(userId), "UserId cannot be null or empty!");
 
             if (_userContexts.ContainsKey(userId))
                 return _userContexts[userId];
@@ -63,12 +68,12 @@ namespace UnityModBase.HUserSpace
         public static UserContext GetUser(string userId)
         {
             if (string.IsNullOrEmpty(userId))
-                return null;
+                throw new ArgumentNullException(nameof(userId), "UserId cannot be null or empty!");
 
             if (_userContexts.TryGetValue(userId, out var context))
                 return context;
 
-            return null;
+            return UserContext.InvalidUserContext;
         }
 
         public static void RemoveUser(string userId)

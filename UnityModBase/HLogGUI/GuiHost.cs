@@ -11,7 +11,7 @@ using UnityModBase.HUserSpace;
 namespace UnityModBase.HLogGUI
 {
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase<EntryListBinding>
+    public class GuiHost : GuiHostBase
     {
         public override void Awake()
         {
@@ -22,7 +22,7 @@ namespace UnityModBase.HLogGUI
                 StyleProvider = styleProvider;
                 base.Awake();
 
-                User = new UserBinding(UserManager.UserContexts);
+                Users = UserManager.UserContexts;
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, ToastEditor);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.ListEditor.IsColumnWidthDirty = true;
                 UserEditor = userEditor;
@@ -46,6 +46,7 @@ namespace UnityModBase.HLogGUI
 
         public void OnDestroy()
         {
+            (UserEditor as UserEditor)?.UserBinding.Dispose();
         }
 
         public override void OnGUI()

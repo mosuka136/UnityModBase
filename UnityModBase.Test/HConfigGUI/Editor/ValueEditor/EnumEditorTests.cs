@@ -73,14 +73,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("EnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
             var state = new GuiStateStore();
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
 
             // Act
             editor.DrawValue(entryMock.Object, state);
 
             // Assert
-            Assert.False(state.GetBool(key, true));
-            Assert.Equal(string.Empty, state.GetText("expandedEntryKey", string.Empty));
+            Assert.Equal(string.Empty, state.ExpandedEnumKey);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button("Visible Option", It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], expandWidth))), Times.Once);
         }
@@ -98,16 +96,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("ExpandedEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
             var state = new GuiStateStore();
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
-            state.SetBool(key, true);
-            state.SetText("expandedEntryKey", key);
+            state.ExpandedEnumKey = entryMock.Object.Key;
 
             // Act
             editor.DrawValue(entryMock.Object, state);
 
             // Assert
-            Assert.False(state.GetBool(key, true));
-            Assert.Equal(string.Empty, state.GetText("expandedEntryKey", "fallback"));
+            Assert.Equal(string.Empty, state.ExpandedEnumKey);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button("Visible Option", It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], expandWidth))), Times.Once);
         }
@@ -125,18 +120,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("CurrentEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
             var state = new GuiStateStore();
-            var previousKey = "PreviousEntry+_enumExpanded";
-            var currentKey = state.GetKey(entryMock.Object, "_enumExpanded");
-            state.SetText("expandedEntryKey", previousKey);
-            state.SetBool(previousKey, true);
+            state.ExpandedEnumKey = "PreviousEntry";
 
             // Act
             editor.DrawValue(entryMock.Object, state);
 
             // Assert
-            Assert.False(state.GetBool(previousKey, true));
-            Assert.True(state.GetBool(currentKey, false));
-            Assert.Equal(currentKey, state.GetText("expandedEntryKey", string.Empty));
+            Assert.Equal(entryMock.Object.Key, state.ExpandedEnumKey);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button("Visible Option", It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], expandWidth))), Times.Once);
         }
@@ -154,14 +144,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("CollapsedEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
             var state = new GuiStateStore();
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
 
             // Act
             editor.DrawValue(entryMock.Object, state);
 
             // Assert
-            Assert.True(state.GetBool(key, false));
-            Assert.Equal(key, state.GetText("expandedEntryKey", string.Empty));
+            Assert.Equal(entryMock.Object.Key, state.ExpandedEnumKey);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button("Visible Option", It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], expandWidth))), Times.Once);
         }
@@ -190,8 +178,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("CollapsedEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
             var state = new GuiStateStore();
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
-            state.SetBool(key, false);
+            state.ExpandedEnumKey = "OtherEntry";
 
             // Act
             editor.DrawExtra(entryMock.Object, state);
@@ -224,14 +211,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var state = new GuiStateStore();
             state.SetFloat(GuiStateStore.LeadingBlankWidthKey, 12.5f);
             state.SetFloat(GuiStateStore.RearBlankWidthKey, 8.5f);
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
-            state.SetBool(key, true);
+            state.ExpandedEnumKey = entryMock.Object.Key;
 
             // Act
             editor.DrawExtra(entryMock.Object, state);
 
             // Assert
-            Assert.True(state.GetBool(key, false));
+            Assert.Equal(entryMock.Object.Key, state.ExpandedEnumKey);
             Assert.Equal(VisibleEnum.Visible, entryMock.Object.Value);
             unityGuiMock.VerifyGet(x => x.BoxStyle, Times.Once);
             unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);
@@ -265,15 +251,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("HiddenEnumEntry", typeof(VisibleEnum), VisibleEnum.Hidden);
             var state = new GuiStateStore();
-            var key = state.GetKey(entryMock.Object, "_enumExpanded");
-            state.SetBool(key, true);
-            var changeSink = state.ChangeSink;
+            state.ExpandedEnumKey = entryMock.Object.Key;
 
             // Act
             editor.DrawExtra(entryMock.Object, state);
 
             // Assert
-            Assert.False(state.GetBool(key, true));
+            Assert.Equal(string.Empty, state.ExpandedEnumKey);
             Assert.Equal(VisibleEnum.AnotherVisible, entryMock.Object.Value);
             unityGuiMock.VerifyGet(x => x.BoxStyle, Times.Once);
             unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);

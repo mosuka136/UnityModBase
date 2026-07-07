@@ -1,7 +1,8 @@
-using UnityModBase.HConfigGUI.Bindings;
+using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
@@ -14,27 +15,26 @@ namespace UnityModBase.HConfigGUI.Editor
             IUnityProvider unityService,
             IUnityGuiProvider unityGui,
             StyleResource styleProvider,
-            LayoutResource layoutProvider,
-            GuiContext guiContext) : base(unityService, unityGui)
+            LayoutResource layoutProvider) : base(unityService, unityGui)
         {
             StyleProvider = styleProvider;
             GroupEditor = new GroupEditor(
                 unityService,
                 unityGui,
-                guiContext,
                 styleProvider,
                 layoutProvider);
         }
 
-        public override void Draw<T>(UserBindingBase<T> user)
+        public override void Draw(IEnumerable<UserContext> users, ref string selectedKey)
         {
-            base.Draw(user);
-            GroupEditor.Draw(user.GetData(SelectedKey) as GroupBinding);
+            base.Draw(users, ref selectedKey);
+            var context = GuiHost.GetContext(selectedKey) as GuiContext;
+            GroupEditor.Draw(context?.UserData, context);
         }
 
-        public void Update(float unscaledDeltaTime)
+        public void Update(GuiContext context, float unscaledDeltaTime)
         {
-            GroupEditor.Update(unscaledDeltaTime);
+            GroupEditor.Update(context, unscaledDeltaTime);
         }
 
         public void UpdateLayout()

@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using UnityModBase.BSpace;
 using UnityModBase.HProvider;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HGuiSpace
 {
@@ -19,40 +20,36 @@ namespace UnityModBase.HGuiSpace
             UnityGui = unityGui;
         }
 
-        public virtual void Draw<T>(UserBindingBase<T> user) where T : class
+        public virtual void Draw(IEnumerable<UserContext> users, ref string selectedKey)
         {
-            if (user == null)
-            {
-                BLog.Error("User is null. Cannot draw user editor.");
-                return;
-            }
+            if (users == null)
+                throw new ArgumentNullException(nameof(users));
 
-            var key = SelectedKey ?? user.UserKeys.FirstOrDefault() ?? "No User";
+            if (!UserManager.ContainsUser(selectedKey))
+                throw new ArgumentException($"The selectedKey '{selectedKey}' does not exist in the user list.", nameof(selectedKey));
 
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             UnityGui.Space(4);
 
-            if (UnityGui.Button(key))
+            if (UnityGui.Button(UserManager.GetUser(selectedKey).Name))
                 IsExpanded = !IsExpanded;
 
             if (IsExpanded)
             {
-                var userArray = user.UserKeys.ToArray();
-                var currentIndex = Array.IndexOf(userArray, key);
+                var userArray = users.Select(u => u.UserId).ToArray();
+                var currentIndex = Array.IndexOf(userArray, selectedKey);
                 currentIndex = currentIndex < 0 ? 0 : currentIndex;
-                var newIndex = UnityGui.SelectionGrid(currentIndex, userArray, 1);
+                var newIndex = UnityGui.SelectionGrid(currentIndex, users.Select(u => u.Name).ToArray(), 1);
 
                 if (currentIndex != newIndex)
                 {
-                    key = userArray[newIndex];
+                    selectedKey = userArray[newIndex];
                     IsExpanded = false;
                 }
             }
 
             UnityGui.Space(4);
             UnityGui.EndVertical();
-
-            SelectedKey = key;
         }
     }
 }

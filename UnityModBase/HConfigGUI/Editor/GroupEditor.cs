@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityModBase.BSpace;
@@ -12,7 +13,6 @@ namespace UnityModBase.HConfigGUI.Editor
     {
         public IUnityProvider UnityService { get; }
         public IUnityGuiProvider UnityGui { get; }
-        public GuiContext Context { get; }
         public StyleResource StyleProvider { get; }
         public LayoutResource LayoutProvider { get; }
 
@@ -21,23 +21,18 @@ namespace UnityModBase.HConfigGUI.Editor
 
         public ValueEditorRegistry EditorRegistry { get; }
         public EntryEditor EntryEditor { get; }
+        public HotkeyEditor HotkeyEditor { get; }
 
         private Vector2 _sidebarScrollPosition = Vector2.zero;
         private Vector2 _contentScrollPosition = Vector2.zero;
         private GroupBinding _currentRoot;
 
-        public GroupEditor(
-            IUnityProvider unityService,
-            IUnityGuiProvider unityGui,
-            GuiContext context,
-            StyleResource styleProvider,
-            LayoutResource layoutProvider)
+        public GroupEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, LayoutResource layoutProvider)
         {
-            UnityService = unityService;
-            UnityGui = unityGui;
-            Context = context;
-            StyleProvider = styleProvider;
-            LayoutProvider = layoutProvider;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
+            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
+            LayoutProvider = layoutProvider ?? throw new ArgumentNullException(nameof(layoutProvider), "LayoutProvider cannot be null.");
 
             EditorRegistry = new ValueEditorRegistry();
             EditorRegistry.RegisterEditor(new BooleanEditor(unityGui));
@@ -45,50 +40,67 @@ namespace UnityModBase.HConfigGUI.Editor
             EditorRegistry.RegisterEditor(new SliderEditor(unityGui, unityService, styleProvider));
             EditorRegistry.RegisterEditor(new NumberEditor(unityGui));
             EditorRegistry.RegisterEditor(new EnumEditor(unityGui));
-            EditorRegistry.RegisterEditor(new HotkeyEditor(unityGui, styleProvider));
+            HotkeyEditor = new HotkeyEditor(unityGui, styleProvider);
+            EditorRegistry.RegisterEditor(HotkeyEditor);
 
-            EntryEditor = new EntryEditor(EditorRegistry, context, unityGui);
+            EntryEditor = new EntryEditor(EditorRegistry, unityGui);
         }
 
-        public void Draw(GroupBinding root)
+        public void Draw(GroupBinding root, GuiContext context)
         {
             if (root == null)
+                throw new ArgumentNullException(nameof(root), "Root config group cannot be null.");
+
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
+            if (!context.IsValid)
             {
-                BLog.Error("Root config group is null. Cannot draw group editor.");
+                BLog.Error("Root config group is invalid.");
                 return;
             }
 
             if (!ReferenceEquals(_currentRoot, root))
             {
+                HotkeyEditor.Session.CancelEdit();
                 _currentRoot = root;
                 _sidebarScrollPosition = Vector2.zero;
                 _contentScrollPosition = Vector2.zero;
                 UpdateLayout();
             }
 
-            UpdateLayoutIfNeeded(root);
+            UpdateLayoutIfNeeded(root, context);
 
             var groups = GetChildGroups(root);
             if (groups.Count == 0)
             {
-                DrawContent(root, false);
+                DrawContent(root, false, context);
                 return;
             }
 
-            var selectedGroup = GetSelectedGroup(root, groups);
+            var selectedGroup = GetSelectedGroup(groups, context);
 
             UnityGui.BeginHorizontal();
-            DrawSidebar(root, groups, ref selectedGroup);
+            DrawSidebar(groups, ref selectedGroup, context);
             UnityGui.Space(10f);
-            DrawContent(selectedGroup, true);
+            DrawContent(selectedGroup, true, context);
             UnityGui.EndHorizontal();
 
-            Context.SetText(GetSelectedGroupStateKey(root), selectedGroup.Key);
+            context.SelectedGroupKey = selectedGroup.Key;
         }
 
-        public void Update(float deltaTime)
+        public void Update(GuiContext context, float deltaTime)
         {
-            Context.ChangeSink.FlushValue(deltaTime);
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
+            if (!context.IsValid)
+            {
+                BLog.Error($"Invalid GuiContext provided to {nameof(Update)}.");
+                return;
+            }
+
+            context.ChangeSink.FlushValue(deltaTime);
         }
 
         public void UpdateLayout()
@@ -97,22 +109,19 @@ namespace UnityModBase.HConfigGUI.Editor
             GroupButtonWidth = -1f;
         }
 
-        private void UpdateLayoutIfNeeded(GroupBinding root)
+        private void UpdateLayoutIfNeeded(GroupBinding root, GuiContext context)
         {
             if (EntryLabelWidth < 0f)
             {
                 EntryLabelWidth = LayoutProvider.GetEntryLabelWidth(root);
-                Context.SetFloat(GuiContext.LeadingBlankWidthKey, EntryLabelWidth);
+                context.SetFloat(GuiContext.LeadingBlankWidthKey, EntryLabelWidth);
             }
 
             if (GroupButtonWidth < 0f)
                 GroupButtonWidth = LayoutProvider.GetGroupButtonWidth(root);
         }
 
-        private void DrawSidebar(
-            GroupBinding root,
-            IReadOnlyList<GroupBinding> groups,
-            ref GroupBinding selectedGroup)
+        private void DrawSidebar(IReadOnlyList<GroupBinding> groups, ref GroupBinding selectedGroup, GuiContext context)
         {
             UnityGui.BeginVertical(UnityGui.BoxStyle, UnityGui.Width(GroupButtonWidth));
             _sidebarScrollPosition = UnityGui.BeginScrollView(_sidebarScrollPosition);
@@ -132,7 +141,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 {
                     selectedGroup = group;
                     _contentScrollPosition = Vector2.zero;
-                    Context.SetText(GetSelectedGroupStateKey(root), group.Key);
+                    context.SelectedGroupKey = group.Key;
                 }
             }
 
@@ -140,16 +149,16 @@ namespace UnityModBase.HConfigGUI.Editor
             UnityGui.EndVertical();
         }
 
-        private void DrawContent(GroupBinding group, bool drawTitle)
+        private void DrawContent(GroupBinding group, bool drawTitle, GuiContext context)
         {
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             _contentScrollPosition = UnityGui.BeginScrollView(_contentScrollPosition);
-            DrawGroup(group, drawTitle);
+            DrawGroup(group, drawTitle, context);
             UnityGui.EndScrollView();
             UnityGui.EndVertical();
         }
 
-        private void DrawGroup(GroupBinding group, bool drawTitle)
+        private void DrawGroup(GroupBinding group, bool drawTitle, GuiContext context)
         {
             UnityGui.BeginVertical();
 
@@ -167,14 +176,14 @@ namespace UnityModBase.HConfigGUI.Editor
             {
                 if (child is IEntryBinding entry)
                 {
-                    EntryEditor.Render(entry);
+                    EntryEditor.Render(entry, context);
                     continue;
                 }
 
                 if (child is GroupBinding childGroup)
                 {
                     UnityGui.Space(10f);
-                    DrawGroup(childGroup, true);
+                    DrawGroup(childGroup, true, context);
                 }
             }
 
@@ -182,9 +191,9 @@ namespace UnityModBase.HConfigGUI.Editor
             UnityGui.EndVertical();
         }
 
-        private GroupBinding GetSelectedGroup(GroupBinding root, IReadOnlyList<GroupBinding> groups)
+        private static GroupBinding GetSelectedGroup(IReadOnlyList<GroupBinding> groups, GuiContext context)
         {
-            var selectedKey = Context.GetText(GetSelectedGroupStateKey(root), groups[0].Key);
+            var selectedKey = context.SelectedGroupKey;
             foreach (var group in groups)
             {
                 if (group.Key == selectedKey)
@@ -204,11 +213,6 @@ namespace UnityModBase.HConfigGUI.Editor
             }
 
             return groups;
-        }
-
-        private static string GetSelectedGroupStateKey(GroupBinding root)
-        {
-            return root.Key + GuiContext.Separator + GuiContext.SelectedGroupKey;
         }
     }
 }

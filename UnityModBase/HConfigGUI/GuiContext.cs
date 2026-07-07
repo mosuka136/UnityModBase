@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityModBase.HConfigGUI.Bindings;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI
@@ -8,8 +10,6 @@ namespace UnityModBase.HConfigGUI
     public class GuiContext : IUserContext
     {
         public const string Separator = "+";
-        public static string IsPopupOpenKey => "IsPopupOpen";
-        public static string SelectedGroupKey => "SelectedGroup";
         public static string LeadingBlankWidthKey => "LeadingBlankWidth";
         public static string RearBlankWidthKey => "RearBlankWidth";
 
@@ -18,14 +18,31 @@ namespace UnityModBase.HConfigGUI
         private readonly Dictionary<string, float> _floatState = new Dictionary<string, float>();
         private readonly Dictionary<string, bool> _boolState = new Dictionary<string, bool>();
 
-        public EntryChangeSink ChangeSink { get; private set; }
+        public readonly static GuiContext InvalidGuiContext = new GuiContext();
+        public bool IsValid => !ReferenceEquals(this, InvalidGuiContext);
 
-        public float EntryLabelWidth { get; private set; } = -1f;
-        public float GroupButtonWidth { get; private set; } = -1f;
+        public EntryChangeSink ChangeSink { get; private set; }
+        public GroupBinding UserData { get; set; }
+
+        public PopupState Popup { get; private set; }
+        public string ExpandedEnumKey { get; set; } = string.Empty;
+        public string SelectedGroupKey { get; set; } = string.Empty;
+        public string ToastMessage { get; set; } = string.Empty;
+        public float EntryLabelWidth { get; set; } = -1f;
+        public float GroupButtonWidth { get; set; } = -1f;
 
         public GuiContext()
         {
             ChangeSink = new EntryChangeSink();
+            Popup = new PopupState();
+        }
+
+        public class PopupState
+        {
+            public bool IsOpen { get; set; } = false;
+            public Translator Title { get; set; }
+            public Action DrawAction { get; set; }
+            public Action CloseAction { get; set; }
         }
 
         public string GetKey(IEntryBinding entry, string suffix = "")
@@ -48,20 +65,12 @@ namespace UnityModBase.HConfigGUI
 
         public void DeleteText(string key)
         {
-            if (_textState.ContainsKey(key))
-                _textState.Remove(key);
+            _textState.Remove(key);
         }
 
         public void DeleteText(IEntryBinding entry)
         {
-            if (string.IsNullOrEmpty(entry?.Key))
-                return;
-
-            var textState = _textState.Where(kv => kv.Key.StartsWith(entry.Key)).Select(kv => kv.Key).ToList();
-            foreach (var key in textState)
-            {
-                _textState.Remove(key);
-            }
+            DeleteEntryState(_textState, entry);
         }
 
         public bool GetBool(string key, bool defaultValue = false)
@@ -79,20 +88,12 @@ namespace UnityModBase.HConfigGUI
 
         public void DeleteBool(string key)
         {
-            if (_boolState.ContainsKey(key))
-                _boolState.Remove(key);
+            _boolState.Remove(key);
         }
 
         public void DeleteBool(IEntryBinding entry)
         {
-            if (string.IsNullOrEmpty(entry?.Key))
-                return;
-
-            var boolState = _boolState.Where(kv => kv.Key.StartsWith(entry.Key)).Select(kv => kv.Key).ToList();
-            foreach (var key in boolState)
-            {
-                _boolState.Remove(key);
-            }
+            DeleteEntryState(_boolState, entry);
         }
 
         public int GetInt(string key, int defaultValue = 0)
@@ -110,20 +111,12 @@ namespace UnityModBase.HConfigGUI
 
         public void DeleteInt(string key)
         {
-            if (_intState.ContainsKey(key))
-                _intState.Remove(key);
+            _intState.Remove(key);
         }
 
         public void DeleteInt(IEntryBinding entry)
         {
-            if (string.IsNullOrEmpty(entry?.Key))
-                return;
-
-            var intState = _intState.Where(kv => kv.Key.StartsWith(entry.Key)).Select(kv => kv.Key).ToList();
-            foreach (var key in intState)
-            {
-                _intState.Remove(key);
-            }
+            DeleteEntryState(_intState, entry);
         }
 
         public float GetFloat(string key, float defaultValue = 0f)
@@ -147,14 +140,17 @@ namespace UnityModBase.HConfigGUI
 
         public void DeleteFloat(IEntryBinding entry)
         {
+            DeleteEntryState(_floatState, entry);
+        }
+
+        private static void DeleteEntryState<T>(Dictionary<string, T> state, IEntryBinding entry)
+        {
             if (string.IsNullOrEmpty(entry?.Key))
                 return;
 
-            var floatState = _floatState.Where(kv => kv.Key.StartsWith(entry.Key)).Select(kv => kv.Key).ToList();
-            foreach (var key in floatState)
-            {
-                _floatState.Remove(key);
-            }
+            var keys = state.Keys.Where(key => key.StartsWith(entry.Key)).ToList();
+            foreach (var key in keys)
+                state.Remove(key);
         }
 
         public void Dispose()

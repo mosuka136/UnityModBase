@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HConfigGUI.Bindings
 {
@@ -14,7 +17,7 @@ namespace UnityModBase.HConfigGUI.Bindings
 
         public GroupBinding(string key, Translator name, Translator description, IEnumerable<INodeBinding> children = null)
         {
-            Key = key ?? string.Empty;
+            Key = key ?? throw new ArgumentNullException(nameof(key), "Key cannot be null.");
             Name = name ?? new Translator();
             Description = description ?? new Translator();
 
@@ -25,9 +28,33 @@ namespace UnityModBase.HConfigGUI.Bindings
                 Add(child);
         }
 
+        public static GroupBinding CreateRoot(UserContext context)
+        {
+            var userId = context.UserId;
+            var root = new GroupBinding(userId, new Translator(userId, userId), new Translator());
+
+            if (context?.Service?.Config == null)
+                return root;
+
+            foreach (var table in context.Service.Config.Sheet)
+            {
+                var group = new GroupBinding(table.Key, table.Value.Name, table.Value.Description);
+
+                foreach (IConfigEntry entry in table.Value)
+                    group.Add(new EntryBinding(context.Service.ConfigManagerType, entry));
+
+                root.Add(group);
+            }
+
+            return root;
+        }
+
         public void Add(INodeBinding child)
         {
-            if (child == null || ReferenceEquals(child, this) || _children.Contains(child))
+            if (child == null)
+                throw new ArgumentNullException(nameof(child), "Child cannot be null.");
+
+            if (ReferenceEquals(child, this) || _children.Contains(child))
                 return;
 
             if (child is GroupBinding group && group.Contains(this))

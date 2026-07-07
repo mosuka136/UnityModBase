@@ -10,12 +10,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor
     public class UserEditorTests
     {
         [Fact]
-        public void Constructor_ValidDependencies_InitializesPropertiesAndGroupEditor()
+        public void Constructor_ValidDependencies_InitializesPropertiesAndContextFreeGroupEditor()
         {
             // Arrange
             var unityProvider = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var guiContext = new GuiContext();
             var styleResource = new StyleResource(null);
             var layoutResource = new LayoutResource(unityGui.Object);
 
@@ -24,8 +23,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 unityProvider.Object,
                 unityGui.Object,
                 styleResource,
-                layoutResource,
-                guiContext);
+                layoutResource);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
@@ -34,8 +32,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.NotNull(editor.GroupEditor);
             Assert.Same(unityProvider.Object, editor.GroupEditor.UnityService);
             Assert.Same(unityGui.Object, editor.GroupEditor.UnityGui);
-            Assert.Same(guiContext, editor.GroupEditor.Context);
-            Assert.Same(guiContext.ChangeSink, editor.GroupEditor.Context.ChangeSink);
             Assert.Same(styleResource, editor.GroupEditor.StyleProvider);
             Assert.Same(layoutResource, editor.GroupEditor.LayoutProvider);
         }
@@ -52,18 +48,17 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 unityProvider.Object,
                 unityGui.Object,
                 new StyleResource(null),
-                new LayoutResource(unityGui.Object),
-                guiContext);
+                new LayoutResource(unityGui.Object));
             var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
             entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             object currentValue = "old";
             entry.SetupGet(x => x.Value).Returns(() => currentValue);
             entry.SetupSet(x => x.Value = It.IsAny<object>())
                 .Callback<object>(value => currentValue = value);
-            editor.GroupEditor.Context.ChangeSink.SetValue(entry.Object, "new", delay: 0.25f);
+            guiContext.ChangeSink.SetValue(entry.Object, "new", delay: 0.25f);
 
             // Act
-            editor.Update(0.25f);
+            editor.Update(guiContext, 0.25f);
 
             // Assert
             Assert.Equal("new", currentValue);

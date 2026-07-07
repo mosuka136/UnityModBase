@@ -1,75 +1,63 @@
+using Moq;
+using System;
 using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HProvider;
-using Moq;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
     public class EntryEditorTests
     {
         [Fact]
-        public void EntryEditor_WhenConstructed_StoresDependenciesAndClearsStateOnGuiPipeEvents()
+        public void Constructor_ValidDependencies_StoresDependenciesWithoutContext()
         {
-            // Arrange
             var registry = new ValueEditorRegistry();
-            var state = new GuiStateStore();
-            var changeSink = state.ChangeSink;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
-            entryMock.SetupGet(x => x.Key).Returns("EntryKey");
-            var textKey = state.GetKey(entryMock.Object, "text");
-            var boolKey = state.GetKey(entryMock.Object, "bool");
-            state.SetText(textKey, "value");
-            state.SetBool(boolKey, true);
 
-            // Act
-            var editor = new EntryEditor(registry, state, unityGuiMock.Object);
-            GuiPipe.InvokeOnEntryEditFinished(entryMock.Object);
-            state.SetText(textKey, "value");
-            state.SetBool(boolKey, true);
-            GuiPipe.InvokeOnEntryValueReset(entryMock.Object);
+            var editor = new EntryEditor(registry, unityGuiMock.Object);
 
-            // Assert
             Assert.Same(registry, editor.Registry);
-            Assert.Same(state, editor.Context);
-            Assert.Same(changeSink, editor.Context.ChangeSink);
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
-            Assert.Equal(string.Empty, state.GetText(textKey));
-            Assert.False(state.GetBool(boolKey));
         }
 
         [Fact]
-        public void Render_WhenEntryIsNull_ReturnsWithoutInvokingGui()
+        public void Render_WhenEntryIsNull_ThrowsArgumentNullException()
         {
-            // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EntryEditor(new ValueEditorRegistry(), new GuiStateStore(), unityGuiMock.Object);
+            var editor = new EntryEditor(new ValueEditorRegistry(), unityGuiMock.Object);
 
-            // Act
-            editor.Render(null);
+            var exception = Assert.Throws<ArgumentNullException>(() => editor.Render(null, new GuiContext()));
 
-            // Assert
+            Assert.Equal("entry", exception.ParamName);
             unityGuiMock.VerifyNoOtherCalls();
         }
 
         [Fact]
-        public void Render_WhenUnityGuiIsNull_ReturnsWithoutDrawing()
+        public void Constructor_WhenUnityGuiIsNull_ThrowsArgumentNullException()
         {
-            // Arrange
+            var registry = new ValueEditorRegistry();
+
+            var exception = Assert.Throws<ArgumentNullException>(() => new EntryEditor(registry, null));
+
+            Assert.Equal("unity", exception.ParamName);
+        }
+
+        [Fact]
+        public void Render_WhenContextIsInvalid_ReturnsWithoutDrawing()
+        {
             var registry = new ValueEditorRegistry();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             var valueEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
             valueEditorMock.Setup(x => x.CanEdit(entryMock.Object)).Returns(true);
             registry.RegisterEditor(valueEditorMock.Object);
-            var editor = new EntryEditor(registry, new GuiStateStore(), null);
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var editor = new EntryEditor(registry, unityGuiMock.Object);
 
-            // Act
-            editor.Render(entryMock.Object);
+            editor.Render(entryMock.Object, GuiContext.InvalidGuiContext);
 
-            // Assert
-            valueEditorMock.Verify(x => x.CanEdit(entryMock.Object), Times.Once);
+            unityGuiMock.VerifyNoOtherCalls();
             valueEditorMock.VerifyNoOtherCalls();
         }
     }

@@ -50,7 +50,6 @@
     <Compile Include="HConfigGUI\Editor\GroupEditor.cs" />
     <Compile Include="HConfigGUI\Editor\HotkeyEditSession.cs" />
     <Compile Include="HConfigGUI\Editor\PopupEditor.cs" />
-    <Compile Include="HConfigGUI\Bindings\UserBinding.cs" />
     <Compile Include="HConfigGUI\Editor\UserEditor.cs" />
     <Compile Include="HConfigGUI\Editor\ValueEditorRegistry.cs" />
     <Compile Include="HConfigGUI\Editor\ValueEditor\BooleanEditor.cs" />

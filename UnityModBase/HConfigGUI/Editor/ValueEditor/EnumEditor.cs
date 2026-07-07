@@ -29,26 +29,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 return;
 
             var value = ValueProvider.GetValidValue<Enum>(entry);
-
-            const string expandedEntryKey = "expandedEntryKey";
-
-            var key = context.GetKey(entry, "_enumExpanded");
-            var expanded = context.GetBool(key, false);
-
             if (UnityGui.Button(EnumHelper.GetDescription(entry.ValueType, value), UnityGui.ExpandWidth(true)))
             {
-                if (expanded)
-                {
-                    context.SetBool(key, false);
-                    context.SetText(expandedEntryKey, string.Empty);
-                }
+                if (entry.Key == context.ExpandedEnumKey)
+                    context.ExpandedEnumKey = string.Empty;
                 else
-                {
-                    if (context.GetText(expandedEntryKey) != string.Empty)
-                        context.SetBool(context.GetText(expandedEntryKey), false);
-                    context.SetBool(key, true);
-                    context.SetText(expandedEntryKey, key);
-                }
+                    context.ExpandedEnumKey = entry.Key;
             }
         }
 
@@ -57,12 +43,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (!entry.ValueType.IsEnum)
                 return;
 
-            var value = ValueProvider.GetValidValue<Enum>(entry);
-
-            var key = context.GetKey(entry, "_enumExpanded");
-            var expanded = context.GetBool(key, false);
-            if (!expanded)
+            if (entry.Key != context.ExpandedEnumKey)
                 return;
+
+            var value = ValueProvider.GetValidValue<Enum>(entry);
 
             (Array values, List<int> mapIndexList, string[] names) = GetEnumInfo(entry);
 
@@ -82,7 +66,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
             if (currentIndex != newIndex)
             {
-                context.SetBool(key, false);
+                context.ExpandedEnumKey = string.Empty;
                 context.ChangeSink.SetValue(entry, values.GetValue(mapIndexList[newIndex]));
             }
         }
