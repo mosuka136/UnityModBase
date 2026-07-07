@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Bindings;
 
@@ -7,10 +8,13 @@ namespace UnityModBase.HConfigGUI
     {
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
+        public event Action<IEntryBinding> OnEntryValueChanged;
+        public event Action<IEntryBinding> OnEntryValueReset;
+
         public void SetConvertedValue(IEntryBinding entry, object value, float delay = 0.0f)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
             var isValid = TypeConvert.TryTo(value, entry.ValueType, out var convertedValue);
             SetValue(entry, isValid ? convertedValue : value, isValid, delay);
@@ -19,7 +23,7 @@ namespace UnityModBase.HConfigGUI
         public void SetValue(IEntryBinding entry, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
             entry.EditBuffer.SetValue(value, isValid);
 
@@ -32,7 +36,10 @@ namespace UnityModBase.HConfigGUI
         public void SetValue(IEntryBinding entry, string key, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
+
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("Key cannot be null or empty.", nameof(key));
 
             entry.EditBuffer.SetValue(key, value, isValid);
 
@@ -45,13 +52,13 @@ namespace UnityModBase.HConfigGUI
         public void ResetValue(IEntryBinding entry)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
             _pendingEntries.Remove(entry);
             entry.EditBuffer.Clear();
 
             entry.ResetValue();
-            GuiPipe.InvokeOnEntryValueReset(entry);
+            OnEntryValueReset?.Invoke(entry);
         }
 
         public void FlushValue(float deltaTime)
@@ -70,14 +77,15 @@ namespace UnityModBase.HConfigGUI
             }
         }
 
-        private static void Commit(IEntryBinding entry)
+        public void Commit(IEntryBinding entry)
         {
+            if (entry == null)
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
+
             var valueChanged = entry.EditBuffer.Commit(entry);
 
             if (valueChanged)
-                GuiPipe.InvokeOnEntryValueChanged(entry);
-
-            GuiPipe.InvokeOnEntryEditFinished(entry);
+                OnEntryValueChanged?.Invoke(entry);
         }
     }
 }

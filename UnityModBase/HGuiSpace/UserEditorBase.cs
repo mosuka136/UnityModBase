@@ -9,8 +9,6 @@ namespace UnityModBase.HGuiSpace
     public abstract class UserEditorBase
     {
         public bool IsExpanded { get; set; } = false;
-        public string SelectedKey { get; set; } = null;
-
         public IUnityProvider UnityService { get; }
         public IUnityGuiProvider UnityGui { get; }
 

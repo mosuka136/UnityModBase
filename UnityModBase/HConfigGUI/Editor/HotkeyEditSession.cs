@@ -18,11 +18,6 @@ namespace UnityModBase.HConfigGUI.Editor
         public bool IsEditing => Entry != null && State != HotkeyEditState.Idle;
         public bool IsRecording => State != HotkeyEditState.Idle && State != HotkeyEditState.Expanded;
 
-        public HotkeyEditSession()
-        {
-            GuiPipe.OnEntryValueReset += e => CancelEdit();
-        }
-
         public void Update()
         {
             switch (State)

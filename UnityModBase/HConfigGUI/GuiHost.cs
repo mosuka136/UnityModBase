@@ -20,7 +20,6 @@ namespace UnityModBase.HConfigGUI
     public class GuiHost : GuiHostBase
     {
         public PopupEditor PopupEditor { get; private set; }
-
         public LayoutResource LayoutProvider { get; private set; }
 
         public override void Awake()
@@ -48,9 +47,6 @@ namespace UnityModBase.HConfigGUI
 
                 PopupEditor = new PopupEditor(UnityGui, styleProvider);
 
-                GuiPipe.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
-                GuiPipe.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
-
                 UIHotkey = BConfigManager.ConfigUIHotkey.Value;
                 BConfigManager.ConfigUIHotkey.OnValueChanged += (s, e) => UIHotkey = e;
 
@@ -71,6 +67,9 @@ namespace UnityModBase.HConfigGUI
         private void RegisterContext(UserContext context)
         {
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
+            guiContext.ChangeSink.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
+            guiContext.ChangeSink.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
+
             context.AddContext(GuiContextKey, guiContext);
         }
 
