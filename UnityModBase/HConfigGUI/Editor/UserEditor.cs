@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityModBase.BSpace;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
@@ -28,9 +29,19 @@ namespace UnityModBase.HConfigGUI.Editor
             GroupEditor.Update(context, unscaledDeltaTime);
         }
 
-        public void SetLayoutDirty(GuiContext context)
+        public override void SetStatusDirty(IUserContext context)
         {
-            GroupEditor.SetLayoutDirty(context);
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
+            var guiContext = context as GuiContext ?? throw new ArgumentException($"The provided context is not of type {nameof(GuiContext)}.", nameof(context));
+            if (!guiContext.IsValid)
+            {
+                BLog.Error($"Invalid GuiContext provided to {nameof(SetStatusDirty)}.");
+                return;
+            }
+
+            guiContext.SetLayoutDirtyFlags();
         }
     }
 }

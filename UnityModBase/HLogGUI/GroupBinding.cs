@@ -108,7 +108,7 @@ namespace UnityModBase.HLogGUI
         public void AddEntry(EntryBinding entry)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry), "EntryBinding cannot be null.");
 
             if (!string.IsNullOrEmpty(entry.Exception))
                 HasExceptionEntry = true;

@@ -4,6 +4,7 @@ using UnityModBase.BSpace;
 using UnityModBase.HClassAttribute;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI.Resource;
+using UnityModBase.HLogSpace;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
@@ -31,7 +32,7 @@ namespace UnityModBase.HLogGUI
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
                 userEditor.RegisterToastHandler(ToastEditor);
-                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.GroupEditor.IsColumnWidthDirty = true;
+                Translator.OnDefaultLanguageChanged += (s, e) => (CurrentContext as GuiContext).IsColumnWidthDirty = true;
                 UserEditor = userEditor;
 
                 UIHotkey = BConfigManager.LogUIHotkey.Value;
@@ -63,8 +64,14 @@ namespace UnityModBase.HLogGUI
 
             foreach (var log in context.Service.LogDatabase.Logs)
                 userData.AddEntry(new EntryBinding(log));
-            context.Service.LogDatabase.OnLogAdded += l => userData.AddEntry(new EntryBinding(l));
-            context.Service.LogDatabase.OnLogRepeated += l => userData.AddEntry(new EntryBinding(l));
+
+            void LogChangedHandler(LogEntry log)
+            {
+                userData.AddEntry(new EntryBinding(log));
+                UserEditor.SetStatusDirty(guiContext);
+            }
+            context.Service.LogDatabase.OnLogAdded += LogChangedHandler;
+            context.Service.LogDatabase.OnLogRepeated += LogChangedHandler;
 
             context.AddContext(GuiContextKey, guiContext);
         }
@@ -76,9 +83,9 @@ namespace UnityModBase.HLogGUI
 
         public override void OnGUI()
         {
-            var userEditor = UserEditor as UserEditor;
+            var context = CurrentContext as GuiContext;
             var rect = WindowRect;
-            rect.width = UnityService.Clamp(userEditor.GroupEditor.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
+            rect.width = UnityService.Clamp(context.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
             WindowRect = rect;
 
             base.OnGUI();

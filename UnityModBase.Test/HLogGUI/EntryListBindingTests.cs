@@ -6,15 +6,16 @@ namespace UnityModBase.Test.HLogGUI
     public class EntryListBindingTests
     {
         [Fact]
-        public void AddEntry_WhenEntryIsNull_DoesNotChangeCollection()
+        public void AddEntry_WhenEntryIsNull_ThrowsArgumentNullExceptionWithoutChangingCollection()
         {
             // Arrange
             var list = new GroupBinding();
 
             // Act
-            list.AddEntry(null);
+            var exception = Assert.Throws<ArgumentNullException>(() => list.AddEntry(null));
 
             // Assert
+            Assert.Equal("entry", exception.ParamName);
             Assert.Empty(list.OriginalGroup);
             Assert.Empty(list.SortedGroup);
             Assert.All(list.SortedGroups.Values, Assert.Empty);

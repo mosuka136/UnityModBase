@@ -26,5 +26,10 @@ namespace UnityModBase.HLogGUI
             GroupEditor.OnLogCopied += m => toastEditor.SetToast(m);
             GroupEditor.EntryEditor.OnEntryCopied += m => toastEditor.SetToast(m);
         }
+
+        public override void SetStatusDirty(IUserContext context)
+        {
+            (context as GuiContext).IsColumnWidthDirty = true;
+        }
     }
 }

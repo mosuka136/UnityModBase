@@ -49,5 +49,7 @@ namespace UnityModBase.HGuiSpace
             UnityGui.Space(4);
             UnityGui.EndVertical();
         }
+
+        public abstract void SetStatusDirty(IUserContext context);
     }
 }

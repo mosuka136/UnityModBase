@@ -87,12 +87,15 @@ namespace UnityModBase.HGuiSpace
             UserEditor.Draw(Users, ref _selectedUserKey, CurrentContext);
             UnityGui.EndArea();
 
-            if (selectedUserKey != _selectedUserKey)
-                CurrentContext = GetContext(_selectedUserKey);
-
             ToastEditor.DrawToast(WindowRect);
             TooltipEditor.DrawTooltip(WindowRect);
             GUI.DragWindow();
+
+            if (selectedUserKey != _selectedUserKey)
+            {
+                CurrentContext = GetContext(_selectedUserKey);
+                UserEditor.SetStatusDirty(CurrentContext);
+            }
         }
 
         public virtual void TryAutoHideOnFocusLost()

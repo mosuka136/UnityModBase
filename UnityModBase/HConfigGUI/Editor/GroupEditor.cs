@@ -59,7 +59,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 _currentRoot = root;
                 _sidebarScrollPosition = Vector2.zero;
                 _contentScrollPosition = Vector2.zero;
-                SetLayoutDirty(context);
+                context.SetLayoutDirtyFlags();
             }
 
             UpdateLayoutIfNeeded(root, context);
@@ -94,20 +94,6 @@ namespace UnityModBase.HConfigGUI.Editor
             }
 
             context.ChangeSink.FlushValue(deltaTime);
-        }
-
-        public void SetLayoutDirty(GuiContext context)
-        {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
-
-            if (!context.IsValid)
-            {
-                BLog.Error($"Invalid GuiContext provided to {nameof(SetLayoutDirty)}.");
-                return;
-            }
-
-            context.SetLayoutDirtyFlags();
         }
 
         public void UpdateLayoutIfNeeded(GroupBinding root, GuiContext context)

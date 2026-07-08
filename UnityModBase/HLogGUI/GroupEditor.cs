@@ -15,10 +15,6 @@ namespace UnityModBase.HLogGUI
         public event Action<string> OnLogCopied;
 
         public LogLevel Level { get; set; } = LogLevel.Info;
-        public bool IsColumnWidthDirty { get; set; } = true;
-        public bool HasRepeatedEntry { get; private set; } = false;
-        public bool HasExceptionEntry { get; private set; } = false;
-        public float TotalColumnWidth { get; private set; }
         public Dictionary<EntryContentType, ColumnEditor> ColumnEditorList { get; private set; }
         public EntryEditor EntryEditor { get; }
 
@@ -40,7 +36,6 @@ namespace UnityModBase.HLogGUI
             private const float ColumnWidthPadding = 18f;
 
             public bool IsVisible { get; set; } = true;
-            public bool ExpendWidth { get; set; } = false;
             public float Width { get; set; } = 0f;
 
             public EntryContentType ContentType { get; }
@@ -70,7 +65,7 @@ namespace UnityModBase.HLogGUI
                 if (group.SortOrder == ContentType)
                     Style.fontStyle = group.IsSortDescending ? FontStyle.BoldAndItalic : FontStyle.Bold;
 
-                if (UnityGui.Button(Header, Style, ExpendWidth ? UnityGui.ExpandWidth(true) : UnityGui.Width(Width)))
+                if (UnityGui.Button(Header, Style, UnityGui.Width(Width)))
                 {
                     if (group.SortOrder == ContentType)
                         group.IsSortDescending = !group.IsSortDescending;
@@ -168,16 +163,15 @@ namespace UnityModBase.HLogGUI
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
-            var group = context.UserData;
+            CheckDrawCondition(context);
 
-            CheckDrawCondition(group);
-
-            DrawColumnVisibilityMenu();
-            DrawColumnLogLevelMenu();
+            DrawColumnVisibilityMenu(context);
+            DrawColumnLogLevelMenu(context);
 
             _scrollPosition = UnityGui.BeginScrollView(_scrollPosition);
             UnityGui.BeginHorizontal(UnityGui.BoxStyle);
 
+            var group = context.UserData;
             foreach (var columnEditor in ColumnEditorList.Values)
             {
                 UnityGui.BeginVertical();
@@ -197,10 +191,10 @@ namespace UnityModBase.HLogGUI
             UnityGui.EndScrollView();
         }
 
-        public void CheckDrawCondition(GroupBinding group)
+        public void CheckDrawCondition(GuiContext context)
         {
-            if (group == null)
-                throw new ArgumentNullException(nameof(group), "Group cannot be null.");
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
             if (ColumnEditorList == null)
             {
@@ -229,38 +223,40 @@ namespace UnityModBase.HLogGUI
                 ColumnEditorList[EntryContentType.RepeatCount].IsVisible = false;
             }
 
-            if (IsColumnWidthDirty)
-            {
-                foreach (var columnEditor in ColumnEditorList.Values)
-                    columnEditor.UpdateWidth(group, Level);
-                UpdateTotalColumnWidth();
-                IsColumnWidthDirty = false;
-            }
+            var group = context.UserData;
 
-            if (!HasRepeatedEntry && group.HasRepeatedEntry)
+            if (!context.HasRepeatedEntry && group.HasRepeatedEntry)
             {
                 ColumnEditorList[EntryContentType.LastRepeatTime].IsVisible = true;
                 ColumnEditorList[EntryContentType.RepeatCount].IsVisible = true;
-                HasRepeatedEntry = true;
+                context.HasRepeatedEntry = true;
             }
 
-            if (!HasExceptionEntry && group.HasExceptionEntry)
+            if (!context.HasExceptionEntry && group.HasExceptionEntry)
             {
                 ColumnEditorList[EntryContentType.Exception].IsVisible = true;
-                HasExceptionEntry = true;
+                context.HasExceptionEntry = true;
+            }
+
+            if (context.IsColumnWidthDirty)
+            {
+                foreach (var columnEditor in ColumnEditorList.Values)
+                    columnEditor.UpdateWidth(group, Level);
+                UpdateTotalColumnWidth(context);
+                context.IsColumnWidthDirty = false;
             }
         }
 
-        public void UpdateTotalColumnWidth()
+        public void UpdateTotalColumnWidth(GuiContext context)
         {
-            TotalColumnWidth = 0f;
+            var width = 0f;
             foreach (var columnEditor in ColumnEditorList.Values)
             {
                 if (columnEditor.IsVisible)
-                    TotalColumnWidth += columnEditor.Width + 10f;
+                    width += columnEditor.Width + 10f;
             }
 
-            TotalColumnWidth += UnityService.Max(
+            width += UnityService.Max(
                 UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(TranslatorResource.MiscMenu)).x,
                 UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(TranslatorResource.CopyLog)).x) + 10f;
 
@@ -268,7 +264,7 @@ namespace UnityModBase.HLogGUI
             foreach (var columnEditor in ColumnEditorList.Values)
                 menuWidth += StyleProvider.ColumnVisibilityToggleStyle.CalcSize(UnityGui.GetContent(columnEditor.Header)).x + 10f;
 
-            TotalColumnWidth = UnityService.Max(TotalColumnWidth, menuWidth);
+            context.TotalColumnWidth = UnityService.Max(width, menuWidth);
         }
 
         public void DrawMiscMenuHeader()
@@ -291,8 +287,11 @@ namespace UnityModBase.HLogGUI
             }
         }
 
-        public void DrawColumnVisibilityMenu()
+        public void DrawColumnVisibilityMenu(GuiContext context)
         {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             UnityGui.Space(4);
             UnityGui.BeginHorizontal();
@@ -304,7 +303,7 @@ namespace UnityModBase.HLogGUI
                 if (columnEditor.IsVisible != isVisible)
                 {
                     columnEditor.IsVisible = isVisible;
-                    UpdateTotalColumnWidth();
+                    UpdateTotalColumnWidth(context);
                 }
             }
 
@@ -313,8 +312,11 @@ namespace UnityModBase.HLogGUI
             UnityGui.EndVertical();
         }
 
-        public void DrawColumnLogLevelMenu()
+        public void DrawColumnLogLevelMenu(GuiContext context)
         {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             UnityGui.Space(4);
             UnityGui.BeginHorizontal();
@@ -327,7 +329,7 @@ namespace UnityModBase.HLogGUI
                     if (level != Level)
                     {
                         Level = level;
-                        IsColumnWidthDirty = true;
+                        context.IsColumnWidthDirty = true;
                     }
                 }
                 UnityGui.Space(4);
