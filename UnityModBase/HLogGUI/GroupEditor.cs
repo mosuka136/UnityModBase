@@ -9,7 +9,7 @@ using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HLogGUI
 {
-    public class ListEditor
+    public class GroupEditor
     {
         private Vector2 _scrollPosition;
 
@@ -26,12 +26,12 @@ namespace UnityModBase.HLogGUI
         public IUnityProvider UnityService { get; }
         public StyleResource StyleProvider { get; }
 
-        public ListEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, StyleResource styleProvider, ToastEditor toastEditor)
+        public GroupEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, StyleResource styleProvider, ToastEditor toastEditor)
         {
-            UnityGui = unityGui;
-            UnityService = unityService;
-            StyleProvider = styleProvider;
-            ToastEditor = toastEditor;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
+            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
+            ToastEditor = toastEditor ?? throw new ArgumentNullException(nameof(toastEditor), "ToastEditor cannot be null.");
             EntryEditor = new EntryEditor(unityGui, unityService, toastEditor);
         }
 
@@ -52,43 +52,46 @@ namespace UnityModBase.HLogGUI
 
             public ColumnEditor(EntryContentType sortOrder, Translator header, GUIStyle style, IUnityGuiProvider unityGui, IUnityProvider unityService)
             {
+                UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
+                UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
+                Style = style ?? throw new ArgumentNullException(nameof(style), "Style cannot be null.");
+                Header = header ?? throw new ArgumentNullException(nameof(header), "Header cannot be null.");
                 ContentType = sortOrder;
-                Header = header;
-                Style = style;
-                UnityGui = unityGui;
-                UnityService = unityService;
             }
 
-            public void RenderHeader(EntryListBinding list)
+            public void DrawHeader(GroupBinding group)
             {
-                if (UnityGui == null || Style == null || list == null)
-                    return;
+                if (group == null)
+                    throw new ArgumentNullException(nameof(group), "Group cannot be null.");
 
                 if (!IsVisible)
                     return;
 
                 var oldFontStyle = Style.fontStyle;
-                if (list.SortOrder == ContentType)
-                    Style.fontStyle = list.IsSortDescending ? FontStyle.BoldAndItalic : FontStyle.Bold;
+                if (group.SortOrder == ContentType)
+                    Style.fontStyle = group.IsSortDescending ? FontStyle.BoldAndItalic : FontStyle.Bold;
 
                 if (UnityGui.Button(Header, Style, ExpendWidth ? UnityGui.ExpandWidth(true) : UnityGui.Width(Width)))
                 {
-                    if (list.SortOrder == ContentType)
-                        list.IsSortDescending = !list.IsSortDescending;
+                    if (group.SortOrder == ContentType)
+                        group.IsSortDescending = !group.IsSortDescending;
                     else
                     {
-                        list.SortOrder = ContentType;
-                        list.IsSortDescending = false;
+                        group.SortOrder = ContentType;
+                        group.IsSortDescending = false;
                     }
                 }
 
                 Style.fontStyle = oldFontStyle;
             }
 
-            public void RenderCell(EntryBinding entry, EntryEditor editor, LogLevel level)
+            public void DrawCell(EntryBinding entry, EntryEditor editor, LogLevel level)
             {
-                if (UnityGui == null || Style == null || entry == null)
-                    return;
+                if (entry == null)
+                    throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
+
+                if (editor == null)
+                    throw new ArgumentNullException(nameof(editor), "Editor cannot be null.");
 
                 if (!IsVisible)
                     return;
@@ -96,16 +99,16 @@ namespace UnityModBase.HLogGUI
                 if (!IsLogLevelHigherOrEqual(entry.Level, level))
                     return;
 
-                editor.Render(GetText(entry, ContentType), Style, Width);
+                editor.Draw(GetText(entry, ContentType), Style, Width);
             }
 
-            public void UpdateWidth(EntryListBinding list, LogLevel level)
+            public void UpdateWidth(GroupBinding group, LogLevel level)
             {
-                if (UnityService == null || Style == null || list == null)
-                    return;
+                if (group == null)
+                    throw new ArgumentNullException(nameof(group), "Group cannot be null.");
 
                 var width = 0f;
-                foreach (var entry in list.Entries)
+                foreach (var entry in group.SortedGroup)
                 {
                     if (!IsLogLevelHigherOrEqual(entry.Level, level))
                         continue;
@@ -124,6 +127,9 @@ namespace UnityModBase.HLogGUI
 
             public static string GetText(EntryBinding entry, EntryContentType contentType)
             {
+                if (entry == null)
+                    throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
+
                 switch (contentType)
                 {
                     case EntryContentType.Id:
@@ -158,15 +164,17 @@ namespace UnityModBase.HLogGUI
             }
         }
 
-        public void Render(EntryListBinding list)
+        public void Draw(GuiContext context)
         {
-            if (UnityGui == null || StyleProvider == null || list == null)
-                return;
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
-            CheckRenderCondition(list);
+            var group = context.UserData;
 
-            RenderColumnVisibilityMenu();
-            RenderColumnLogLevelMenu();
+            CheckDrawCondition(group);
+
+            DrawColumnVisibilityMenu();
+            DrawColumnLogLevelMenu();
 
             _scrollPosition = UnityGui.BeginScrollView(_scrollPosition);
             UnityGui.BeginHorizontal(UnityGui.BoxStyle);
@@ -174,24 +182,27 @@ namespace UnityModBase.HLogGUI
             foreach (var columnEditor in ColumnEditorList.Values)
             {
                 UnityGui.BeginVertical();
-                columnEditor.RenderHeader(list);
-                foreach (var entry in list.Entries)
-                    columnEditor.RenderCell(entry, EntryEditor, Level);
+                columnEditor.DrawHeader(group);
+                foreach (var entry in group.SortedGroup)
+                    columnEditor.DrawCell(entry, EntryEditor, Level);
                 UnityGui.EndVertical();
             }
 
             UnityGui.BeginVertical();
-            RenderMiscMenuHeader();
-            foreach (var entry in list.Entries)
-                RenderMiscMenu(entry);
+            DrawMiscMenuHeader();
+            foreach (var entry in group.SortedGroup)
+                DrawMiscMenu(entry);
             UnityGui.EndVertical();
 
             UnityGui.EndHorizontal();
             UnityGui.EndScrollView();
         }
 
-        public void CheckRenderCondition(EntryListBinding list)
+        public void CheckDrawCondition(GroupBinding group)
         {
+            if (group == null)
+                throw new ArgumentNullException(nameof(group), "Group cannot be null.");
+
             if (ColumnEditorList == null)
             {
                 ColumnEditorList = new Dictionary<EntryContentType, ColumnEditor>()
@@ -222,19 +233,19 @@ namespace UnityModBase.HLogGUI
             if (IsColumnWidthDirty)
             {
                 foreach (var columnEditor in ColumnEditorList.Values)
-                    columnEditor.UpdateWidth(list, Level);
+                    columnEditor.UpdateWidth(group, Level);
                 UpdateTotalColumnWidth();
                 IsColumnWidthDirty = false;
             }
 
-            if (!HasRepeatedEntry && list.HasRepeatedEntry)
+            if (!HasRepeatedEntry && group.HasRepeatedEntry)
             {
                 ColumnEditorList[EntryContentType.LastRepeatTime].IsVisible = true;
                 ColumnEditorList[EntryContentType.RepeatCount].IsVisible = true;
                 HasRepeatedEntry = true;
             }
 
-            if (!HasExceptionEntry && list.HasExceptionEntry)
+            if (!HasExceptionEntry && group.HasExceptionEntry)
             {
                 ColumnEditorList[EntryContentType.Exception].IsVisible = true;
                 HasExceptionEntry = true;
@@ -261,19 +272,19 @@ namespace UnityModBase.HLogGUI
             TotalColumnWidth = UnityService.Max(TotalColumnWidth, menuWidth);
         }
 
-        public void RenderMiscMenuHeader()
+        public void DrawMiscMenuHeader()
         {
-            if (UnityGui == null || StyleProvider == null)
-                return;
             UnityGui.Button(TranslatorResource.MiscMenu, StyleProvider.MiscButtonStyle, UnityGui.ExpandWidth(true));
         }
 
-        public void RenderMiscMenu(EntryBinding entry)
+        public void DrawMiscMenu(EntryBinding entry)
         {
-            if (UnityGui == null || StyleProvider == null || entry == null)
-                return;
+            if (entry == null)
+                throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
+
             if (!IsLogLevelHigherOrEqual(entry.Level, Level))
                 return;
+
             if (UnityGui.Button(TranslatorResource.CopyLog, StyleProvider.MiscButtonStyle, UnityGui.ExpandWidth(true)))
             {
                 UnityService.ClipboardCopy(entry.ToString());
@@ -281,11 +292,8 @@ namespace UnityModBase.HLogGUI
             }
         }
 
-        public void RenderColumnVisibilityMenu()
+        public void DrawColumnVisibilityMenu()
         {
-            if (UnityGui == null)
-                return;
-
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             UnityGui.Space(4);
             UnityGui.BeginHorizontal();
@@ -306,11 +314,8 @@ namespace UnityModBase.HLogGUI
             UnityGui.EndVertical();
         }
 
-        public void RenderColumnLogLevelMenu()
+        public void DrawColumnLogLevelMenu()
         {
-            if (UnityGui == null || StyleProvider == null)
-                return;
-
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             UnityGui.Space(4);
             UnityGui.BeginHorizontal();

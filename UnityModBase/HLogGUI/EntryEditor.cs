@@ -15,15 +15,18 @@ namespace UnityModBase.HLogGUI
 
         public EntryEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, ToastEditor toastEditor)
         {
-            UnityGui = unityGui;
-            UnityService = unityService;
-            ToastEditor = toastEditor;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
+            ToastEditor = toastEditor ?? throw new ArgumentNullException(nameof(toastEditor), "ToastEditor cannot be null.");
         }
 
-        public void Render(string text, GUIStyle style, float width)
+        public void Draw(string text, GUIStyle style, float width)
         {
-            if (UnityGui == null || UnityService == null)
-                return;
+            if (text == null)
+                throw new ArgumentNullException(nameof(text), "Text cannot be null.");
+
+            if (style == null)
+                throw new ArgumentNullException(nameof(style), "Style cannot be null.");
 
             UnityGui.BeginHorizontal();
 

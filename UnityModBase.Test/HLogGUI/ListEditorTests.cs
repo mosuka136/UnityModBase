@@ -1,6 +1,6 @@
 using UnityModBase.HLogGUI;
 using UnityModBase.HLogSpace;
-using static UnityModBase.HLogGUI.ListEditor;
+using static UnityModBase.HLogGUI.GroupEditor;
 
 namespace UnityModBase.Test.HLogGUI
 {

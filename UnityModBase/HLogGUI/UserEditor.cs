@@ -8,21 +8,17 @@ namespace UnityModBase.HLogGUI
 {
     public class UserEditor : UserEditorBase
     {
-        public StyleResource StyleProvider { get; }
-        public ListEditor ListEditor { get; }
-        public UserBinding UserBinding { get; }
+        public GroupEditor GroupEditor { get; }
 
         public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, ToastEditor toastEditor) : base(unityService, unityGui)
         {
-            StyleProvider = styleProvider;
-            UserBinding = new UserBinding(UserManager.UserContexts);
-            ListEditor = new ListEditor(unityGui, unityService, styleProvider, toastEditor);
+            GroupEditor = new GroupEditor(unityGui, unityService, styleProvider, toastEditor);
         }
 
         public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
             base.Draw(users, ref selectedKey, guiContext);
-            ListEditor.Render(UserBinding.GetData(selectedKey));
+            GroupEditor.Draw(guiContext as GuiContext);
         }
     }
 }

@@ -26,7 +26,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
             Assert.Same(unityGui.Object, editor.UnityGui);
-            Assert.Same(styleResource, editor.StyleProvider);
             Assert.NotNull(editor.GroupEditor);
             Assert.Same(unityProvider.Object, editor.GroupEditor.UnityService);
             Assert.Same(unityGui.Object, editor.GroupEditor.UnityGui);

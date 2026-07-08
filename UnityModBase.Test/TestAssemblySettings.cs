@@ -3,8 +3,6 @@ using System.Reflection;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
 
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
-
 namespace UnityModBase.Test
 {
     public static class TestAssemblySettings
@@ -26,8 +24,6 @@ namespace UnityModBase.Test
                 .GetType("UnityModBase.BSpace.BService")
                 .GetProperty("Context", BindingFlags.Static | BindingFlags.Public)
                 .SetValue(null, context);
-
-            AppDomain.CurrentDomain.ProcessExit += (_, _) => global::UnityModBase.UnityModBase.Dispose();
         }
     }
 }

@@ -5,6 +5,7 @@ using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using Moq;
 using UnityEngine;
+using System.Runtime.CompilerServices;
 
 namespace UnityModBase.Test.HLogGUI
 {
@@ -29,29 +30,30 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void Render_WhenUnityGuiIsNull_ReturnsWithoutUsingUnityService()
+        public void Constructor_WhenUnityGuiIsNull_ThrowsArgumentNullException()
         {
             // Arrange
             var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
             var toastUnityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
             var toastEditor = new ToastEditor(toastUnityServiceMock.Object, null, new StyleResource(null));
-            var editor = new EntryEditor(null, unityServiceMock.Object, toastEditor);
 
             // Act
-            editor.Render("text", null, 100f);
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                new EntryEditor(null, unityServiceMock.Object, toastEditor));
 
             // Assert
+            Assert.Equal("unityGui", exception.ParamName);
             unityServiceMock.VerifyNoOtherCalls();
             toastUnityServiceMock.VerifyNoOtherCalls();
         }
 
         [Fact]
-        public void Render_WhenButtonIsNotClicked_UsesFirstNonEmptyLineAsButtonTextAndOriginalTextAsTooltip()
+        public void Draw_WhenButtonIsNotClicked_UsesFirstNonEmptyLineAsButtonTextAndOriginalTextAsTooltip()
         {
             // Arrange
             const string text = "\r\nfirst line\nsecond line";
             var content = new GUIContent("first line", text);
-            GUIStyle style = null;
+            var style = CreateUninitializedGuiStyle();
             GUILayoutOption widthOption = null;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGuiMock.Setup(x => x.BeginHorizontal());
@@ -67,7 +69,7 @@ namespace UnityModBase.Test.HLogGUI
             var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object, toastEditor);
 
             // Act
-            editor.Render(text, style, 120f);
+            editor.Draw(text, style, 120f);
 
             // Assert
             unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);
@@ -82,7 +84,7 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void Render_WhenButtonIsClicked_CopiesOriginalTextAndShowsToastForDisplayedLine()
+        public void Draw_WhenButtonIsClicked_CopiesOriginalTextAndShowsToastForDisplayedLine()
         {
             // Arrange
             const string text = "first line\nsecond line";
@@ -91,7 +93,7 @@ namespace UnityModBase.Test.HLogGUI
             try
             {
                 var content = new GUIContent("first line", text);
-                GUIStyle style = null;
+                var style = CreateUninitializedGuiStyle();
                 GUILayoutOption widthOption = null;
                 var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
                 unityGuiMock.Setup(x => x.BeginHorizontal());
@@ -110,7 +112,7 @@ namespace UnityModBase.Test.HLogGUI
                 var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object, toastEditor);
 
                 // Act
-                editor.Render(text, style, 80f);
+                editor.Draw(text, style, 80f);
 
                 // Assert
                 unityServiceMock.Verify(x => x.ClipboardCopy(text), Times.Once);
@@ -130,6 +132,13 @@ namespace UnityModBase.Test.HLogGUI
             {
                 Translator.DefaultLanguage = originalDefaultLanguage;
             }
+        }
+
+        private static GUIStyle CreateUninitializedGuiStyle()
+        {
+            var style = (GUIStyle)RuntimeHelpers.GetUninitializedObject(typeof(GUIStyle));
+            GC.SuppressFinalize(style);
+            return style;
         }
     }
 }

@@ -9,12 +9,10 @@ namespace UnityModBase.HConfigGUI.Editor
 {
     public class UserEditor : UserEditorBase
     {
-        public StyleResource StyleProvider { get; }
         public GroupEditor GroupEditor { get; }
 
         public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider) : base(unityService, unityGui)
         {
-            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
             GroupEditor = new GroupEditor(unityService, unityGui, styleProvider);
         }
 
@@ -22,7 +20,7 @@ namespace UnityModBase.HConfigGUI.Editor
         {
             base.Draw(users, ref selectedKey, guiContext);
             var context = guiContext as GuiContext;
-            GroupEditor.Draw(context.UserData, context);
+            GroupEditor.Draw(context);
         }
 
         public void Update(GuiContext context, float unscaledDeltaTime)

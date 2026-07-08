@@ -9,15 +9,15 @@ namespace UnityModBase.Test.HLogGUI
         public void AddEntry_WhenEntryIsNull_DoesNotChangeCollection()
         {
             // Arrange
-            var list = new EntryListBinding();
+            var list = new GroupBinding();
 
             // Act
             list.AddEntry(null);
 
             // Assert
-            Assert.Empty(list.EntryList);
-            Assert.Empty(list.Entries);
-            Assert.All(list.SortedEntryList.Values, Assert.Empty);
+            Assert.Empty(list.OriginalGroup);
+            Assert.Empty(list.SortedGroup);
+            Assert.All(list.SortedGroups.Values, Assert.Empty);
             Assert.False(list.HasExceptionEntry);
             Assert.False(list.HasRepeatedEntry);
         }
@@ -26,23 +26,23 @@ namespace UnityModBase.Test.HLogGUI
         public void AddEntry_WhenEntryIsNew_AddsItToDefaultAndSortedCollections()
         {
             // Arrange
-            var list = new EntryListBinding();
+            var list = new GroupBinding();
             var entry = new EntryBinding(CreateEntry(id: 5, message: "new entry"));
 
             // Act
             list.AddEntry(entry);
 
             // Assert
-            Assert.Same(entry, Assert.Single(list.EntryList));
-            Assert.Same(entry, Assert.Single(list.Entries));
-            Assert.All(list.SortedEntryList.Values, sortedSet => Assert.Same(entry, Assert.Single(sortedSet)));
+            Assert.Same(entry, Assert.Single(list.OriginalGroup));
+            Assert.Same(entry, Assert.Single(list.SortedGroup));
+            Assert.All(list.SortedGroups.Values, sortedSet => Assert.Same(entry, Assert.Single(sortedSet)));
         }
 
         [Fact]
         public void AddEntry_WhenEntryHasExceptionAndRepeatCount_SetsFlags()
         {
             // Arrange
-            var list = new EntryListBinding();
+            var list = new GroupBinding();
             var logEntry = CreateEntry(exception: new InvalidOperationException("boom"));
             logEntry.UpdateRepeat(new DateTime(2026, 6, 13, 2, 0, 0));
 
@@ -58,7 +58,7 @@ namespace UnityModBase.Test.HLogGUI
         public void AddEntry_WhenEquivalentEntryAlreadyExists_KeepsOriginalEntryAndSingleItem()
         {
             // Arrange
-            var list = new EntryListBinding();
+            var list = new GroupBinding();
             var original = CreateEntry(id: 1, timestamp: new DateTime(2026, 6, 13, 1, 0, 0), message: "same");
             var repeated = CreateEntry(id: 2, timestamp: new DateTime(2026, 6, 13, 1, 0, 1), message: "same");
             repeated.UpdateRepeat(new DateTime(2026, 6, 13, 1, 0, 2));
@@ -68,19 +68,19 @@ namespace UnityModBase.Test.HLogGUI
             list.AddEntry(new EntryBinding(repeated));
 
             // Assert
-            var merged = Assert.Single(list.EntryList);
+            var merged = Assert.Single(list.OriginalGroup);
             Assert.Equal("1", merged.RepeatCount);
             Assert.Equal("01:00:00.000", merged.LastRepeatTime);
             Assert.False(merged.IsRepeated);
             Assert.True(list.HasRepeatedEntry);
-            Assert.All(list.SortedEntryList.Values, sortedSet => Assert.Same(merged, Assert.Single(sortedSet)));
+            Assert.All(list.SortedGroups.Values, sortedSet => Assert.Same(merged, Assert.Single(sortedSet)));
         }
 
         [Fact]
         public void Entries_WhenSortOrderIsTimestamp_ReturnsAscendingOrDescendingTimestampOrder()
         {
             // Arrange
-            var list = new EntryListBinding();
+            var list = new GroupBinding();
             var middle = new EntryBinding(CreateEntry(id: 1, timestamp: new DateTime(2026, 6, 13, 12, 0, 0), message: "middle"));
             var late = new EntryBinding(CreateEntry(id: 2, timestamp: new DateTime(2026, 6, 13, 13, 0, 0), message: "late"));
             var early = new EntryBinding(CreateEntry(id: 3, timestamp: new DateTime(2026, 6, 13, 11, 0, 0), message: "early"));
@@ -90,9 +90,9 @@ namespace UnityModBase.Test.HLogGUI
 
             // Act
             list.SortOrder = EntryContentType.Timestamp;
-            var ascending = list.Entries.Select(x => x.Message).ToArray();
+            var ascending = list.SortedGroup.Select(x => x.Message).ToArray();
             list.IsSortDescending = true;
-            var descending = list.Entries.Select(x => x.Message).ToArray();
+            var descending = list.SortedGroup.Select(x => x.Message).ToArray();
 
             // Assert
             Assert.Equal(new[] { "early", "middle", "late" }, ascending);
@@ -107,7 +107,7 @@ namespace UnityModBase.Test.HLogGUI
             var higherId = new EntryBinding(CreateEntry(id: 2));
 
             // Act
-            var result = EntryListBinding.CompareByIdFallback(higherId, lowerId, 0);
+            var result = GroupBinding.CompareByIdFallback(higherId, lowerId, 0);
 
             // Assert
             Assert.True(result > 0);

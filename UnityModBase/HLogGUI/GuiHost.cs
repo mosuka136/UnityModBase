@@ -22,9 +22,15 @@ namespace UnityModBase.HLogGUI
                 StyleProvider = styleProvider;
                 base.Awake();
 
+                GuiContextKey = nameof(HLogGUI);
                 Users = UserManager.UserContexts;
+                foreach (var user in Users)
+                    RegisterContext(user);
+                UserManager.OnUserRegistered += RegisterContext;
+                CurrentContext = GetContext(_selectedUserKey);
+
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, ToastEditor);
-                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.ListEditor.IsColumnWidthDirty = true;
+                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.GroupEditor.IsColumnWidthDirty = true;
                 UserEditor = userEditor;
 
                 UIHotkey = BConfigManager.LogUIHotkey.Value;
@@ -44,16 +50,34 @@ namespace UnityModBase.HLogGUI
             }
         }
 
+        public void RegisterContext(UserContext context)
+        {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
+
+            var guiContext = new GuiContext();
+            var userData = new GroupBinding();
+
+            guiContext.UserData = userData;
+
+            foreach (var log in context.Service.LogDatabase.Logs)
+                userData.AddEntry(new EntryBinding(log));
+            context.Service.LogDatabase.OnLogAdded += l => userData.AddEntry(new EntryBinding(l));
+            context.Service.LogDatabase.OnLogRepeated += l => userData.AddEntry(new EntryBinding(l));
+
+            context.AddContext(GuiContextKey, guiContext);
+        }
+
         public void OnDestroy()
         {
-            (UserEditor as UserEditor)?.UserBinding.Dispose();
+            UserManager.OnUserRegistered -= RegisterContext;
         }
 
         public override void OnGUI()
         {
             var userEditor = UserEditor as UserEditor;
             var rect = WindowRect;
-            rect.width = UnityService.Clamp(userEditor.ListEditor.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
+            rect.width = UnityService.Clamp(userEditor.GroupEditor.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
             WindowRect = rect;
 
             base.OnGUI();

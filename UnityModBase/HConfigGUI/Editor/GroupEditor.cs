@@ -41,11 +41,8 @@ namespace UnityModBase.HConfigGUI.Editor
             EntryEditor = new EntryEditor(EditorRegistry, unityGui);
         }
 
-        public void Draw(GroupBinding root, GuiContext context)
+        public void Draw(GuiContext context)
         {
-            if (root == null)
-                throw new ArgumentNullException(nameof(root), "Root config group cannot be null.");
-
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
@@ -55,6 +52,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 return;
             }
 
+            var root = context.UserData;
             if (!ReferenceEquals(_currentRoot, root))
             {
                 HotkeyEditor.Session.CancelEdit();

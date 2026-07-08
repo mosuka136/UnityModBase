@@ -4,26 +4,26 @@ using System.Linq;
 
 namespace UnityModBase.HLogGUI
 {
-    public class EntryListBinding
+    public class GroupBinding
     {
         public bool HasRepeatedEntry { get; private set; } = false;
         public bool HasExceptionEntry { get; private set; } = false;
-        public List<EntryBinding> EntryList { get; } = new List<EntryBinding>();
+        public List<EntryBinding> OriginalGroup { get; } = new List<EntryBinding>();
         public EntryContentType SortOrder { get; set; } = EntryContentType.None;
         public bool IsSortDescending { get; set; } = false;
-        public Dictionary<EntryContentType, SortedSet<EntryBinding>> SortedEntryList { get; }
-        public IEnumerable<EntryBinding> Entries
+        public Dictionary<EntryContentType, SortedSet<EntryBinding>> SortedGroups { get; }
+        public IEnumerable<EntryBinding> SortedGroup
         {
             get
             {
-                if (SortedEntryList.TryGetValue(SortOrder, out var sortedSet))
+                if (SortedGroups.TryGetValue(SortOrder, out var sortedSet))
                     return IsSortDescending ? sortedSet.Reverse() : sortedSet;
                 else
-                    return EntryList;
+                    return OriginalGroup;
             }
         }
 
-        public EntryListBinding()
+        public GroupBinding()
         {
             var comparerById = Comparer<EntryBinding>.Create(CompareId);
             var comparerByTimestamp = Comparer<EntryBinding>.Create((a, b) =>
@@ -87,7 +87,7 @@ namespace UnityModBase.HLogGUI
                 return CompareByIdFallback(a, b, result);
             });
 
-            SortedEntryList = new Dictionary<EntryContentType, SortedSet<EntryBinding>>
+            SortedGroups = new Dictionary<EntryContentType, SortedSet<EntryBinding>>
             {
                 { EntryContentType.Id, new SortedSet<EntryBinding>(comparerById) },
                 { EntryContentType.Timestamp, new SortedSet<EntryBinding>(comparerByTimestamp) },
@@ -116,22 +116,22 @@ namespace UnityModBase.HLogGUI
             if (entry.IsRepeated)
                 HasRepeatedEntry = true;
 
-            var existingEntryList = EntryList.Where(e => e.Equals(entry));
+            var existingEntryList = OriginalGroup.Where(e => e.Equals(entry));
             if (existingEntryList.Any())
             {
                 var existing = existingEntryList.First();
-                foreach (var sortedSet in SortedEntryList.Values)
+                foreach (var sortedSet in SortedGroups.Values)
                     sortedSet.Remove(existing);
 
                 HasRepeatedEntry = true;
 
-                foreach (var sortedSet in SortedEntryList.Values)
+                foreach (var sortedSet in SortedGroups.Values)
                     sortedSet.Add(existing);
                 return;
             }
 
-            EntryList.Add(entry);
-            foreach (var sortedSet in SortedEntryList.Values)
+            OriginalGroup.Add(entry);
+            foreach (var sortedSet in SortedGroups.Values)
                 sortedSet.Add(entry);
         }
 

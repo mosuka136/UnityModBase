@@ -62,8 +62,11 @@ namespace UnityModBase.HConfigGUI
             }
         }
 
-        private void RegisterContext(UserContext context)
+        public void RegisterContext(UserContext context)
         {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
+
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
             guiContext.ChangeSink.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
             guiContext.ChangeSink.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
@@ -75,11 +78,6 @@ namespace UnityModBase.HConfigGUI
         {
             base.Update();
             (UserEditor as UserEditor)?.Update(CurrentContext as GuiContext, UnityService.UnscaledDeltaTime);
-        }
-
-        public override void DrawWindow(int id)
-        {
-            base.DrawWindow(id);
         }
 
         public override void OnGUI()
