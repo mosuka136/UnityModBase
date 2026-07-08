@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using UnityEngine;
-using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI.Resource;
 using UnityModBase.HProvider;
 
@@ -9,15 +8,15 @@ namespace UnityModBase.HLogGUI
 {
     public class EntryEditor
     {
+        public event Action<string> OnEntryCopied;
+
         public IUnityGuiProvider UnityGui { get; }
         public IUnityProvider UnityService { get; }
-        public ToastEditor ToastEditor { get; }
 
-        public EntryEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, ToastEditor toastEditor)
+        public EntryEditor(IUnityGuiProvider unityGui, IUnityProvider unityService)
         {
             UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
             UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
-            ToastEditor = toastEditor ?? throw new ArgumentNullException(nameof(toastEditor), "ToastEditor cannot be null.");
         }
 
         public void Draw(string text, GUIStyle style, float width)
@@ -38,7 +37,7 @@ namespace UnityModBase.HLogGUI
             if (UnityGui.Button(content, style, UnityGui.Width(width)))
             {
                 UnityService.ClipboardCopy(text);
-                ToastEditor.SetToast(TranslatorResource.Copied + showText);
+                OnEntryCopied?.Invoke(TranslatorResource.Copied + showText);
             }
 
             UnityGui.EndHorizontal();

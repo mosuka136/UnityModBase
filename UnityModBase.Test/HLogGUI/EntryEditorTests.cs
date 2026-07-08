@@ -1,6 +1,4 @@
-using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI;
-using UnityModBase.HLogGUI.Resource;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using Moq;
@@ -17,16 +15,13 @@ namespace UnityModBase.Test.HLogGUI
             // Arrange
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastUnityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastEditor = new ToastEditor(toastUnityServiceMock.Object, unityGuiMock.Object, new StyleResource(unityGuiMock.Object));
 
             // Act
-            var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object, toastEditor);
+            var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object);
 
             // Assert
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
             Assert.Same(unityServiceMock.Object, editor.UnityService);
-            Assert.Same(toastEditor, editor.ToastEditor);
         }
 
         [Fact]
@@ -34,17 +29,14 @@ namespace UnityModBase.Test.HLogGUI
         {
             // Arrange
             var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastUnityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastEditor = new ToastEditor(toastUnityServiceMock.Object, null, new StyleResource(null));
 
             // Act
             var exception = Assert.Throws<ArgumentNullException>(() =>
-                new EntryEditor(null, unityServiceMock.Object, toastEditor));
+                new EntryEditor(null, unityServiceMock.Object));
 
             // Assert
             Assert.Equal("unityGui", exception.ParamName);
             unityServiceMock.VerifyNoOtherCalls();
-            toastUnityServiceMock.VerifyNoOtherCalls();
         }
 
         [Fact]
@@ -64,9 +56,9 @@ namespace UnityModBase.Test.HLogGUI
                 .Returns(false);
             unityGuiMock.Setup(x => x.EndHorizontal());
             var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastUnityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-            var toastEditor = new ToastEditor(toastUnityServiceMock.Object, unityGuiMock.Object, new StyleResource(unityGuiMock.Object));
-            var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object, toastEditor);
+            var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object);
+            string copiedMessage = null;
+            editor.OnEntryCopied += message => copiedMessage = message;
 
             // Act
             editor.Draw(text, style, 120f);
@@ -79,12 +71,11 @@ namespace UnityModBase.Test.HLogGUI
             unityGuiMock.Verify(x => x.EndHorizontal(), Times.Once);
             unityGuiMock.VerifyNoOtherCalls();
             unityServiceMock.VerifyNoOtherCalls();
-            toastUnityServiceMock.VerifyNoOtherCalls();
-            Assert.Null(toastEditor.Message);
+            Assert.Null(copiedMessage);
         }
 
         [Fact]
-        public void Draw_WhenButtonIsClicked_CopiesOriginalTextAndShowsToastForDisplayedLine()
+        public void Draw_WhenButtonIsClicked_CopiesOriginalTextAndRaisesCopiedEventForDisplayedLine()
         {
             // Arrange
             const string text = "first line\nsecond line";
@@ -106,19 +97,16 @@ namespace UnityModBase.Test.HLogGUI
 
                 var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
                 unityServiceMock.Setup(x => x.ClipboardCopy(text));
-                var toastUnityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
-                toastUnityServiceMock.SetupGet(x => x.RealtimeSinceStartup).Returns(10f);
-                var toastEditor = new ToastEditor(toastUnityServiceMock.Object, unityGuiMock.Object, new StyleResource(unityGuiMock.Object));
-                var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object, toastEditor);
+                var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object);
+                string copiedMessage = null;
+                editor.OnEntryCopied += message => copiedMessage = message;
 
                 // Act
                 editor.Draw(text, style, 80f);
 
                 // Assert
                 unityServiceMock.Verify(x => x.ClipboardCopy(text), Times.Once);
-                toastUnityServiceMock.VerifyGet(x => x.RealtimeSinceStartup, Times.Once);
-                Assert.Equal("Copied:first line", toastEditor.Message);
-                Assert.Equal(12f, toastEditor.EndTime);
+                Assert.Equal("Copied:first line", copiedMessage);
                 unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);
                 unityGuiMock.Verify(x => x.GetContent("first line", text), Times.Once);
                 unityGuiMock.Verify(x => x.Width(80f), Times.Once);
@@ -126,7 +114,6 @@ namespace UnityModBase.Test.HLogGUI
                 unityGuiMock.Verify(x => x.EndHorizontal(), Times.Once);
                 unityGuiMock.VerifyNoOtherCalls();
                 unityServiceMock.VerifyNoOtherCalls();
-                toastUnityServiceMock.VerifyNoOtherCalls();
             }
             finally
             {

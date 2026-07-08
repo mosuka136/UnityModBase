@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI.Resource;
 using UnityModBase.HLogSpace;
 using UnityModBase.HProvider;
@@ -13,6 +12,8 @@ namespace UnityModBase.HLogGUI
     {
         private Vector2 _scrollPosition;
 
+        public event Action<string> OnLogCopied;
+
         public LogLevel Level { get; set; } = LogLevel.Info;
         public bool IsColumnWidthDirty { get; set; } = true;
         public bool HasRepeatedEntry { get; private set; } = false;
@@ -21,18 +22,16 @@ namespace UnityModBase.HLogGUI
         public Dictionary<EntryContentType, ColumnEditor> ColumnEditorList { get; private set; }
         public EntryEditor EntryEditor { get; }
 
-        public ToastEditor ToastEditor { get; }
         public IUnityGuiProvider UnityGui { get; }
         public IUnityProvider UnityService { get; }
         public StyleResource StyleProvider { get; }
 
-        public GroupEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, StyleResource styleProvider, ToastEditor toastEditor)
+        public GroupEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, StyleResource styleProvider)
         {
             UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
             UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
             StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
-            ToastEditor = toastEditor ?? throw new ArgumentNullException(nameof(toastEditor), "ToastEditor cannot be null.");
-            EntryEditor = new EntryEditor(unityGui, unityService, toastEditor);
+            EntryEditor = new EntryEditor(unityGui, unityService);
         }
 
         public class ColumnEditor
@@ -288,7 +287,7 @@ namespace UnityModBase.HLogGUI
             if (UnityGui.Button(TranslatorResource.CopyLog, StyleProvider.MiscButtonStyle, UnityGui.ExpandWidth(true)))
             {
                 UnityService.ClipboardCopy(entry.ToString());
-                ToastEditor.SetToast($"{TranslatorResource.Copied} Log{entry.Id}");
+                OnLogCopied?.Invoke($"{TranslatorResource.Copied} Log{entry.Id}");
             }
         }
 

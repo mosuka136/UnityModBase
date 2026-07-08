@@ -29,7 +29,8 @@ namespace UnityModBase.HLogGUI
                 UserManager.OnUserRegistered += RegisterContext;
                 CurrentContext = GetContext(_selectedUserKey);
 
-                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, ToastEditor);
+                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
+                userEditor.RegisterToastHandler(ToastEditor);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.GroupEditor.IsColumnWidthDirty = true;
                 UserEditor = userEditor;
 
