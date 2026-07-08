@@ -16,14 +16,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityProvider = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleResource = new StyleResource(null);
-            var layoutResource = new LayoutResource(unityGui.Object);
 
             // Act
             var editor = new UserEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                styleResource,
-                layoutResource);
+                styleResource);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
@@ -33,7 +31,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.Same(unityProvider.Object, editor.GroupEditor.UnityService);
             Assert.Same(unityGui.Object, editor.GroupEditor.UnityGui);
             Assert.Same(styleResource, editor.GroupEditor.StyleProvider);
-            Assert.Same(layoutResource, editor.GroupEditor.LayoutProvider);
         }
 
 
@@ -47,8 +44,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var editor = new UserEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                new StyleResource(null),
-                new LayoutResource(unityGui.Object));
+                new StyleResource(null));
             var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
             entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             object currentValue = "old";

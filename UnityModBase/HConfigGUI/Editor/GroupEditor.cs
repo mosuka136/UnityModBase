@@ -14,7 +14,6 @@ namespace UnityModBase.HConfigGUI.Editor
         public IUnityProvider UnityService { get; }
         public IUnityGuiProvider UnityGui { get; }
         public StyleResource StyleProvider { get; }
-        public LayoutResource LayoutProvider { get; }
 
         public ValueEditorRegistry EditorRegistry { get; }
         public EntryEditor EntryEditor { get; }
@@ -24,12 +23,11 @@ namespace UnityModBase.HConfigGUI.Editor
         private Vector2 _contentScrollPosition = Vector2.zero;
         private GroupBinding _currentRoot;
 
-        public GroupEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, LayoutResource layoutProvider)
+        public GroupEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
             UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
             StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
-            LayoutProvider = layoutProvider ?? throw new ArgumentNullException(nameof(layoutProvider), "LayoutProvider cannot be null.");
 
             EditorRegistry = new ValueEditorRegistry();
             EditorRegistry.RegisterEditor(new BooleanEditor(unityGui));
@@ -133,7 +131,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 var groups = GetChildGroups(root);
                 foreach (var group in groups)
                 {
-                    var width = LayoutProvider.GetEntryLabelWidth(group);
+                    var width = GetEntryLabelWidth(group);
                     context.SetEntryLabelWidth(group.Key, width);
                 }
                 context.IsEntryLabelWidthDirty = false;
@@ -141,7 +139,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (context.IsGroupButtonWidthDirty)
             {
-                context.GroupButtonWidth = LayoutProvider.GetGroupButtonWidth(root);
+                context.GroupButtonWidth = GetGroupButtonWidth(root);
                 context.IsGroupButtonWidthDirty = false;
             }
 
@@ -244,6 +242,59 @@ namespace UnityModBase.HConfigGUI.Editor
             }
 
             return groups;
+        }
+
+        public float GetEntryLabelWidth(GroupBinding root)
+        {
+            if (root == null)
+                return 0f;
+
+            float maxWidth = 0f;
+            foreach (var entry in EnumerateEntries(root))
+            {
+                var width = UnityGui.LabelStyle.CalcSize(UnityGui.GetContent(entry.Name)).x;
+                if (width > maxWidth)
+                    maxWidth = width;
+            }
+
+            return maxWidth + 10f;
+        }
+
+        public float GetGroupButtonWidth(GroupBinding root)
+        {
+            if (root == null)
+                return 0f;
+
+            float maxWidth = 0f;
+            foreach (var node in root.Children)
+            {
+                if (!(node is GroupBinding group))
+                    continue;
+
+                var width = UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(group.Name)).x;
+                if (width > maxWidth)
+                    maxWidth = width;
+            }
+
+            return maxWidth + 60f;
+        }
+
+        private static IEnumerable<IEntryBinding> EnumerateEntries(GroupBinding group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (child is IEntryBinding entry)
+                {
+                    yield return entry;
+                    continue;
+                }
+
+                if (!(child is GroupBinding childGroup))
+                    continue;
+
+                foreach (var descendant in EnumerateEntries(childGroup))
+                    yield return descendant;
+            }
         }
     }
 }

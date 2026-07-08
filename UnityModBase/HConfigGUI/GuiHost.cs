@@ -20,7 +20,6 @@ namespace UnityModBase.HConfigGUI
     public class GuiHost : GuiHostBase
     {
         public PopupEditor PopupEditor { get; private set; }
-        public LayoutResource LayoutProvider { get; private set; }
 
         public override void Awake()
         {
@@ -29,7 +28,6 @@ namespace UnityModBase.HConfigGUI
                 UnityGui = UnityGuiProvider.Instance;
                 var styleProvider = new StyleResource(UnityGui);
                 StyleProvider = styleProvider;
-                LayoutProvider = new LayoutResource(UnityGui);
                 base.Awake();
 
                 Translator.DefaultLanguage = BConfigManager.SetLanguage.Value;
@@ -41,7 +39,7 @@ namespace UnityModBase.HConfigGUI
                 UserManager.OnUserRegistered += RegisterContext;
                 CurrentContext = GetContext(_selectedUserKey);
 
-                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider);
+                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
                 Translator.OnDefaultLanguageChanged += (s, e) => userEditor.SetLayoutDirty(CurrentContext as GuiContext);
                 UserEditor = userEditor;
 

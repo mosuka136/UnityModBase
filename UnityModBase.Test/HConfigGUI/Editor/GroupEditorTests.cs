@@ -18,20 +18,17 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityProvider = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleResource = new StyleResource(null);
-            var layoutResource = new LayoutResource(unityGui.Object);
 
             // Act
             var editor = new GroupEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                styleResource,
-                layoutResource);
+                styleResource);
 
             // Assert
             Assert.Same(unityProvider.Object, editor.UnityService);
             Assert.Same(unityGui.Object, editor.UnityGui);
             Assert.Same(styleResource, editor.StyleProvider);
-            Assert.Same(layoutResource, editor.LayoutProvider);
             Assert.NotNull(editor.EditorRegistry);
             Assert.NotNull(editor.EntryEditor);
             Assert.Same(editor.EditorRegistry, editor.EntryEditor.Registry);
@@ -59,8 +56,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var editor = new GroupEditor(
                 unityProvider.Object,
                 unityGui.Object,
-                new StyleResource(null),
-                new LayoutResource(unityGui.Object));
+                new StyleResource(null));
             firstContext.ChangeSink.SetValue(firstEntry.Object, "first-new", delay: 0.5f);
             secondContext.ChangeSink.SetValue(secondEntry.Object, "second-new", delay: 0.5f);
 

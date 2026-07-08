@@ -64,7 +64,6 @@
     <Compile Include="HConfigGUI\EntryEditBuffer.cs" />
     <Compile Include="HConfigGUI\GuiContext.cs" />
     <Compile Include="HConfigGUI\GuiHost.cs" />
-    <Compile Include="HConfigGUI\Resource\LayoutResource.cs" />
     <Compile Include="HConfigGUI\Resource\StyleResource.cs" />
     <Compile Include="HConfigGUI\Resource\TranslatorResource.cs" />
     <Compile Include="HConfigGUI\UiMetadata.cs" />

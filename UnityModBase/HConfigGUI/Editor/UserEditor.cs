@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
@@ -11,10 +12,10 @@ namespace UnityModBase.HConfigGUI.Editor
         public StyleResource StyleProvider { get; }
         public GroupEditor GroupEditor { get; }
 
-        public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, LayoutResource layoutProvider) : base(unityService, unityGui)
+        public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider) : base(unityService, unityGui)
         {
-            StyleProvider = styleProvider;
-            GroupEditor = new GroupEditor(unityService, unityGui, styleProvider, layoutProvider);
+            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
+            GroupEditor = new GroupEditor(unityService, unityGui, styleProvider);
         }
 
         public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
