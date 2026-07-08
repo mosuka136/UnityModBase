@@ -57,7 +57,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 return;
 
             UnityGui.BeginHorizontal();
-            UnityGui.Space(context.GetFloat(GuiContext.LeadingBlankWidthKey, 0f));
+            UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
             UnityGui.BeginVertical(UnityGui.BoxStyle);
 
             var chords = new List<HotkeyChord>(value.Hotkeys);

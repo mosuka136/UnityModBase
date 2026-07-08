@@ -9,8 +9,6 @@ namespace UnityModBase.HConfigGUI.Editor
     public class EntryEditor
     {
         public ValueEditorRegistry Registry { get; }
-
-        public float RearBlankWidth => UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(TranslatorResource.Reset)).x;
         public IUnityGuiProvider UnityGui { get; }
 
         public EntryEditor(ValueEditorRegistry registry, IUnityGuiProvider unity)
@@ -19,7 +17,7 @@ namespace UnityModBase.HConfigGUI.Editor
             UnityGui = unity ?? throw new ArgumentNullException(nameof(unity), "UnityGui cannot be null.");
         }
 
-        public void Render(IEntryBinding entry, GuiContext context)
+        public void Draw(IEntryBinding entry, GuiContext context)
         {
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
@@ -29,16 +27,14 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error($"Invalid GuiContext provided to {nameof(Render)}.");
+                BLog.Error($"Invalid GuiContext provided to {nameof(Draw)}.");
                 return;
             }
 
             var editor = Registry.GetEditor(entry);
 
-            context.SetFloat(GuiContext.RearBlankWidthKey, RearBlankWidth);
-
             UnityGui.BeginHorizontal();
-            UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(context.GetFloat(GuiContext.LeadingBlankWidthKey)));
+            UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(context.GetEntryLabelWidth(context.SelectedGroupKey)));
             editor.DrawValue(entry, context);
             if (UnityGui.Button(TranslatorResource.Reset, UnityGui.ExpandWidth(false)))
                 context.ChangeSink.ResetValue(entry);

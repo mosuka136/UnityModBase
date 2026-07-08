@@ -12,11 +12,7 @@ namespace UnityModBase.HLogGUI
         public ListEditor ListEditor { get; }
         public UserBinding UserBinding { get; }
 
-        public UserEditor(
-            IUnityProvider unityService,
-            IUnityGuiProvider unityGui,
-            StyleResource styleProvider,
-            ToastEditor toastEditor) : base(unityService, unityGui)
+        public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, ToastEditor toastEditor) : base(unityService, unityGui)
         {
             StyleProvider = styleProvider;
             UserBinding = new UserBinding(UserManager.UserContexts);

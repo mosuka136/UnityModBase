@@ -208,9 +208,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             unityGuiMock.Setup(x => x.EndHorizontal());
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("VisibleEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
-            var state = new GuiStateStore();
-            state.SetFloat(GuiStateStore.LeadingBlankWidthKey, 12.5f);
-            state.SetFloat(GuiStateStore.RearBlankWidthKey, 8.5f);
+            var state = new GuiStateStore
+            {
+                SelectedGroupKey = "General",
+                ResetButtonWidth = 8.5f,
+            };
+            state.SetEntryLabelWidth("General", 12.5f);
             state.ExpandedEnumKey = entryMock.Object.Key;
 
             // Act
@@ -250,7 +253,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             unityGuiMock.Setup(x => x.EndHorizontal());
             var editor = new EnumEditor(unityGuiMock.Object);
             var entryMock = CreateEntry("HiddenEnumEntry", typeof(VisibleEnum), VisibleEnum.Hidden);
-            var state = new GuiStateStore();
+            var state = new GuiStateStore
+            {
+                ResetButtonWidth = 0f,
+            };
             state.ExpandedEnumKey = entryMock.Object.Key;
 
             // Act

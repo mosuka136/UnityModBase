@@ -11,18 +11,10 @@ namespace UnityModBase.HConfigGUI.Editor
         public StyleResource StyleProvider { get; }
         public GroupEditor GroupEditor { get; }
 
-        public UserEditor(
-            IUnityProvider unityService,
-            IUnityGuiProvider unityGui,
-            StyleResource styleProvider,
-            LayoutResource layoutProvider) : base(unityService, unityGui)
+        public UserEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider, LayoutResource layoutProvider) : base(unityService, unityGui)
         {
             StyleProvider = styleProvider;
-            GroupEditor = new GroupEditor(
-                unityService,
-                unityGui,
-                styleProvider,
-                layoutProvider);
+            GroupEditor = new GroupEditor(unityService, unityGui, styleProvider, layoutProvider);
         }
 
         public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
@@ -37,9 +29,9 @@ namespace UnityModBase.HConfigGUI.Editor
             GroupEditor.Update(context, unscaledDeltaTime);
         }
 
-        public void UpdateLayout()
+        public void SetLayoutDirty(GuiContext context)
         {
-            GroupEditor.UpdateLayout();
+            GroupEditor.SetLayoutDirty(context);
         }
     }
 }

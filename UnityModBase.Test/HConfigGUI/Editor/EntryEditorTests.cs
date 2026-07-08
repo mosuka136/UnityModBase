@@ -28,7 +28,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var editor = new EntryEditor(new ValueEditorRegistry(), unityGuiMock.Object);
 
-            var exception = Assert.Throws<ArgumentNullException>(() => editor.Render(null, new GuiContext()));
+            var exception = Assert.Throws<ArgumentNullException>(() => editor.Draw(null, new GuiContext()));
 
             Assert.Equal("entry", exception.ParamName);
             unityGuiMock.VerifyNoOtherCalls();
@@ -55,7 +55,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var editor = new EntryEditor(registry, unityGuiMock.Object);
 
-            editor.Render(entryMock.Object, GuiContext.InvalidGuiContext);
+            editor.Draw(entryMock.Object, GuiContext.InvalidGuiContext);
 
             unityGuiMock.VerifyNoOtherCalls();
             valueEditorMock.VerifyNoOtherCalls();

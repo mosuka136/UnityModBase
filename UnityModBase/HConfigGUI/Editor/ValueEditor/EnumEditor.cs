@@ -55,13 +55,13 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             currentIndex = currentIndex >= 0 ? currentIndex : 0;
 
             UnityGui.BeginHorizontal();
-            UnityGui.Space(context.GetFloat(GuiContext.LeadingBlankWidthKey, 0f));
+            UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
 
             UnityGui.BeginVertical(UnityGui.BoxStyle);
             int newIndex = UnityGui.SelectionGrid(currentIndex, names, 1, UnityGui.ExpandWidth(true));
             UnityGui.EndVertical();
 
-            UnityGui.Space(context.GetFloat(GuiContext.RearBlankWidthKey, 0f));
+            UnityGui.Space(context.ResetButtonWidth);
             UnityGui.EndHorizontal();
 
             if (currentIndex != newIndex)

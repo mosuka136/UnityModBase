@@ -42,7 +42,7 @@ namespace UnityModBase.HConfigGUI
                 CurrentContext = GetContext(_selectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider, LayoutProvider);
-                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.UpdateLayout();
+                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.SetLayoutDirty(CurrentContext as GuiContext);
                 UserEditor = userEditor;
 
                 PopupEditor = new PopupEditor(UnityGui, styleProvider);

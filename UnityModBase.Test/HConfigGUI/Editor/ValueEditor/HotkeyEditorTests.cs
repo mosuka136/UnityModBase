@@ -212,8 +212,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             editor.Session.State = HotkeyEditState.Expanded;
             editor.Session.OriginalValue = originalHotkey;
             editor.Session.WorkingValue = workingHotkey;
-            var state = new GuiStateStore();
-            state.SetFloat(GuiStateStore.LeadingBlankWidthKey, leadingBlank);
+            var state = new GuiStateStore
+            {
+                SelectedGroupKey = "General",
+            };
+            state.SetEntryLabelWidth("General", leadingBlank);
 
             // Act
             editor.DrawExtra(entryMock.Object, state);

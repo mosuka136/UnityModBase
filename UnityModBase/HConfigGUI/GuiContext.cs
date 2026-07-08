@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
@@ -9,11 +8,7 @@ namespace UnityModBase.HConfigGUI
 {
     public class GuiContext : IUserContext
     {
-        public const string Separator = "+";
-        public static string LeadingBlankWidthKey => "LeadingBlankWidth";
-        public static string RearBlankWidthKey => "RearBlankWidth";
-
-        private readonly Dictionary<string, float> _floatState = new Dictionary<string, float>();
+        private readonly Dictionary<string, float> _entryLabelWidth = new Dictionary<string, float>();
 
         public readonly static GuiContext InvalidGuiContext = new GuiContext();
         public bool IsValid => !ReferenceEquals(this, InvalidGuiContext);
@@ -24,8 +19,13 @@ namespace UnityModBase.HConfigGUI
         public PopupState Popup { get; private set; }
         public string ExpandedEnumKey { get; set; } = string.Empty;
         public string SelectedGroupKey { get; set; } = string.Empty;
-        public float EntryLabelWidth { get; set; } = -1f;
+
         public float GroupButtonWidth { get; set; } = -1f;
+        public float ResetButtonWidth { get; set; } = -1f;
+
+        public bool IsEntryLabelWidthDirty { get; set; } = true;
+        public bool IsGroupButtonWidthDirty { get; set; } = true;
+        public bool IsResetButtonWidthDirty { get; set; } = true;
 
         public GuiContext()
         {
@@ -41,43 +41,27 @@ namespace UnityModBase.HConfigGUI
             public Action CloseAction { get; set; }
         }
 
-        public string GetKey(IEntryBinding entry, string suffix = "")
+        public float GetEntryLabelWidth(string key, float defaultValue = 0f)
         {
-            return entry.Key + Separator + suffix;
-        }
-
-        public float GetFloat(string key, float defaultValue = 0f)
-        {
-            if (_floatState.TryGetValue(key, out var value))
+            if (_entryLabelWidth.TryGetValue(key, out var value))
                 return value;
-            _floatState[key] = defaultValue;
+            _entryLabelWidth[key] = defaultValue;
             return defaultValue;
         }
 
-        public void SetFloat(string key, float value)
+        public void SetEntryLabelWidth(string key, float value)
         {
-            _floatState[key] = value;
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));
+
+            _entryLabelWidth[key] = value;
         }
 
-        public void DeleteFloat(string key)
+        public void SetLayoutDirtyFlags(bool entryLabelWidthDirty = true, bool groupButtonWidthDirty = true, bool resetButtonWidthDirty = true)
         {
-            if (_floatState.ContainsKey(key))
-                _floatState.Remove(key);
-        }
-
-        public void DeleteFloat(IEntryBinding entry)
-        {
-            DeleteEntryState(_floatState, entry);
-        }
-
-        private static void DeleteEntryState<T>(Dictionary<string, T> state, IEntryBinding entry)
-        {
-            if (string.IsNullOrEmpty(entry?.Key))
-                return;
-
-            var keys = state.Keys.Where(key => key.StartsWith(entry.Key)).ToList();
-            foreach (var key in keys)
-                state.Remove(key);
+            IsEntryLabelWidthDirty = entryLabelWidthDirty;
+            IsGroupButtonWidthDirty = groupButtonWidthDirty;
+            IsResetButtonWidthDirty = resetButtonWidthDirty;
         }
 
         public void Dispose()

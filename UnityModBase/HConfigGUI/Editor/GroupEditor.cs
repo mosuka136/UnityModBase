@@ -16,9 +16,6 @@ namespace UnityModBase.HConfigGUI.Editor
         public StyleResource StyleProvider { get; }
         public LayoutResource LayoutProvider { get; }
 
-        public float EntryLabelWidth { get; private set; } = -1f;
-        public float GroupButtonWidth { get; private set; } = -1f;
-
         public ValueEditorRegistry EditorRegistry { get; }
         public EntryEditor EntryEditor { get; }
         public HotkeyEditor HotkeyEditor { get; }
@@ -66,7 +63,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 _currentRoot = root;
                 _sidebarScrollPosition = Vector2.zero;
                 _contentScrollPosition = Vector2.zero;
-                UpdateLayout();
+                SetLayoutDirty(context);
             }
 
             UpdateLayoutIfNeeded(root, context);
@@ -103,27 +100,61 @@ namespace UnityModBase.HConfigGUI.Editor
             context.ChangeSink.FlushValue(deltaTime);
         }
 
-        public void UpdateLayout()
+        public void SetLayoutDirty(GuiContext context)
         {
-            EntryLabelWidth = -1f;
-            GroupButtonWidth = -1f;
-        }
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
-        private void UpdateLayoutIfNeeded(GroupBinding root, GuiContext context)
-        {
-            if (EntryLabelWidth < 0f)
+            if (!context.IsValid)
             {
-                EntryLabelWidth = LayoutProvider.GetEntryLabelWidth(root);
-                context.SetFloat(GuiContext.LeadingBlankWidthKey, EntryLabelWidth);
+                BLog.Error($"Invalid GuiContext provided to {nameof(SetLayoutDirty)}.");
+                return;
             }
 
-            if (GroupButtonWidth < 0f)
-                GroupButtonWidth = LayoutProvider.GetGroupButtonWidth(root);
+            context.SetLayoutDirtyFlags();
+        }
+
+        public void UpdateLayoutIfNeeded(GroupBinding root, GuiContext context)
+        {
+            if (root == null)
+                throw new ArgumentNullException(nameof(root), "Root config group cannot be null.");
+
+            if (context == null)
+                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+
+            if (!context.IsValid)
+            {
+                BLog.Error($"Invalid GuiContext provided to {nameof(UpdateLayoutIfNeeded)}.");
+                return;
+            }
+
+            if (context.IsEntryLabelWidthDirty)
+            {
+                var groups = GetChildGroups(root);
+                foreach (var group in groups)
+                {
+                    var width = LayoutProvider.GetEntryLabelWidth(group);
+                    context.SetEntryLabelWidth(group.Key, width);
+                }
+                context.IsEntryLabelWidthDirty = false;
+            }
+
+            if (context.IsGroupButtonWidthDirty)
+            {
+                context.GroupButtonWidth = LayoutProvider.GetGroupButtonWidth(root);
+                context.IsGroupButtonWidthDirty = false;
+            }
+
+            if (context.IsResetButtonWidthDirty)
+            {
+                context.ResetButtonWidth = UnityGui.ButtonStyle.CalcSize(UnityGui.GetContent(TranslatorResource.Reset)).x;
+                context.IsResetButtonWidthDirty = false;
+            }
         }
 
         private void DrawSidebar(IReadOnlyList<GroupBinding> groups, ref GroupBinding selectedGroup, GuiContext context)
         {
-            UnityGui.BeginVertical(UnityGui.BoxStyle, UnityGui.Width(GroupButtonWidth));
+            UnityGui.BeginVertical(UnityGui.BoxStyle, UnityGui.Width(context.GroupButtonWidth));
             _sidebarScrollPosition = UnityGui.BeginScrollView(_sidebarScrollPosition);
 
             foreach (var group in groups)
@@ -176,7 +207,7 @@ namespace UnityModBase.HConfigGUI.Editor
             {
                 if (child is IEntryBinding entry)
                 {
-                    EntryEditor.Render(entry, context);
+                    EntryEditor.Draw(entry, context);
                     continue;
                 }
 
