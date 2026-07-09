@@ -1,5 +1,5 @@
 using BepInEx;
-using HarmonyLib;
+using System;
 using UnityEngine.SceneManagement;
 
 namespace UMB_BepInExLauncher
@@ -13,14 +13,26 @@ namespace UMB_BepInExLauncher
     [BepInPlugin(UMB_BepInExLauncherInfo.GUID, nameof(UMB_BepInExLauncher), UMB_BepInExLauncherInfo.Version)]
     public class UMB_BepInExLauncher : BaseUnityPlugin
     {
+        private bool sceneLoadedHandlerRegistered = false;
+        private bool gameBootInvoked = false;
+
         public void Awake()
         {
-            var harmony = new Harmony(UMB_BepInExLauncherInfo.GUID);
-            harmony.PatchAll();
+            try
+            {
+                SceneManager.sceneLoaded += OnSceneLoaded;
+                sceneLoadedHandlerRegistered = true;
 
-            UnityModBase.UnityModBase.Initialize(Paths.PluginPath);
+                UnityModBase.UnityModBase.Initialize(Paths.PluginPath);
 
-            Logger.LogInfo($"{nameof(UnityModBase)} has been loaded.");
+                Logger.LogInfo($"{nameof(UnityModBase)} has been loaded.");
+            }
+            catch (Exception exception)
+            {
+                UnregisterSceneLoadedHandler();
+                Logger.LogError($"Failed to load {nameof(UnityModBase)}: {exception}");
+                throw;
+            }
         }
 
         public void Start()
@@ -33,17 +45,32 @@ namespace UMB_BepInExLauncher
 
         public void OnDestroy()
         {
+            UnregisterSceneLoadedHandler();
             UnityModBase.UnityModBase.Dispose();
         }
 
-        [HarmonyPatch]
-        public class HarmonyPatches
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            [HarmonyPatch(typeof(SceneManager), "Internal_SceneLoaded")]
-            [HarmonyPostfix]
-            public static void PostfixSceneLoaded()
+            if (gameBootInvoked)
+                return;
+
+            try
             {
                 UnityModBase.GameBootRegistery.Boot();
+                gameBootInvoked = true;
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError($"Failed to boot game mods after scene load: {exception}");
+            }
+        }
+
+        private void UnregisterSceneLoadedHandler()
+        {
+            if (sceneLoadedHandlerRegistered)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+                sceneLoadedHandlerRegistered = false;
             }
         }
     }
