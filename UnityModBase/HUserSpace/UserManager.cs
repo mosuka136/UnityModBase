@@ -87,5 +87,14 @@ namespace UnityModBase.HUserSpace
                 _userContexts.Remove(userId);
             }
         }
+
+        public static void Dispose()
+        {
+            foreach (var context in _userContexts.Values.ToArray())
+                context.Dispose();
+
+            _userContexts.Clear();
+            OnUserRegistered = null;
+        }
     }
 }

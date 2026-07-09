@@ -5,7 +5,9 @@ using UnityModBase.HClassAttribute;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HGuiSpace;
+using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
@@ -19,6 +21,8 @@ namespace UnityModBase.HConfigGUI
     [RegisterOnGameBoot]
     public class GuiHost : GuiHostBase
     {
+        private ConfigEntry<Hotkey> _uiHotkeyEntry;
+
         public PopupEditor PopupEditor { get; private set; }
 
         public override void Awake()
@@ -40,13 +44,14 @@ namespace UnityModBase.HConfigGUI
                 CurrentContext = GetContext(_selectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
-                Translator.OnDefaultLanguageChanged += (s, e) => userEditor.SetStatusDirty(CurrentContext as GuiContext);
                 UserEditor = userEditor;
+                Translator.OnDefaultLanguageChanged += OnDefaultLanguageChanged;
 
                 PopupEditor = new PopupEditor(UnityGui, styleProvider);
 
-                UIHotkey = BConfigManager.ConfigUIHotkey.Value;
-                BConfigManager.ConfigUIHotkey.OnValueChanged += (s, e) => UIHotkey = e;
+                _uiHotkeyEntry = BConfigManager.ConfigUIHotkey;
+                UIHotkey = _uiHotkeyEntry.Value;
+                _uiHotkeyEntry.OnValueChanged += OnConfigUIHotkeyChanged;
 
                 Title = TranslatorResource.Title;
                 float width = UnityGui.ScreenWidth * 0.35f;
@@ -68,8 +73,7 @@ namespace UnityModBase.HConfigGUI
                 throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
 
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
-            guiContext.ChangeSink.OnEntryValueChanged += e => ToastEditor.SetToast(TranslatorResource.Changed + e.Name);
-            guiContext.ChangeSink.OnEntryValueReset += e => ToastEditor.SetToast(TranslatorResource.ResetDone + e.Name);
+            guiContext.SubscribeToastNotifications(ToastEditor);
 
             context.AddContext(GuiContextKey, guiContext);
         }
@@ -98,6 +102,31 @@ namespace UnityModBase.HConfigGUI
         public void OnDestroy()
         {
             UserManager.OnUserRegistered -= RegisterContext;
+            Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
+
+            if (_uiHotkeyEntry != null)
+            {
+                _uiHotkeyEntry.OnValueChanged -= OnConfigUIHotkeyChanged;
+                _uiHotkeyEntry = null;
+            }
+
+            foreach (var user in Users)
+            {
+                var context = user.GetContext(GuiContextKey) as GuiContext;
+                context?.Dispose();
+            }
+        }
+
+        private void OnDefaultLanguageChanged(object sender, LanguageType language)
+        {
+            var context = CurrentContext as GuiContext;
+            if (context != null)
+                UserEditor?.SetStatusDirty(context);
+        }
+
+        private void OnConfigUIHotkeyChanged(object sender, Hotkey hotkey)
+        {
+            UIHotkey = hotkey;
         }
     }
 }

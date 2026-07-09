@@ -10,7 +10,7 @@ namespace UnityModBase.HConfigSpace
     /// 该类型负责读取/写入文件、创建表项、把磁盘上的 <see cref="ConfigFileEntry"/> 重新绑定到运行时 <see cref="ConfigEntry{T}"/>。
     /// 它不负责 UI 展示和具体配置项声明；这些职责分别由配置 GUI 与 <c>ConfigManager</c> 承担。
     /// </summary>
-    public class ConfigService
+    public class ConfigService : IDisposable
     {
         /// <summary>
         /// 控制配置项赋值后是否立即写回文件。
@@ -216,7 +216,7 @@ namespace UnityModBase.HConfigSpace
                 result = new ConfigEntry<T>(tableKey, newEntry, defaultValue, entryName, description);
             }
 
-            result.OnValueChanged += OnConfigEntryChanged;
+            result.OnValueChangedBase += OnConfigEntryChanged;
 
             Sheet[tableKey].Add(result);
             return result;
@@ -265,7 +265,19 @@ namespace UnityModBase.HConfigSpace
             Write();
         }
 
-        private void OnConfigEntryChanged<T>(object sender, T newValue)
+        public void Dispose()
+        {
+            foreach (var table in Sheet?.Values ?? Array.Empty<ConfigTable>())
+            {
+                foreach (var entry in table)
+                    entry.OnValueChangedBase -= OnConfigEntryChanged;
+            }
+
+            FileSheet = null;
+            Sheet = null;
+        }
+
+        private void OnConfigEntryChanged(object sender, EventArgs args)
         {
             if (SaveOnConfigSet)
                 Write();

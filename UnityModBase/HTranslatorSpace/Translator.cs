@@ -88,5 +88,11 @@ namespace UnityModBase.HTranslatorSpace
         {
             return GetEnumerator();
         }
+
+        public static void Dispose()
+        {
+            OnDefaultLanguageChanged = null;
+            _defaultLanguage = LanguageType.English;
+        }
     }
 }

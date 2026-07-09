@@ -148,9 +148,9 @@ namespace UnityModBase.HGuiSpace
             if (string.IsNullOrEmpty(key))
                 throw new ArgumentNullException(nameof(key));
 
-            var context = UserManager.GetUser(key);
-            if (context.IsValid)
-                return context.GetContext(GuiContextKey);
+            var user = UserManager.GetUser(key);
+            if (user.IsValid)
+                return user.GetContext(GuiContextKey);
             else
                 return UserContext.InvalidUserContext;
         }

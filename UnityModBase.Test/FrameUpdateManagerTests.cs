@@ -60,6 +60,20 @@ namespace UnityModBase.Test
             Assert.Contains(countingHandler, scope.GetHandlers());
         }
 
+        [Fact]
+        public void Dispose_ClearsFrameUpdateHandlers()
+        {
+            // Arrange
+            using var scope = FrameUpdateManagerStateScope.Create();
+            FrameUpdateManager.OnFrameUpdate += () => { };
+
+            // Act
+            FrameUpdateManager.Dispose();
+
+            // Assert
+            Assert.Empty(scope.GetHandlers());
+        }
+
         private static void InvokeUpdaterUpdate()
         {
             var updater = (FrameUpdateManager.Updater)RuntimeHelpers.GetUninitializedObject(typeof(FrameUpdateManager.Updater));

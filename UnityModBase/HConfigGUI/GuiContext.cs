@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Bindings;
+using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HGuiSpace;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
@@ -9,6 +11,8 @@ namespace UnityModBase.HConfigGUI
     public class GuiContext : IUserContext
     {
         private readonly Dictionary<string, float> _entryLabelWidth = new Dictionary<string, float>();
+        private ToastEditor _toastEditor;
+        private bool _toastNotificationsSubscribed = false;
 
         public readonly static GuiContext InvalidGuiContext = new GuiContext();
         public bool IsValid => !ReferenceEquals(this, InvalidGuiContext);
@@ -31,6 +35,18 @@ namespace UnityModBase.HConfigGUI
         {
             ChangeSink = new EntryChangeSink();
             Popup = new PopupState();
+        }
+
+        public void SubscribeToastNotifications(ToastEditor toastEditor)
+        {
+            if (_toastNotificationsSubscribed)
+                UnsubscribeToastNotifications();
+
+            _toastEditor = toastEditor ?? throw new ArgumentNullException(nameof(toastEditor), "ToastEditor cannot be null.");
+            ChangeSink.OnEntryValueChanged += OnEntryValueChanged;
+            ChangeSink.OnEntryValueReset += OnEntryValueReset;
+
+            _toastNotificationsSubscribed = true;
         }
 
         public class PopupState
@@ -66,6 +82,29 @@ namespace UnityModBase.HConfigGUI
 
         public void Dispose()
         {
+            UnsubscribeToastNotifications();
+        }
+
+        private void UnsubscribeToastNotifications()
+        {
+            if (!_toastNotificationsSubscribed)
+                return;
+
+            ChangeSink.OnEntryValueChanged -= OnEntryValueChanged;
+            ChangeSink.OnEntryValueReset -= OnEntryValueReset;
+            _toastEditor = null;
+
+            _toastNotificationsSubscribed = false;
+        }
+
+        private void OnEntryValueChanged(IEntryBinding entry)
+        {
+            _toastEditor?.SetToast(TranslatorResource.Changed + entry.Name);
+        }
+
+        private void OnEntryValueReset(IEntryBinding entry)
+        {
+            _toastEditor?.SetToast(TranslatorResource.ResetDone + entry.Name);
         }
     }
 }

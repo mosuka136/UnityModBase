@@ -56,10 +56,10 @@ namespace UnityModBase.HUserSpace
 
         public void Dispose()
         {
-            Service?.Dispose();
             foreach (var context in _contexts.Values)
                 context.Dispose();
             _contexts.Clear();
+            Service?.Dispose();
         }
     }
 }

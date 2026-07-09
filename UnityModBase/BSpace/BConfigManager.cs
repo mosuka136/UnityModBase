@@ -11,7 +11,8 @@ namespace UnityModBase.BSpace
     {
 
         // 初始化和重载都会改写静态配置引用，需要串行化以避免 GUI 或输入回调读到中间状态。
-        private static readonly object _configSyncRoot = new object();
+        private static readonly object _lock = new object();
+        private static bool _initialized = false;
 
         /// <summary>
         /// 当前配置文件管理器。
@@ -36,8 +37,11 @@ namespace UnityModBase.BSpace
         /// <param name="configFilePath">配置文件路径。</param>
         public static void Initialize(string configFilePath)
         {
-            lock (_configSyncRoot)
+            lock (_lock)
             {
+                if (_initialized)
+                    return;
+
                 try
                 {
                     Config = BService.Config;
@@ -182,7 +186,7 @@ namespace UnityModBase.BSpace
                         )
                         );
 
-                    SetLanguage.OnValueChanged += (s, e) => Translator.DefaultLanguage = e;
+                    SetLanguage.OnValueChanged += OnSetLanguageChanged;
                     Translator.DefaultLanguage = SetLanguage.Value;
 
                     Config.SaveOnConfigSet = true;
@@ -190,12 +194,35 @@ namespace UnityModBase.BSpace
 
                     FrameUpdateManager.OnFrameUpdate += ReloadConfigOnUserOrder;
 
+                    _initialized = true;
                     BLog.Info($"Config manager initialized: {configFilePath}");
                 }
                 catch (Exception ex)
                 {
                     BLog.Error("Failed to initialize config manager.", ex);
+                    Dispose();
                 }
+            }
+        }
+
+        public static void Dispose()
+        {
+            lock (_lock)
+            {
+                if (SetLanguage != null)
+                    SetLanguage.OnValueChanged -= OnSetLanguageChanged;
+
+                FrameUpdateManager.OnFrameUpdate -= ReloadConfigOnUserOrder;
+
+                Config = null;
+                EnableLog = null;
+                LogLevel = null;
+                ConfigUIHotkey = null;
+                LogUIHotkey = null;
+                ReloadConfigHotkey = null;
+                SetLanguage = null;
+
+                _initialized = false;
             }
         }
 
@@ -204,7 +231,7 @@ namespace UnityModBase.BSpace
         /// </summary>
         public static void ReloadConfig()
         {
-            lock (_configSyncRoot)
+            lock (_lock)
             {
                 Config.Reload();
                 BLog.Info("Config file reloaded.");
@@ -227,6 +254,11 @@ namespace UnityModBase.BSpace
                     BLog.Error($"Unexpected error in {nameof(ReloadConfigOnUserOrder)}.", ex);
                 }
             }
+        }
+
+        private static void OnSetLanguageChanged(object sender, LanguageType language)
+        {
+            Translator.DefaultLanguage = language;
         }
     }
 }

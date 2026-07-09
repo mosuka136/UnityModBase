@@ -81,6 +81,27 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Null(service.Config);
         }
 
+        [Fact]
+        public void RegisterLog_CalledTwice_WritesFutureLogsOnlyToLatestWriter()
+        {
+            // Arrange
+            var firstDirectory = CreateTempDirectory();
+            var secondDirectory = CreateTempDirectory();
+            using var service = new UserService("user");
+            var database = new LogDatabase(null);
+            SetLogDatabase(service, database);
+
+            // Act
+            service.RegisterLog(firstDirectory, "service.log", LogLevel.Debug);
+            service.RegisterLog(secondDirectory, "service.log", LogLevel.Debug);
+            database.AddLog(CreateLog(1, "future"));
+            service.Dispose();
+
+            // Assert
+            Assert.DoesNotContain("future", ReadAllLogs(firstDirectory), StringComparison.Ordinal);
+            Assert.Contains("future", ReadAllLogs(secondDirectory), StringComparison.Ordinal);
+        }
+
         private string CreateTempDirectory()
         {
             var directory = Path.Combine(Path.GetTempPath(), $"UnityModBase.Test.{Guid.NewGuid():N}");
@@ -109,6 +130,17 @@ namespace UnityModBase.Test.HUserSpace
                 12,
                 "Member",
                 null);
+        }
+
+        private static string ReadAllLogs(string directory)
+        {
+            if (!Directory.Exists(directory))
+                return string.Empty;
+
+            return string.Join(
+                Environment.NewLine,
+                Directory.GetFiles(directory, "*.log")
+                    .Select(File.ReadAllText));
         }
 
         private sealed class TestConfigManager

@@ -7,6 +7,8 @@ namespace UnityModBase.HUserSpace
 {
     public class UserService : IDisposable
     {
+        private bool _logWriterSubscribed = false;
+
         public string UserId { get; }
         public LogDatabase LogDatabase { get; private set; }
         public LogWriter LogWriter { get; private set; }
@@ -21,12 +23,17 @@ namespace UnityModBase.HUserSpace
 
         public void RegisterLog(string directory, string fileName, LogLevel level)
         {
+            UnsubscribeLogWriter();
+            LogWriter?.Dispose();
+
             LogWriter = new LogWriter(directory, fileName, level);
 
             foreach (var log in LogDatabase.Logs)
                 LogWriter.Log(log);
-            LogDatabase.OnLogAdded += LogWriter.Log;
-            LogDatabase.OnLogRepeated += LogWriter.Log;
+            LogDatabase.OnLogAdded += OnLogAdded;
+            LogDatabase.OnLogRepeated += OnLogRepeated;
+
+            _logWriterSubscribed = true;
         }
 
         public void RegisterConfig<T>(string configFilePath) where T : class
@@ -44,14 +51,38 @@ namespace UnityModBase.HUserSpace
         {
             try
             {
+                UnsubscribeLogWriter();
+
                 LogDatabase?.Dispose();
                 LogDatabase = null;
                 LogWriter?.Flush(true);
                 LogWriter?.Dispose();
                 LogWriter = null;
+                Config?.Dispose();
                 Config = null;
             }
             catch { }
+        }
+
+        private void UnsubscribeLogWriter()
+        {
+            if (!_logWriterSubscribed || LogDatabase == null)
+                return;
+
+            LogDatabase.OnLogAdded -= OnLogAdded;
+            LogDatabase.OnLogRepeated -= OnLogRepeated;
+
+            _logWriterSubscribed = false;
+        }
+
+        private void OnLogAdded(LogEntry log)
+        {
+            LogWriter?.Log(log);
+        }
+
+        private void OnLogRepeated(LogEntry log)
+        {
+            LogWriter?.Log(log);
         }
     }
 }

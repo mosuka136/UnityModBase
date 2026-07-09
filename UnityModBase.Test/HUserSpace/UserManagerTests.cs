@@ -172,6 +172,24 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Single(UserManager.UserContexts);
         }
 
+        [Fact]
+        public void Dispose_DisposesContextsAndClearsRegistrationsAndHandlers()
+        {
+            // Arrange
+            var context = UserManager.CreateUser("user", "Name");
+            var child = new TrackingContext();
+            context.AddContext("child", child);
+            UserManager.OnUserRegistered += _ => { };
+
+            // Act
+            UserManager.Dispose();
+
+            // Assert
+            Assert.True(child.IsDisposed);
+            Assert.Empty(UserManager.UserContexts);
+            Assert.Null(OnUserRegisteredField.GetValue(null));
+        }
+
         private static Dictionary<string, UserContext> GetContexts()
         {
             return (Dictionary<string, UserContext>)UserContextsField.GetValue(null);

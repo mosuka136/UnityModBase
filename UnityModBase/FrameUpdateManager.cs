@@ -25,7 +25,7 @@ namespace UnityModBase
         {
             public void Awake()
             {
-                BLog.Info("Frame update dispatcher created.");
+                BLog.Debug("Frame update dispatcher created.");
             }
 
             public void Update()
@@ -47,6 +47,11 @@ namespace UnityModBase
                     }
                 }
             }
+        }
+
+        public static void Dispose()
+        {
+            OnFrameUpdate = null;
         }
     }
 }

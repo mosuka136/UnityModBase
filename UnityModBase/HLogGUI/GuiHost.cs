@@ -2,9 +2,10 @@ using System;
 using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HClassAttribute;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI.Resource;
-using UnityModBase.HLogSpace;
+using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
@@ -14,6 +15,8 @@ namespace UnityModBase.HLogGUI
     [RegisterOnGameBoot]
     public class GuiHost : GuiHostBase
     {
+        private ConfigEntry<Hotkey> _uiHotkeyEntry;
+
         public override void Awake()
         {
             try
@@ -23,20 +26,20 @@ namespace UnityModBase.HLogGUI
                 StyleProvider = styleProvider;
                 base.Awake();
 
+                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
+                UserEditor = userEditor;
+
                 GuiContextKey = nameof(HLogGUI);
                 Users = UserManager.UserContexts;
                 foreach (var user in Users)
                     RegisterContext(user);
                 UserManager.OnUserRegistered += RegisterContext;
                 CurrentContext = GetContext(_selectedUserKey);
+                Translator.OnDefaultLanguageChanged += OnDefaultLanguageChanged;
 
-                var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
-                userEditor.RegisterToastHandler(ToastEditor);
-                Translator.OnDefaultLanguageChanged += (s, e) => (CurrentContext as GuiContext).IsColumnWidthDirty = true;
-                UserEditor = userEditor;
-
-                UIHotkey = BConfigManager.LogUIHotkey.Value;
-                BConfigManager.LogUIHotkey.OnValueChanged += (s, e) => UIHotkey = e;
+                _uiHotkeyEntry = BConfigManager.LogUIHotkey;
+                UIHotkey = _uiHotkeyEntry.Value;
+                _uiHotkeyEntry.OnValueChanged += OnLogUIHotkeyChanged;
 
                 Title = TranslatorResource.Title;
                 float width = UnityGui.ScreenWidth * 0.8f;
@@ -57,6 +60,7 @@ namespace UnityModBase.HLogGUI
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
 
+            var userEditor = UserEditor as UserEditor;
             var guiContext = new GuiContext();
             var userData = new GroupBinding();
 
@@ -65,13 +69,8 @@ namespace UnityModBase.HLogGUI
             foreach (var log in context.Service.LogDatabase.Logs)
                 userData.AddEntry(new EntryBinding(log));
 
-            void LogChangedHandler(LogEntry log)
-            {
-                userData.AddEntry(new EntryBinding(log));
-                UserEditor.SetStatusDirty(guiContext);
-            }
-            context.Service.LogDatabase.OnLogAdded += LogChangedHandler;
-            context.Service.LogDatabase.OnLogRepeated += LogChangedHandler;
+            guiContext.RegisterLogHandlers(context.Service.LogDatabase, userEditor);
+            guiContext.SubscribeToastNotifications(ToastEditor);
 
             context.AddContext(GuiContextKey, guiContext);
         }
@@ -79,6 +78,19 @@ namespace UnityModBase.HLogGUI
         public void OnDestroy()
         {
             UserManager.OnUserRegistered -= RegisterContext;
+            Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
+
+            if (_uiHotkeyEntry != null)
+            {
+                _uiHotkeyEntry.OnValueChanged -= OnLogUIHotkeyChanged;
+                _uiHotkeyEntry = null;
+            }
+
+            foreach (var user in Users)
+            {
+                var context = user.GetContext(GuiContextKey) as GuiContext;
+                context?.Dispose();
+            }
         }
 
         public override void OnGUI()
@@ -89,6 +101,16 @@ namespace UnityModBase.HLogGUI
             WindowRect = rect;
 
             base.OnGUI();
+        }
+
+        private void OnDefaultLanguageChanged(object sender, LanguageType language)
+        {
+            UserEditor.SetStatusDirty(CurrentContext);
+        }
+
+        private void OnLogUIHotkeyChanged(object sender, Hotkey hotkey)
+        {
+            UIHotkey = hotkey;
         }
     }
 }

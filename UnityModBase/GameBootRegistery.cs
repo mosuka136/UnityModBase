@@ -19,21 +19,18 @@ namespace UnityModBase
 
         public static void Initialize()
         {
-            if (_initialized)
-                return;
-
-            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            RegisterAssemblies(assemblies);
-
-            AppDomain.CurrentDomain.AssemblyLoad += (sender, args) =>
+            lock (_lock)
             {
-                var assembly = args.LoadedAssembly;
-                if (IsShouldSkipAssembly(assembly))
+                if (_initialized)
                     return;
-                RegisterAssembly(assembly);
-            };
 
-            _initialized = true;
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                RegisterAssemblies(assemblies);
+
+                AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
+
+                _initialized = true;
+            }
         }
 
         public static void Boot()
@@ -121,24 +118,8 @@ namespace UnityModBase
                     return;
                 }
 
+                OnGameBoot += new GameBootComponentRegistration(type).Invoke;
                 BLog.Debug($"Register game boot component: {type.FullName}");
-                OnGameBoot += () =>
-                {
-                    try
-                    {
-                        var go = new GameObject($"{nameof(UnityModBase)}_{type.FullName}")
-                        {
-                            hideFlags = HideFlags.HideAndDontSave
-                        };
-                        UnityEngine.Object.DontDestroyOnLoad(go);
-                        go.AddComponent(type);
-                        BLog.Debug($"Created game boot component: {type.FullName}");
-                    }
-                    catch (Exception ex)
-                    {
-                        BLog.Error($"Failed to create game boot component: {type.FullName}", ex);
-                    }
-                };
             }
         }
 
@@ -158,18 +139,81 @@ namespace UnityModBase
 
                 var methodName = $"{method.DeclaringType.FullName}.{method.Name}";
                 BLog.Debug($"Register game boot method: {methodName}");
-                OnGameBoot += () =>
+                OnGameBoot += new GameBootMethodRegistration(method, methodName).Invoke;
+            }
+        }
+
+        private static void OnAssemblyLoad(object sender, AssemblyLoadEventArgs args)
+        {
+            var assembly = args.LoadedAssembly;
+            if (IsShouldSkipAssembly(assembly))
+                return;
+            RegisterAssembly(assembly);
+        }
+
+        private sealed class GameBootComponentRegistration
+        {
+            private readonly Type _type;
+
+            public GameBootComponentRegistration(Type type)
+            {
+                _type = type;
+            }
+
+            public void Invoke()
+            {
+                try
                 {
-                    try
+                    var go = new GameObject($"{nameof(UnityModBase)}_{_type.FullName}")
                     {
-                        BLog.Debug($"Invoke game boot method: {methodName}");
-                        method.Invoke(null, null);
-                    }
-                    catch (Exception ex)
-                    {
-                        BLog.Error($"Failed to invoke game boot method: {methodName}", ex);
-                    }
-                };
+                        hideFlags = HideFlags.HideAndDontSave
+                    };
+                    UnityEngine.Object.DontDestroyOnLoad(go);
+                    go.AddComponent(_type);
+                    BLog.Debug($"Created game boot component: {_type.FullName}");
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error($"Failed to create game boot component: {_type.FullName}", ex);
+                }
+            }
+        }
+
+        private sealed class GameBootMethodRegistration
+        {
+            private readonly MethodInfo _method;
+            private readonly string _methodName;
+
+            public GameBootMethodRegistration(MethodInfo method, string methodName)
+            {
+                _method = method;
+                _methodName = methodName;
+            }
+
+            public void Invoke()
+            {
+                try
+                {
+                    BLog.Debug($"Invoke game boot method: {_methodName}");
+                    _method.Invoke(null, null);
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error($"Failed to invoke game boot method: {_methodName}", ex);
+                }
+            }
+        }
+
+        public static void Dispose()
+        {
+            lock (_lock)
+            {
+                if (_initialized)
+                    AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+
+                OnGameBoot = null;
+
+                _initialized = false;
             }
         }
     }

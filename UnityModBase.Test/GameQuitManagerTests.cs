@@ -35,6 +35,25 @@ namespace UnityModBase.Test
             Assert.Equal(1, invocationCount);
         }
 
+        [Fact]
+        public void Dispose_CalledTwice_ClearsHandlersAndResetsInitialized()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameQuitManagerStateScope.Create();
+            scope.SetInitialized(true);
+            GameQuitManager.OnGameQuit += () => invocationCount++;
+
+            // Act
+            GameQuitManager.Dispose();
+            GameQuitManager.Dispose();
+
+            // Assert
+            Assert.Equal(1, invocationCount);
+            Assert.False(scope.IsInitialized());
+            Assert.Null(scope.GetOnGameQuit());
+        }
+
         private sealed class GameQuitManagerStateScope : IDisposable
         {
             private static readonly FieldInfo InitializedField = GetRequiredField("_initialized");
@@ -67,6 +86,21 @@ namespace UnityModBase.Test
             {
                 OnGameQuitField.SetValue(null, _originalOnGameQuit);
                 InitializedField.SetValue(null, _originalInitialized);
+            }
+
+            public Action GetOnGameQuit()
+            {
+                return (Action)OnGameQuitField.GetValue(null);
+            }
+
+            public bool IsInitialized()
+            {
+                return (bool)InitializedField.GetValue(null);
+            }
+
+            public void SetInitialized(bool initialized)
+            {
+                InitializedField.SetValue(null, initialized);
             }
 
             private static FieldInfo GetRequiredField(string fieldName)

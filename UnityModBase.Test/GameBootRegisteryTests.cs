@@ -59,6 +59,25 @@ namespace UnityModBase.Test
             Assert.Equal(1, invocationCount);
         }
 
+        [Fact]
+        public void Dispose_ClearsHandlersAndResetsInitialized()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameBootRegisteryStateScope.Create();
+            scope.SetInitialized(true);
+            GameBootRegistery.OnGameBoot += () => invocationCount++;
+
+            // Act
+            GameBootRegistery.Dispose();
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(0, invocationCount);
+            Assert.False(scope.IsInitialized());
+            Assert.Null(scope.GetOnGameBoot());
+        }
+
         private abstract class AbstractTestComponent : MonoBehaviour
         {
         }
@@ -95,6 +114,21 @@ namespace UnityModBase.Test
             {
                 OnGameBootField.SetValue(null, _originalOnGameBoot);
                 InitializedField.SetValue(null, _originalInitialized);
+            }
+
+            public Action GetOnGameBoot()
+            {
+                return (Action)OnGameBootField.GetValue(null);
+            }
+
+            public bool IsInitialized()
+            {
+                return (bool)InitializedField.GetValue(null);
+            }
+
+            public void SetInitialized(bool initialized)
+            {
+                InitializedField.SetValue(null, initialized);
             }
 
             private static FieldInfo GetRequiredField(string fieldName)
