@@ -201,6 +201,7 @@ namespace UnityModBase.BSpace
                 {
                     BLog.Error("Failed to initialize config manager.", ex);
                     Dispose();
+                    throw;
                 }
             }
         }

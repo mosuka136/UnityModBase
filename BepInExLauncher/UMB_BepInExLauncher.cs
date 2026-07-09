@@ -13,25 +13,25 @@ namespace UMB_BepInExLauncher
     [BepInPlugin(UMB_BepInExLauncherInfo.GUID, nameof(UMB_BepInExLauncher), UMB_BepInExLauncherInfo.Version)]
     public class UMB_BepInExLauncher : BaseUnityPlugin
     {
-        private bool sceneLoadedHandlerRegistered = false;
-        private bool gameBootInvoked = false;
+        private bool _sceneLoadedHandlerRegistered = false;
+        private bool _gameBootInvoked = false;
 
         public void Awake()
         {
             try
             {
                 SceneManager.sceneLoaded += OnSceneLoaded;
-                sceneLoadedHandlerRegistered = true;
+                _sceneLoadedHandlerRegistered = true;
 
                 UnityModBase.UnityModBase.Initialize(Paths.PluginPath);
 
                 Logger.LogInfo($"{nameof(UnityModBase)} has been loaded.");
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
                 UnregisterSceneLoadedHandler();
-                Logger.LogError($"Failed to load {nameof(UnityModBase)}: {exception}");
-                throw;
+                Logger.LogError($"Failed to load {nameof(UnityModBase)}: {ex}");
+                Destroy(this);
             }
         }
 
@@ -51,26 +51,26 @@ namespace UMB_BepInExLauncher
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (gameBootInvoked)
+            if (_gameBootInvoked)
                 return;
 
             try
             {
                 UnityModBase.GameBootRegistery.Boot();
-                gameBootInvoked = true;
+                _gameBootInvoked = true;
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                Logger.LogError($"Failed to boot game mods after scene load: {exception}");
+                Logger.LogError($"Failed to boot game mods after scene load: {ex}");
             }
         }
 
         private void UnregisterSceneLoadedHandler()
         {
-            if (sceneLoadedHandlerRegistered)
+            if (_sceneLoadedHandlerRegistered)
             {
                 SceneManager.sceneLoaded -= OnSceneLoaded;
-                sceneLoadedHandlerRegistered = false;
+                _sceneLoadedHandlerRegistered = false;
             }
         }
     }

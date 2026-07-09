@@ -15,10 +15,18 @@ namespace UnityModBase
                 if (_initialized)
                     return;
 
-                BService.Initialize(baseDirectory);
-                GameBootRegistery.Initialize();
+                try
+                {
+                    BService.Initialize(baseDirectory);
+                    GameBootRegistery.Initialize();
 
-                _initialized = true;
+                    _initialized = true;
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
             }
         }
 

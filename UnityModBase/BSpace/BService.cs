@@ -61,6 +61,7 @@ namespace UnityModBase.BSpace
                         _initialized = true;
                         Dispose();
                     }
+                    throw;
                 }
             }
         }
