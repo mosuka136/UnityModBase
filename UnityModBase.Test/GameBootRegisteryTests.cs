@@ -86,32 +86,42 @@ namespace UnityModBase.Test
         {
             private static readonly FieldInfo InitializedField = GetRequiredField("_initialized");
             private static readonly FieldInfo OnGameBootField = GetRequiredField("OnGameBoot");
+            private static readonly FieldInfo CreatedGameBootObjectsField = GetRequiredField("_createdGameBootObjects");
 
             private readonly bool _originalInitialized;
             private readonly Action _originalOnGameBoot;
+            private readonly GameObject[] _originalCreatedGameBootObjects;
 
             private GameBootRegisteryStateScope(
                 bool originalInitialized,
-                Action originalOnGameBoot)
+                Action originalOnGameBoot,
+                GameObject[] originalCreatedGameBootObjects)
             {
                 _originalInitialized = originalInitialized;
                 _originalOnGameBoot = originalOnGameBoot;
+                _originalCreatedGameBootObjects = originalCreatedGameBootObjects;
             }
 
             public static GameBootRegisteryStateScope Create()
             {
+                var createdGameBootObjects = GetCreatedGameBootObjectList();
                 var scope = new GameBootRegisteryStateScope(
                     (bool)InitializedField.GetValue(null),
-                    (Action)OnGameBootField.GetValue(null));
+                    (Action)OnGameBootField.GetValue(null),
+                    createdGameBootObjects.ToArray());
 
                 InitializedField.SetValue(null, false);
                 OnGameBootField.SetValue(null, null);
+                createdGameBootObjects.Clear();
 
                 return scope;
             }
 
             public void Dispose()
             {
+                var createdGameBootObjects = GetCreatedGameBootObjectList();
+                createdGameBootObjects.Clear();
+                createdGameBootObjects.AddRange(_originalCreatedGameBootObjects);
                 OnGameBootField.SetValue(null, _originalOnGameBoot);
                 InitializedField.SetValue(null, _originalInitialized);
             }
@@ -140,6 +150,11 @@ namespace UnityModBase.Test
                 }
 
                 return field;
+            }
+
+            private static List<GameObject> GetCreatedGameBootObjectList()
+            {
+                return (List<GameObject>)CreatedGameBootObjectsField.GetValue(null);
             }
         }
     }

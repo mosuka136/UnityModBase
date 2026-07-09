@@ -2,7 +2,7 @@ using BepInEx;
 using System;
 using UnityEngine.SceneManagement;
 
-namespace UMB_BepInExLauncher
+namespace UnityModBase.BepInExLauncher
 {
     public static class UMB_BepInExLauncherInfo
     {
@@ -23,7 +23,7 @@ namespace UMB_BepInExLauncher
                 SceneManager.sceneLoaded += OnSceneLoaded;
                 _sceneLoadedHandlerRegistered = true;
 
-                UnityModBase.UnityModBase.Initialize(Paths.PluginPath);
+                UnityModBase.Initialize(Paths.PluginPath);
 
                 Logger.LogInfo($"{nameof(UnityModBase)} has been loaded.");
             }
@@ -46,7 +46,7 @@ namespace UMB_BepInExLauncher
         public void OnDestroy()
         {
             UnregisterSceneLoadedHandler();
-            UnityModBase.UnityModBase.Dispose();
+            UnityModBase.Dispose();
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -56,7 +56,7 @@ namespace UMB_BepInExLauncher
 
             try
             {
-                UnityModBase.GameBootRegistery.Boot();
+                GameBootRegistery.Boot();
                 _gameBootInvoked = true;
             }
             catch (Exception ex)

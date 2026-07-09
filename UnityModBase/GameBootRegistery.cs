@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
@@ -11,6 +12,7 @@ namespace UnityModBase
     {
         private static bool _initialized = false;
         private static readonly object _lock = new object();
+        private static readonly List<GameObject> _createdGameBootObjects = new List<GameObject>();
 
         /// <summary>
         /// 游戏启动阶段的一次性回调集合。
@@ -151,6 +153,37 @@ namespace UnityModBase
             RegisterAssembly(assembly);
         }
 
+        private static void RegisterCreatedGameBootObject(GameObject gameObject)
+        {
+            lock (_lock)
+            {
+                _createdGameBootObjects.Add(gameObject);
+            }
+        }
+
+        private static void DestroyGameBootObjects(IEnumerable<GameObject> gameObjects)
+        {
+            foreach (var gameObject in gameObjects)
+            {
+                if (gameObject is null)
+                    continue;
+
+                try
+                {
+                    DestroyGameBootObject(gameObject);
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error("Failed to destroy game boot object.", ex);
+                }
+            }
+        }
+
+        private static void DestroyGameBootObject(GameObject gameObject)
+        {
+            UnityEngine.Object.Destroy(gameObject);
+        }
+
         private sealed class GameBootComponentRegistration
         {
             private readonly Type _type;
@@ -162,18 +195,22 @@ namespace UnityModBase
 
             public void Invoke()
             {
+                GameObject go = null;
+
                 try
                 {
-                    var go = new GameObject($"{nameof(UnityModBase)}_{_type.FullName}")
+                    go = new GameObject($"{nameof(UnityModBase)}_{_type.FullName}")
                     {
                         hideFlags = HideFlags.HideAndDontSave
                     };
                     UnityEngine.Object.DontDestroyOnLoad(go);
                     go.AddComponent(_type);
+                    RegisterCreatedGameBootObject(go);
                     BLog.Debug($"Created game boot component: {_type.FullName}");
                 }
                 catch (Exception ex)
                 {
+                    DestroyGameBootObjects(new[] { go });
                     BLog.Error($"Failed to create game boot component: {_type.FullName}", ex);
                 }
             }
@@ -206,15 +243,21 @@ namespace UnityModBase
 
         public static void Dispose()
         {
+            GameObject[] gameObjects;
+
             lock (_lock)
             {
                 if (_initialized)
                     AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
 
                 OnGameBoot = null;
+                gameObjects = _createdGameBootObjects.ToArray();
+                _createdGameBootObjects.Clear();
 
                 _initialized = false;
             }
+
+            DestroyGameBootObjects(gameObjects);
         }
     }
 }

@@ -7,8 +7,8 @@
     <ProjectGuid>{4E72F2AF-8C3A-4F64-9A69-982392788A31}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>UMB_BepInExLauncher</RootNamespace>
-    <AssemblyName>UMB.BepInExLauncher</AssemblyName>
+    <RootNamespace>UnityModBase.BepInExLauncher</RootNamespace>
+    <AssemblyName>UnityModBase.BepInExLauncher</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
