@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HClassAttribute;
@@ -30,7 +29,7 @@ namespace UnityModBase
 
             public void Update()
             {
-                foreach (var handler in (OnFrameUpdate?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action>())
+                foreach (var handler in OnFrameUpdate.GetInvocationListOrEmpty())
                 {
                     try
                     {

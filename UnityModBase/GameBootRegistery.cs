@@ -39,7 +39,7 @@ namespace UnityModBase
         {
             lock (_lock)
             {
-                foreach (var handler in (OnGameBoot?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action>())
+                foreach (var handler in OnGameBoot.GetInvocationListOrEmpty())
                 {
                     try
                     {

@@ -20,6 +20,7 @@ namespace UnityModBase
                     BService.Initialize(baseDirectory);
                     GameBootRegistery.Initialize();
 
+                    BLog.Info($"UnityModBase initialized.");
                     _initialized = true;
                 }
                 catch

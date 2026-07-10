@@ -37,7 +37,7 @@ namespace UnityModBase.HUserSpace
             var context = CreateUser(userId, name);
             context.Service = new UserService(userId);
 
-            foreach (var handler in (OnUserRegistered?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<UserContext>>())
+            foreach (var handler in OnUserRegistered.GetInvocationListOrEmpty())
             {
                 try
                 {

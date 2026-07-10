@@ -25,7 +25,7 @@ namespace UnityModBase.HTranslatorSpace
                 if (_defaultLanguage != value)
                 {
                     _defaultLanguage = value;
-                    foreach (var handler in (OnDefaultLanguageChanged?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<EventHandler<LanguageType>>())
+                    foreach (var handler in OnDefaultLanguageChanged.GetInvocationListOrEmpty())
                     {
                         try { handler?.Invoke(null, value); }
                         catch { }

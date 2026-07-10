@@ -110,7 +110,7 @@ namespace UnityModBase.HConfigGUI
                 _uiHotkeyEntry = null;
             }
 
-            foreach (var user in Users)
+            foreach (var user in Users ?? Array.Empty<UserContext>())
             {
                 var context = user.GetContext(GuiContextKey) as GuiContext;
                 context?.Dispose();

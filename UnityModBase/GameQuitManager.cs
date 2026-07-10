@@ -22,7 +22,7 @@ namespace UnityModBase
                     return;
 
                 UnityProvider.Instance.UnityQuitting += Dispose;
-                BLog.Info("GameQuitManager initialized.");
+                BLog.Debug("GameQuitManager initialized.");
 
                 _initialized = true;
             }
@@ -37,7 +37,7 @@ namespace UnityModBase
                 if (_initialized)
                     UnityProvider.Instance.UnityQuitting -= Dispose;
 
-                handlers = (OnGameQuit?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action>().ToArray();
+                handlers = OnGameQuit.GetInvocationListOrEmpty().ToArray();
                 OnGameQuit = null;
 
                 _initialized = false;

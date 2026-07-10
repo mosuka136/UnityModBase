@@ -41,7 +41,7 @@ namespace UnityModBase.HLogSpace
                 mainLog.LastRepeatTime = log.Timestamp;
                 mainLog.RepeatCount += log.RepeatCount;
 
-                foreach (var handler in (OnLogRepeated?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<LogEntry>>())
+                foreach (var handler in OnLogRepeated.GetInvocationListOrEmpty())
                 {
                     try { handler?.Invoke(mainLog); }
                     catch { }
@@ -55,14 +55,14 @@ namespace UnityModBase.HLogSpace
             if (Logs.Count > MaxLogCount)
             {
                 Logs.TryDequeue(out var removedLog);
-                foreach (var handler in (OnLogRemoved?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<LogEntry>>())
+                foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
                 {
                     try { handler?.Invoke(removedLog); }
                     catch { }
                 }
             }
 
-            foreach (var handler in (OnLogAdded?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<LogEntry>>())
+            foreach (var handler in OnLogAdded.GetInvocationListOrEmpty())
             {
                 try { handler?.Invoke(log); }
                 catch { }
@@ -98,7 +98,7 @@ namespace UnityModBase.HLogSpace
                 _seq = 0;
                 while (Logs.TryDequeue(out var log))
                 {
-                    foreach (var handler in (OnLogRemoved?.GetInvocationList() ?? Array.Empty<Delegate>()).Cast<Action<LogEntry>>())
+                    foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
                     {
                         try { handler?.Invoke(log); }
                         catch { }
