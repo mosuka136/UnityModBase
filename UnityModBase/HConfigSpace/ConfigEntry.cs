@@ -58,14 +58,28 @@ namespace UnityModBase.HConfigSpace
 
                 Entry.Value = valueResult.Value;
 
-                try
+                foreach(var handler in OnValueChanged.GetInvocationListOrEmpty())
                 {
-                    OnValueChanged?.Invoke(this, _value);
-                    OnValueChangedBase?.Invoke(this, new EntryValueChangedEventArgs<T>(_value));
+                    try
+                    {
+                        handler.Invoke(this, _value);
+                    }
+                    catch (Exception ex)
+                    {
+                        BLog.Error($"Exception in value changed event for key: {Key}, value: {_value}.", ex);
+                    }
                 }
-                catch (Exception ex)
+
+                foreach (var handler in OnValueChangedBase.GetInvocationListOrEmpty())
                 {
-                    BLog.Error($"Exception in value changed event for key: {Key}, value: {value}.", ex);
+                    try
+                    {
+                        handler.Invoke(this, new EntryValueChangedEventArgs<T>(_value));
+                    }
+                    catch (Exception ex)
+                    {
+                        BLog.Error($"Exception in value changed event for key: {Key}, value: {_value}.", ex);
+                    }
                 }
             }
         }
