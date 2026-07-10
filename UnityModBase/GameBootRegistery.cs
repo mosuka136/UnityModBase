@@ -231,13 +231,33 @@ namespace UnityModBase
             {
                 try
                 {
-                    BLog.Debug($"Invoke game boot method: {_methodName}");
+                    if (!IsValidGameBootMethod(_method))
+                    {
+                        BLog.Error($"Invalid game boot method: {_methodName}. It must be a static method with no parameters and return void.");
+                        return;
+                    }
                     _method.Invoke(null, null);
+                    BLog.Debug($"Invoke game boot method: {_methodName}");
                 }
                 catch (Exception ex)
                 {
                     BLog.Error($"Failed to invoke game boot method: {_methodName}", ex);
                 }
+            }
+
+            public static bool IsValidGameBootMethod(MethodInfo method)
+            {
+                if (method == null)
+                    return false;
+                if (!method.IsStatic)
+                    return false;
+                if (method.GetParameters().Length != 0)
+                    return false;
+                if (method.ReturnType != typeof(void))
+                    return false;
+                if (method.ContainsGenericParameters)
+                    return false;
+                return true;
             }
         }
 
