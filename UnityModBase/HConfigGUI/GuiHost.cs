@@ -101,7 +101,7 @@ namespace UnityModBase.HConfigGUI
 
         public void OnDestroy()
         {
-            UserManager.OnUserRegistered -= RegisterContext;
+            UserManager.OnConfigRegistered -= RegisterContext;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
 
             if (_uiHotkeyEntry != null)

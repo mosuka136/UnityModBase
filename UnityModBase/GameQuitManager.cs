@@ -45,8 +45,14 @@ namespace UnityModBase
 
             foreach (var handler in handlers)
             {
-                try { handler?.Invoke(); }
-                catch { }
+                try
+                {
+                    handler?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error($"Exception in OnGameQuit handler.", ex);
+                }
             }
         }
     }
