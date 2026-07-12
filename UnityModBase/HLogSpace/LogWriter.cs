@@ -13,6 +13,7 @@ namespace UnityModBase.HLogSpace
         private Timer _timer;
         private LogEntry _lastLog;
         private StreamWriter _writer;
+        private readonly object _lock = new object();
 
         public bool Enable { get; set; } = true;
         public LogLevel Level { get; set; } = LogLevel.Info;
@@ -41,19 +42,31 @@ namespace UnityModBase.HLogSpace
 
         public void Log(LogEntry log)
         {
-            if (log == null || log.Level < Level || log.Equals(_lastLog))
-                return;
+            if (log == null)
+                throw new ArgumentNullException(nameof(log));
 
-            if (_lastLog != null && _lastLog.RepeatCount > 1)
-                Write(_lastLog);
-            Write(log);
+            lock (_lock)
+            {
+                if (log.Level < Level)
+                    return;
 
-            _lastLog = log;
+                if (log.Equals(_lastLog))
+                    return;
+
+                if (_lastLog != null && _lastLog.RepeatCount > 1)
+                    Write(_lastLog);
+                Write(log);
+
+                _lastLog = log;
+            }
         }
 
         public void Write(LogEntry log)
         {
-            if (!Enable || log == null)
+            if (log == null)
+                throw new ArgumentNullException(nameof(log));
+
+            if (!Enable)
                 return;
 
             try { _writer?.WriteLine(log.ToString()); }
@@ -62,15 +75,18 @@ namespace UnityModBase.HLogSpace
 
         public void Flush(bool forced = false)
         {
-            if (_lastLog?.IsRepeated != true)
-                return;
-
-            if (forced ||
-                DateTime.Now - _lastLog.LastRepeatTime >= WriteInterval ||
-                _lastLog.LastRepeatTime - _lastLog.Timestamp >= LongestDuration)
+            lock (_lock)
             {
-                Write(_lastLog);
-                _lastLog = null;
+                if (_lastLog?.IsRepeated != true)
+                    return;
+
+                if (forced ||
+                    DateTime.Now - _lastLog.LastRepeatTime >= WriteInterval ||
+                    _lastLog.LastRepeatTime - _lastLog.Timestamp >= LongestDuration)
+                {
+                    Write(_lastLog);
+                    _lastLog = null;
+                }
             }
         }
 
@@ -79,26 +95,29 @@ namespace UnityModBase.HLogSpace
         /// </summary>
         public void Dispose()
         {
-            _timer?.Dispose();
-            _timer = null;
-
-            if (_writer == null)
-                return;
-
-            try
+            lock (_lock)
             {
-                Flush(forced: true);
+                _timer?.Dispose();
+                _timer = null;
 
-                _writer.WriteLine($"{new string('-', 50)}LOG-END-{DateTime.Now}{new string('-', 50)}");
-                _writer.WriteLine();
-                _writer.WriteLine();
+                if (_writer == null)
+                    return;
 
-                _writer.Flush();
-                _writer.Dispose();
-                _writer = null;
-            }
-            catch
-            {
+                try
+                {
+                    Flush(forced: true);
+
+                    _writer.WriteLine($"{new string('-', 50)}LOG-END-{DateTime.Now}{new string('-', 50)}");
+                    _writer.WriteLine();
+                    _writer.WriteLine();
+
+                    _writer.Flush();
+                    _writer.Dispose();
+                    _writer = null;
+                }
+                catch
+                {
+                }
             }
         }
     }

@@ -41,7 +41,7 @@ namespace UnityModBase.HLogGUI
             });
             var comparerByFrame = Comparer<EntryBinding>.Create((a, b) =>
             {
-                var result = string.Compare(a.Frame, b.Frame, StringComparison.Ordinal);
+                var result = a.Entry.Frame.CompareTo(b.Entry.Frame);
                 return CompareByIdFallback(a, b, result);
             });
             var comparerByScene = Comparer<EntryBinding>.Create((a, b) =>
