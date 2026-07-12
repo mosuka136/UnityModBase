@@ -125,5 +125,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
             return ValueProvider.GetValidValue(entry)?.ToString();
         }
+
+        public void Dispose()
+        {
+            Session?.Dispose();
+        }
     }
 }

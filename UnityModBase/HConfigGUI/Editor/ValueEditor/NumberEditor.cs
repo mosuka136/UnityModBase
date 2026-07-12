@@ -34,5 +34,9 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
+
+        public void Dispose()
+        {
+        }
     }
 }

@@ -1,8 +1,9 @@
+using System;
 using UnityModBase.HConfigGUI.Bindings;
 
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
-    public interface IValueEditor
+    public interface IValueEditor : IDisposable
     {
         bool CanEdit(IEntryBinding entry);
         void DrawValue(IEntryBinding entry, GuiContext context);

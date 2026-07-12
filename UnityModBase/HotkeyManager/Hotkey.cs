@@ -157,6 +157,12 @@ namespace UnityModBase.HotkeyManager
                 newHotkeys.Add(chordResult.Value);
             }
 
+            if (newHotkeys.Count == 0)
+            {
+                BLog.Warn("Failed to parse hotkey: no valid chords found.");
+                return false;
+            }
+
             Hotkeys = newHotkeys;
             return true;
         }

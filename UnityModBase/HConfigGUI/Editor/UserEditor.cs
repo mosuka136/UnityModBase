@@ -43,5 +43,10 @@ namespace UnityModBase.HConfigGUI.Editor
 
             guiContext.SetLayoutDirtyFlags();
         }
+
+        public override void Dispose()
+        {
+            GroupEditor?.Dispose();
+        }
     }
 }

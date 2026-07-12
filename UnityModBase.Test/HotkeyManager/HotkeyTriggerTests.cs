@@ -268,23 +268,21 @@ namespace UnityModBase.Test.HotkeyManager
             Assert.False(trigger.IsLeftSide);
         }
         [Fact]
-        public void KeyboardModifierTrigger_IsPressed_WhenUnityServiceIsNull_ReturnsFalse()
+        public void KeyboardModifierTrigger_Constructor_WithExplicitStateAndNullUnityService_ThrowsArgumentNullException()
         {
-            var trigger = new KeyboardModifierTrigger(Key.LeftCtrl, Key.RightCtrl, true, true, null);
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                new KeyboardModifierTrigger(Key.LeftCtrl, Key.RightCtrl, true, true, null));
 
-            var result = trigger.IsPressed();
-
-            Assert.False(result);
+            Assert.Equal("unityService", exception.ParamName);
         }
 
         [Fact]
-        public void KeyboardModifierTrigger_WasPressedThisFrame_WhenUnityServiceIsNull_ReturnsFalse()
+        public void KeyboardModifierTrigger_Constructor_WithKeyAndNullUnityService_ThrowsArgumentNullException()
         {
-            var trigger = new KeyboardModifierTrigger(Key.LeftCtrl, Key.RightCtrl, true, true, null);
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                new KeyboardModifierTrigger(Key.LeftCtrl, null));
 
-            var result = trigger.WasPressedThisFrame();
-
-            Assert.False(result);
+            Assert.Equal("unityService", exception.ParamName);
         }
 
         [Theory]

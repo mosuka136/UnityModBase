@@ -31,12 +31,12 @@ namespace UnityModBase.HotkeyManager
 
         public KeyboardTrigger(UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
         }
 
         public KeyboardTrigger(Key key, UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
             Key = key;
         }
 
@@ -58,6 +58,9 @@ namespace UnityModBase.HotkeyManager
 
         public static HotkeyResult<KeyboardTrigger> TryParse(string token, UnityProvider unityService)
         {
+            if (unityService == null)
+                return HotkeyResult<KeyboardTrigger>.Fail("UnityService is null.");
+
             if (string.IsNullOrWhiteSpace(token))
                 return HotkeyResult<KeyboardTrigger>.Fail("Token is null or whitespace.");
 
@@ -65,6 +68,9 @@ namespace UnityModBase.HotkeyManager
 
             if (Enum.TryParse<Key>(token, true, out var key))
             {
+                if (!Enum.IsDefined(typeof(Key), key))
+                    return HotkeyResult<KeyboardTrigger>.Fail($"Parsed key '{key}' is not defined in Key enum.");
+
                 if (key == Key.None)
                     return HotkeyResult<KeyboardTrigger>.Fail("Parsed key is None.");
 
@@ -115,13 +121,22 @@ namespace UnityModBase.HotkeyManager
         public static readonly List<string> LAltStr = new List<string>() { "LeftAlt", "LAlt" };
         public static readonly List<string> RAltStr = new List<string>() { "RightAlt", "RAlt" };
 
-        public static readonly KeyboardModifierTrigger Ctrl = new KeyboardModifierTrigger(Key.LeftCtrl, Key.RightCtrl, true, true, null);
-        public static readonly KeyboardModifierTrigger Shift = new KeyboardModifierTrigger(Key.LeftShift, Key.RightShift, true, true, null);
-        public static readonly KeyboardModifierTrigger Alt = new KeyboardModifierTrigger(Key.LeftAlt, Key.RightAlt, true, true, null);
+        public static readonly KeyboardModifierTrigger Ctrl = new KeyboardModifierTrigger(Key.LeftCtrl, Key.RightCtrl);
+        public static readonly KeyboardModifierTrigger Shift = new KeyboardModifierTrigger(Key.LeftShift, Key.RightShift);
+        public static readonly KeyboardModifierTrigger Alt = new KeyboardModifierTrigger(Key.LeftAlt, Key.RightAlt);
+
+        private KeyboardModifierTrigger(Key leftKey, Key rightKey)
+        {
+            LeftKey = leftKey;
+            RightKey = rightKey;
+            IsAnySide = true;
+            IsLeftSide = true;
+            UnityService = null;
+        }
 
         public KeyboardModifierTrigger(UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
         }
 
         public KeyboardModifierTrigger(Key key, UnityProvider unityService)
@@ -162,13 +177,13 @@ namespace UnityModBase.HotkeyManager
                 IsLeftSide = true;
             }
 
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
             IsAnySide = false;
         }
 
         public KeyboardModifierTrigger(Key leftKey, Key rightKey, bool isAnySide, bool isLeftSide, UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
 
             LeftKey = leftKey;
             RightKey = rightKey;
@@ -202,6 +217,9 @@ namespace UnityModBase.HotkeyManager
 
         public static HotkeyResult<KeyboardModifierTrigger> TryParse(string token, UnityProvider unityService)
         {
+            if (unityService == null)
+                return HotkeyResult<KeyboardModifierTrigger>.Fail("UnityService is null.");
+
             if (string.IsNullOrWhiteSpace(token))
                 return HotkeyResult<KeyboardModifierTrigger>.Fail("Token is null or whitespace.");
 
@@ -284,6 +302,9 @@ namespace UnityModBase.HotkeyManager
         /// </summary>
         public void CopyModifiersTo(KeyboardModifierTrigger other)
         {
+            if (other == null)
+                throw new ArgumentNullException(nameof(other));
+
             other.LeftKey = LeftKey;
             other.RightKey = RightKey;
             other.IsAnySide = IsAnySide;
@@ -340,6 +361,9 @@ namespace UnityModBase.HotkeyManager
 
         public static bool EqualsL(string entry, List<string> list)
         {
+            if (string.IsNullOrWhiteSpace(entry) || list == null || list.Count == 0)
+                return false;
+
             foreach (var item in list)
             {
                 if (item.Equals(entry, StringComparison.OrdinalIgnoreCase))
@@ -387,12 +411,12 @@ namespace UnityModBase.HotkeyManager
 
         public GamepadTrigger(UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
         }
 
         public GamepadTrigger(GamepadButton button, UnityProvider unityService)
         {
-            UnityService = unityService;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
             Button = button;
         }
 
@@ -414,6 +438,9 @@ namespace UnityModBase.HotkeyManager
 
         public static HotkeyResult<GamepadTrigger> TryParse(string token, UnityProvider unityProvider)
         {
+            if (unityProvider == null)
+                return HotkeyResult<GamepadTrigger>.Fail("UnityService is null.");
+
             if (string.IsNullOrWhiteSpace(token))
                 return HotkeyResult<GamepadTrigger>.Fail("Token is null or whitespace.");
 
@@ -453,6 +480,9 @@ namespace UnityModBase.HotkeyManager
 
         public static bool EqualsL(string entry, List<string> list)
         {
+            if (string.IsNullOrWhiteSpace(entry) || list == null || list.Count == 0)
+                return false;
+
             foreach (var item in list)
             {
                 if (item.Equals(entry, StringComparison.OrdinalIgnoreCase))

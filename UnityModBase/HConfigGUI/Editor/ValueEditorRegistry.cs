@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
-    public class ValueEditorRegistry
+    public class ValueEditorRegistry : IDisposable
     {
         private readonly List<IValueEditor> _editors = new List<IValueEditor>();
 
@@ -21,6 +22,15 @@ namespace UnityModBase.HConfigGUI.Editor
                     return editor;
             }
             return UnsupportedEditor.Instance;
+        }
+
+        public void Dispose()
+        {
+            foreach (var editor in _editors)
+            {
+                try { editor.Dispose(); }
+                catch { }
+            }
         }
     }
 }

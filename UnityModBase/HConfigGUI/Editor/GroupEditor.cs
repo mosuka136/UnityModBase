@@ -9,7 +9,7 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
-    public class GroupEditor
+    public class GroupEditor : IDisposable
     {
         public IUnityProvider UnityService { get; }
         public IUnityGuiProvider UnityGui { get; }
@@ -279,6 +279,11 @@ namespace UnityModBase.HConfigGUI.Editor
                 foreach (var descendant in EnumerateEntries(childGroup))
                     yield return descendant;
             }
+        }
+
+        public void Dispose()
+        {
+            EditorRegistry?.Dispose();
         }
     }
 }

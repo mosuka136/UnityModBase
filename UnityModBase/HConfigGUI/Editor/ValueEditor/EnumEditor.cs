@@ -111,5 +111,9 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 
             return (values, mapIndexList, names);
         }
+
+        public void Dispose()
+        {
+        }
     }
 }

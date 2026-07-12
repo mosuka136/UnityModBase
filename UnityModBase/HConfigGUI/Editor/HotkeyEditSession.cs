@@ -6,7 +6,7 @@ using UnityModBase.HotkeyManager;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
-    public class HotkeyEditSession
+    public class HotkeyEditSession : IDisposable
     {
         public IEntryBinding Entry { get; set; }
         public HotkeyEditState State { get; set; } = HotkeyEditState.Idle;
@@ -320,6 +320,11 @@ namespace UnityModBase.HConfigGUI.Editor
             }
 
             return snapshot;
+        }
+
+        public void Dispose()
+        {
+            Clear();
         }
     }
 }

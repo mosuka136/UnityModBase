@@ -6,7 +6,7 @@ using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HGuiSpace
 {
-    public abstract class UserEditorBase
+    public abstract class UserEditorBase : IDisposable
     {
         public bool IsExpanded { get; set; } = false;
         public IUnityProvider UnityService { get; }
@@ -51,5 +51,9 @@ namespace UnityModBase.HGuiSpace
         }
 
         public abstract void SetStatusDirty(IUserContext context);
+
+        public virtual void Dispose()
+        {
+        }
     }
 }
