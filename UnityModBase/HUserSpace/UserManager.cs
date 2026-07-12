@@ -137,13 +137,19 @@ namespace UnityModBase.HUserSpace
 
         public static void Dispose()
         {
-            foreach (var context in _userContexts.Values.ToArray())
-                context.Dispose();
-
-            _userContexts.Clear();
-            OnUserRegistered = null;
-            OnLogWriterRegistered = null;
-            OnConfigRegistered = null;
+            try
+            {
+                foreach (var context in _userContexts.Values.ToArray())
+                {
+                    try { context.Dispose(); }
+                    catch { }
+                }
+                _userContexts.Clear();
+                OnUserRegistered = null;
+                OnLogWriterRegistered = null;
+                OnConfigRegistered = null;
+            }
+            catch { }
         }
     }
 }

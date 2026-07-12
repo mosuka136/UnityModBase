@@ -41,6 +41,9 @@ namespace UnityModBase.HUserSpace
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
 
+            if (ReferenceEquals(context, this))
+                throw new ArgumentException("Cannot add the context to itself.", nameof(context));
+
             return _contexts.TryAdd(key, context);
         }
 
@@ -64,10 +67,17 @@ namespace UnityModBase.HUserSpace
 
         public void Dispose()
         {
-            foreach (var context in _contexts.Values)
-                context.Dispose();
-            _contexts.Clear();
-            Service?.Dispose();
+            try
+            {
+                foreach (var context in _contexts.Values)
+                {
+                    try { context.Dispose(); }
+                    catch { }
+                }
+                _contexts.Clear();
+                Service?.Dispose();
+            }
+            catch { }
         }
     }
 }
