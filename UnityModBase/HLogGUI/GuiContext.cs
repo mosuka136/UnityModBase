@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
@@ -30,6 +31,7 @@ namespace UnityModBase.HLogGUI
 
             _logDatabase.OnLogAdded += OnLogChanged;
             _logDatabase.OnLogRepeated += OnLogChanged;
+            _logDatabase.OnLogRemoved += OnLogRemoved;
 
             _logHandlersRegistered = true;
         }
@@ -84,6 +86,16 @@ namespace UnityModBase.HLogGUI
         {
             UserData.AddEntry(new EntryBinding(log));
             _userEditor.SetStatusDirty(this);
+        }
+
+        private void OnLogRemoved(LogEntry log)
+        {
+            var entryBinding = UserData.OriginalGroup.FirstOrDefault(e => e.Entry.Equals(log));
+            if (entryBinding != null)
+            {
+                UserData.RemoveEntry(entryBinding);
+                _userEditor.SetStatusDirty(this);
+            }
         }
 
         private void OnLogCopied(string message)

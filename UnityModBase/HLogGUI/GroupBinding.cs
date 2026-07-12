@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace UnityModBase.HLogGUI
 {
     public class GroupBinding
     {
+        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+
         public bool HasRepeatedEntry { get; private set; } = false;
         public bool HasExceptionEntry { get; private set; } = false;
         public List<EntryBinding> OriginalGroup { get; } = new List<EntryBinding>();
@@ -108,7 +111,9 @@ namespace UnityModBase.HLogGUI
         public void AddEntry(EntryBinding entry)
         {
             if (entry == null)
-                throw new ArgumentNullException(nameof(entry), "EntryBinding cannot be null.");
+                throw new ArgumentNullException(nameof(entry));
+
+            _lock.EnterWriteLock();
 
             if (!string.IsNullOrEmpty(entry.Exception))
                 HasExceptionEntry = true;
@@ -127,12 +132,31 @@ namespace UnityModBase.HLogGUI
 
                 foreach (var sortedSet in SortedGroups.Values)
                     sortedSet.Add(existing);
+
+                _lock.ExitWriteLock();
                 return;
             }
 
             OriginalGroup.Add(entry);
             foreach (var sortedSet in SortedGroups.Values)
                 sortedSet.Add(entry);
+            _lock.ExitWriteLock();
+        }
+
+        public void RemoveEntry(EntryBinding entry)
+        {
+            if (entry == null)
+                throw new ArgumentNullException(nameof(entry));
+
+            _lock.EnterWriteLock();
+
+            OriginalGroup.Remove(entry);
+            foreach (var sortedSet in SortedGroups.Values)
+                sortedSet.Remove(entry);
+            HasRepeatedEntry = OriginalGroup.Any(e => e.IsRepeated);
+            HasExceptionEntry = OriginalGroup.Any(e => !string.IsNullOrEmpty(e.Exception));
+
+            _lock.ExitWriteLock();
         }
 
         public static int CompareByIdFallback(EntryBinding a, EntryBinding b, int result)
