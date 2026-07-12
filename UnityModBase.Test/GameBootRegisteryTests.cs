@@ -85,19 +85,23 @@ namespace UnityModBase.Test
         private sealed class GameBootRegisteryStateScope : IDisposable
         {
             private static readonly FieldInfo InitializedField = GetRequiredField("_initialized");
+            private static readonly FieldInfo GameBootInvokedField = GetRequiredField("_gameBootInvoked");
             private static readonly FieldInfo OnGameBootField = GetRequiredField("OnGameBoot");
             private static readonly FieldInfo CreatedGameBootObjectsField = GetRequiredField("_createdGameBootObjects");
 
             private readonly bool _originalInitialized;
+            private readonly bool _originalGameBootInvoked;
             private readonly Action _originalOnGameBoot;
             private readonly GameObject[] _originalCreatedGameBootObjects;
 
             private GameBootRegisteryStateScope(
                 bool originalInitialized,
+                bool originalGameBootInvoked,
                 Action originalOnGameBoot,
                 GameObject[] originalCreatedGameBootObjects)
             {
                 _originalInitialized = originalInitialized;
+                _originalGameBootInvoked = originalGameBootInvoked;
                 _originalOnGameBoot = originalOnGameBoot;
                 _originalCreatedGameBootObjects = originalCreatedGameBootObjects;
             }
@@ -107,10 +111,12 @@ namespace UnityModBase.Test
                 var createdGameBootObjects = GetCreatedGameBootObjectList();
                 var scope = new GameBootRegisteryStateScope(
                     (bool)InitializedField.GetValue(null),
+                    (bool)GameBootInvokedField.GetValue(null),
                     (Action)OnGameBootField.GetValue(null),
                     createdGameBootObjects.ToArray());
 
                 InitializedField.SetValue(null, false);
+                GameBootInvokedField.SetValue(null, false);
                 OnGameBootField.SetValue(null, null);
                 createdGameBootObjects.Clear();
 
@@ -123,6 +129,7 @@ namespace UnityModBase.Test
                 createdGameBootObjects.Clear();
                 createdGameBootObjects.AddRange(_originalCreatedGameBootObjects);
                 OnGameBootField.SetValue(null, _originalOnGameBoot);
+                GameBootInvokedField.SetValue(null, _originalGameBootInvoked);
                 InitializedField.SetValue(null, _originalInitialized);
             }
 

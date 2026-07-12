@@ -10,6 +10,7 @@ namespace UnityModBase
     public static class GameBootRegistery
     {
         private static bool _initialized = false;
+        private static bool _gameBootInvoked = false;
         private static readonly object _lock = new object();
         private static readonly List<GameObject> _createdGameBootObjects = new List<GameObject>();
 
@@ -38,6 +39,9 @@ namespace UnityModBase
         {
             lock (_lock)
             {
+                if (_gameBootInvoked)
+                    return;
+
                 foreach (var handler in OnGameBoot.GetInvocationListOrEmpty())
                 {
                     try
@@ -51,6 +55,7 @@ namespace UnityModBase
                 }
 
                 OnGameBoot = null;
+                _gameBootInvoked = true;
                 BLog.Debug("Game boot initialization completed.");
             }
         }
@@ -87,19 +92,26 @@ namespace UnityModBase
         public static void RegisterAssembly(Assembly assembly)
         {
             var types = ClassHelper.GetRegisterOnGameBootClasses(assembly);
+            var methods = ClassHelper.GetInitializeOnGameBootMethods(assembly);
+
+            if (_gameBootInvoked && (types.Length > 0 || methods.Length > 0))
+            {
+                BLog.Warn($"Assembly {assembly.FullName} is loaded after game boot, any registered components or methods will not be invoked.");
+                return;
+            }
+
             int registeredComponentCount = 0;
             foreach (var type in types)
             {
-                registeredComponentCount++;
-                RegisterComponentOnGameBoot(type);
+                if (RegisterComponentOnGameBoot(type))
+                    registeredComponentCount++;
             }
 
-            var methods = ClassHelper.GetInitializeOnGameBootMethods(assembly);
             int registeredMethodCount = 0;
             foreach (var method in methods)
             {
-                registeredMethodCount++;
-                RegisterMethodOnGameBoot(method);
+                if (RegisterMethodOnGameBoot(method))
+                    registeredMethodCount++;
             }
 
             BLog.Debug($"Registered {registeredComponentCount} game boot components and {registeredMethodCount} game boot methods from assembly: {assembly.FullName}.");
@@ -109,18 +121,19 @@ namespace UnityModBase
         /// 将一个 Unity 组件类型注册为游戏启动后创建的常驻对象。
         /// </summary>
         /// <param name="type">必须派生自 <see cref="Component"/>；非法类型只记录警告，不抛出异常。</param>
-        public static void RegisterComponentOnGameBoot(Type type)
+        public static bool RegisterComponentOnGameBoot(Type type)
         {
             lock (_lock)
             {
                 if (!typeof(Component).IsAssignableFrom(type))
                 {
                     BLog.Warn($"Type {type.FullName} is not a Component, cannot register for game boot.");
-                    return;
+                    return false;
                 }
 
                 OnGameBoot += new GameBootComponentRegistration(type).Invoke;
                 BLog.Debug($"Register game boot component: {type.FullName}");
+                return true;
             }
         }
 
@@ -128,19 +141,20 @@ namespace UnityModBase
         /// 将一个静态方法注册为游戏启动后执行的初始化逻辑。非法方法只记录警告，不抛出异常。
         /// </summary>
         /// <param name="method">必须为无参数且返回 <see cref="void"/> 的静态方法。</param>
-        public static void RegisterMethodOnGameBoot(MethodInfo method)
+        public static bool RegisterMethodOnGameBoot(MethodInfo method)
         {
             lock (_lock)
             {
                 if (method == null)
                 {
                     BLog.Notice("Cannot register a null method for game boot.");
-                    return;
+                    return false;
                 }
 
                 var methodName = $"{method.DeclaringType.FullName}.{method.Name}";
                 BLog.Debug($"Register game boot method: {methodName}");
                 OnGameBoot += new GameBootMethodRegistration(method, methodName).Invoke;
+                return true;
             }
         }
 
