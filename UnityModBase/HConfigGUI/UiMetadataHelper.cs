@@ -22,5 +22,19 @@ namespace UnityModBase.HConfigGUI
             }
             return null;
         }
+
+        public static bool TryGetMetadata(Type classType, IConfigEntry entry, out IUiMetadata metadata)
+        {
+            try
+            {
+                metadata = GetMetadata(classType, entry);
+                return metadata != null;
+            }
+            catch
+            {
+                metadata = null;
+                return false;
+            }
+        }
     }
 }

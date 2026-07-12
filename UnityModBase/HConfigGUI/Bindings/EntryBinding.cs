@@ -38,7 +38,10 @@ namespace UnityModBase.HConfigGUI.Bindings
         public EntryBinding(Type classType, IConfigEntry entry)
         {
             Entry = entry ?? throw new ArgumentNullException(nameof(entry));
-            Metadata = UiMetadataHelper.GetMetadata(classType, entry);
+            if (UiMetadataHelper.TryGetMetadata(classType, entry, out var metadata))
+                Metadata = metadata;
+            else
+                Metadata = null;
             EditBuffer = new EntryEditBuffer();
         }
     }
