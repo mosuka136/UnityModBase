@@ -71,14 +71,14 @@ namespace UnityModBase.HLogSpace
 
         public void AddLog(LogLevel logLevel, string msg, Exception ex, string member, string file, int line)
         {
-            Interlocked.Increment(ref _seq);
+            var id = Interlocked.Increment(ref _seq);
             DateTime timestamp = DateTime.Now;
             int threadId = Thread.CurrentThread.ManagedThreadId;
             int frame = UnityService?.FrameCount ?? 0;
             string scene = UnityService?.ActiveScene.name;
             scene = string.IsNullOrEmpty(scene) ? "?" : scene;
 
-            AddLog(new LogEntry(_seq, timestamp, threadId, frame, scene, logLevel, msg, file, line, member, ex));
+            AddLog(new LogEntry(id, timestamp, threadId, frame, scene, logLevel, msg, file, line, member, ex));
         }
 
         public void Debug(string msg, string member, string file, int line) => AddLog(LogLevel.Debug, msg, null, member, file, line);
