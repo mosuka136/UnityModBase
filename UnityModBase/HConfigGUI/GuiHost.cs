@@ -40,7 +40,7 @@ namespace UnityModBase.HConfigGUI
                 Users = UserManager.UserContexts;
                 foreach (var context in Users)
                     RegisterContext(context);
-                UserManager.OnUserRegistered += RegisterContext;
+                UserManager.OnConfigRegistered += RegisterContext;
                 CurrentContext = GetContext(_selectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);

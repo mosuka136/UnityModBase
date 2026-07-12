@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityModBase.BSpace;
+using UnityModBase.HConfigSpace;
+using UnityModBase.HLogSpace;
 
 namespace UnityModBase.HUserSpace
 {
@@ -10,6 +12,8 @@ namespace UnityModBase.HUserSpace
         private static readonly Dictionary<string, UserContext> _userContexts = new Dictionary<string, UserContext>();
 
         public static event Action<UserContext> OnUserRegistered;
+        public static event Action<UserContext> OnLogWriterRegistered;
+        public static event Action<UserContext> OnConfigRegistered;
 
         public static IEnumerable<string> UserIds => _userContexts.Keys;
         public static IEnumerable<UserContext> UserContexts => _userContexts.Values;
@@ -37,6 +41,10 @@ namespace UnityModBase.HUserSpace
             var context = CreateUser(userId, name);
             context.Service = new UserService(userId);
 
+            var h = new ServiceEventHandler(context);
+            context.Service.OnLogWriterRegister += h.OnLogWriterRegisteredHandler;
+            context.Service.OnConfigRegister += h.OnConfigRegisteredHandler;
+
             foreach (var handler in OnUserRegistered.GetInvocationListOrEmpty())
             {
                 try
@@ -50,6 +58,46 @@ namespace UnityModBase.HUserSpace
             }
 
             return context;
+        }
+
+        private class ServiceEventHandler
+        {
+            public UserContext Context { get; }
+
+            public ServiceEventHandler(UserContext context)
+            {
+                Context = context;
+            }
+
+            public void OnLogWriterRegisteredHandler(LogWriter writer)
+            {
+                foreach (var handler in OnLogWriterRegistered.GetInvocationListOrEmpty())
+                {
+                    try
+                    {
+                        handler.Invoke(Context);
+                    }
+                    catch (Exception ex)
+                    {
+                        BLog.Error("Error invoking OnLogWriterRegistered handler!", ex);
+                    }
+                }
+            }
+
+            public void OnConfigRegisteredHandler(ConfigService config)
+            {
+                foreach (var handler in OnConfigRegistered.GetInvocationListOrEmpty())
+                {
+                    try
+                    {
+                        handler.Invoke(Context);
+                    }
+                    catch (Exception ex)
+                    {
+                        BLog.Error("Error invoking OnConfigRegistered handler!", ex);
+                    }
+                }
+            }
         }
 
         public static UserContext CreateUser(string userId, string name)
@@ -95,6 +143,8 @@ namespace UnityModBase.HUserSpace
 
             _userContexts.Clear();
             OnUserRegistered = null;
+            OnLogWriterRegistered = null;
+            OnConfigRegistered = null;
         }
     }
 }

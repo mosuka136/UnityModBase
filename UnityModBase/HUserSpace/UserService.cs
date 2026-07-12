@@ -9,6 +9,9 @@ namespace UnityModBase.HUserSpace
     {
         private bool _logWriterSubscribed = false;
 
+        public event Action<LogWriter> OnLogWriterRegister;
+        public event Action<ConfigService> OnConfigRegister;
+
         public string UserId { get; }
         public LogDatabase LogDatabase { get; private set; }
         public LogWriter LogWriter { get; private set; }
@@ -34,6 +37,18 @@ namespace UnityModBase.HUserSpace
             LogDatabase.OnLogRepeated += OnLogRepeated;
 
             _logWriterSubscribed = true;
+
+            foreach(var handler in OnLogWriterRegister.GetInvocationListOrEmpty())
+            {
+                try
+                {
+                    handler.Invoke(LogWriter);
+                }
+                catch (Exception ex)
+                {
+                    LogDatabase.Error($"Error invoking {nameof(OnLogWriterRegister)} handler.", ex, string.Empty, string.Empty, 0);
+                }
+            }
         }
 
         public void RegisterConfig<T>(string configFilePath) where T : class
@@ -45,6 +60,18 @@ namespace UnityModBase.HUserSpace
         {
             ConfigManagerType = configManagerType;
             Config = new ConfigService(configFilePath);
+
+            foreach(var handler in OnConfigRegister.GetInvocationListOrEmpty())
+            {
+                try
+                {
+                    handler.Invoke(Config);
+                }
+                catch (Exception ex)
+                {
+                    LogDatabase.Error($"Error invoking {nameof(OnConfigRegister)} handler.", ex, string.Empty, string.Empty, 0);
+                }
+            }
         }
 
         public void Dispose()
@@ -60,6 +87,9 @@ namespace UnityModBase.HUserSpace
                 LogWriter = null;
                 Config?.Dispose();
                 Config = null;
+
+                OnLogWriterRegister = null;
+                OnConfigRegister = null;
             }
             catch { }
         }
