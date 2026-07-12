@@ -150,7 +150,7 @@ namespace UnityModBase.HGuiSpace
 
             var user = UserManager.GetUser(key);
             if (user.IsValid)
-                return user.GetContext(GuiContextKey);
+                return user.GetChildContext(GuiContextKey);
             else
                 return UserContext.InvalidUserContext;
         }

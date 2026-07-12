@@ -39,7 +39,6 @@ namespace UnityModBase.HUserSpace
                 userId += $"_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 
             var context = CreateUser(userId, name);
-            context.Service = new UserService(userId);
 
             var h = new ServiceEventHandler(context);
             context.Service.OnLogWriterRegister += h.OnLogWriterRegisteredHandler;

@@ -144,7 +144,7 @@ namespace UnityModBase.Test.HUserSpace
             // Arrange
             var context = UserManager.CreateUser("user", "Name");
             var child = new TrackingContext();
-            context.AddContext("child", child);
+            context.AddChildContext("child", child);
 
             // Act
             UserManager.RemoveUser("user");
@@ -178,7 +178,7 @@ namespace UnityModBase.Test.HUserSpace
             // Arrange
             var context = UserManager.CreateUser("user", "Name");
             var child = new TrackingContext();
-            context.AddContext("child", child);
+            context.AddChildContext("child", child);
             UserManager.OnUserRegistered += _ => { };
 
             // Act

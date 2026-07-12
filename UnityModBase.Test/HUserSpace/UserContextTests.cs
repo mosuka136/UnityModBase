@@ -26,7 +26,7 @@ namespace UnityModBase.Test.HUserSpace
             using var child = new TrackingContext();
 
             // Act
-            var exception = Assert.Throws<ArgumentException>(() => context.AddContext(key, child));
+            var exception = Assert.Throws<ArgumentException>(() => context.AddChildContext(key, child));
 
             // Assert
             Assert.Equal("key", exception.ParamName);
@@ -39,11 +39,11 @@ namespace UnityModBase.Test.HUserSpace
             using var context = new UserContext("user", "User");
 
             // Act
-            var exception = Assert.Throws<ArgumentNullException>(() => context.AddContext("child", null));
+            var exception = Assert.Throws<ArgumentNullException>(() => context.AddChildContext("child", null));
 
             // Assert
             Assert.Equal("context", exception.ParamName);
-            Assert.Same(UserContext.InvalidUserContext, context.GetContext("child"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("child"));
         }
 
         [Fact]
@@ -55,13 +55,13 @@ namespace UnityModBase.Test.HUserSpace
             using var replacement = new TrackingContext();
 
             // Act
-            var firstResult = context.AddContext("child", original);
-            var secondResult = context.AddContext("child", replacement);
+            var firstResult = context.AddChildContext("child", original);
+            var secondResult = context.AddChildContext("child", replacement);
 
             // Assert
             Assert.True(firstResult);
             Assert.False(secondResult);
-            Assert.Same(original, context.GetContext("child"));
+            Assert.Same(original, context.GetChildContext("child"));
         }
 
         [Theory]
@@ -74,7 +74,7 @@ namespace UnityModBase.Test.HUserSpace
             using var context = new UserContext("user", "User");
 
             // Act
-            var exception = Assert.Throws<ArgumentException>(() => context.GetContext(key));
+            var exception = Assert.Throws<ArgumentException>(() => context.GetChildContext(key));
 
             // Assert
             Assert.Equal("key", exception.ParamName);
@@ -87,7 +87,7 @@ namespace UnityModBase.Test.HUserSpace
             using var context = new UserContext("user", "User");
 
             // Act
-            var result = context.GetContext("missing");
+            var result = context.GetChildContext("missing");
 
             // Assert
             Assert.Same(UserContext.InvalidUserContext, result);
@@ -104,8 +104,8 @@ namespace UnityModBase.Test.HUserSpace
             };
             var first = new TrackingContext();
             var second = new TrackingContext();
-            context.AddContext("first", first);
-            context.AddContext("second", second);
+            context.AddChildContext("first", first);
+            context.AddChildContext("second", second);
 
             // Act
             context.Dispose();
@@ -114,8 +114,8 @@ namespace UnityModBase.Test.HUserSpace
             Assert.True(first.IsDisposed);
             Assert.True(second.IsDisposed);
             Assert.Null(context.Service.LogDatabase);
-            Assert.Same(UserContext.InvalidUserContext, context.GetContext("first"));
-            Assert.Same(UserContext.InvalidUserContext, context.GetContext("second"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("first"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("second"));
         }
 
         private sealed class TrackingContext : IUserContext

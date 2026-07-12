@@ -20,12 +20,21 @@ namespace UnityModBase.HUserSpace
 
         public UserService(string userId)
         {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new ArgumentException("User ID cannot be null or whitespace.", nameof(userId));
+
             UserId = userId;
             LogDatabase = new LogDatabase(UnityProvider.Instance);
         }
 
         public void RegisterLog(string directory, string fileName, LogLevel level)
         {
+            if (string.IsNullOrWhiteSpace(directory))
+                throw new ArgumentException("Directory cannot be null or whitespace.", nameof(directory));
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new ArgumentException("File name cannot be null or whitespace.", nameof(fileName));
+
             UnsubscribeLogWriter();
             LogWriter?.Dispose();
 
@@ -58,7 +67,10 @@ namespace UnityModBase.HUserSpace
 
         public void RegisterConfig(Type configManagerType, string configFilePath)
         {
-            ConfigManagerType = configManagerType;
+            if (string.IsNullOrEmpty(configFilePath))
+                throw new ArgumentException("Config file path cannot be null or empty.", nameof(configFilePath));
+
+            ConfigManagerType = configManagerType ?? throw new ArgumentNullException(nameof(configManagerType));
             Config = new ConfigService(configFilePath);
 
             foreach(var handler in OnConfigRegister.GetInvocationListOrEmpty())

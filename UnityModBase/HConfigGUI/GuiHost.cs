@@ -75,7 +75,7 @@ namespace UnityModBase.HConfigGUI
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
             guiContext.SubscribeToastNotifications(ToastEditor);
 
-            context.AddContext(GuiContextKey, guiContext);
+            context.AddChildContext(GuiContextKey, guiContext);
         }
 
         public override void Update()
@@ -112,8 +112,9 @@ namespace UnityModBase.HConfigGUI
 
             foreach (var user in Users ?? Array.Empty<UserContext>())
             {
-                var context = user.GetContext(GuiContextKey) as GuiContext;
+                var context = user.GetChildContext(GuiContextKey) as GuiContext;
                 context?.Dispose();
+                user.RemoveChildContext(GuiContextKey);
             }
         }
 

@@ -29,21 +29,29 @@ namespace UnityModBase.HUserSpace
 
             UserId = userId;
             Name = name ?? string.Empty;
+            Service = new UserService(userId);
             _contexts = new ConcurrentDictionary<string, IUserContext>();
         }
 
-        public bool AddContext(string key, IUserContext context)
+        public bool AddChildContext(string key, IUserContext context)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));
 
             if (context == null)
-                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+                throw new ArgumentNullException(nameof(context));
 
             return _contexts.TryAdd(key, context);
         }
 
-        public IUserContext GetContext(string key)
+        public void RemoveChildContext(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));
+            _contexts.TryRemove(key, out _);
+        }
+
+        public IUserContext GetChildContext(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
                 throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));

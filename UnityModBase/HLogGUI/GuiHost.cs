@@ -72,7 +72,7 @@ namespace UnityModBase.HLogGUI
             guiContext.RegisterLogHandlers(context.Service.LogDatabase, userEditor);
             guiContext.SubscribeToastNotifications(ToastEditor);
 
-            context.AddContext(GuiContextKey, guiContext);
+            context.AddChildContext(GuiContextKey, guiContext);
         }
 
         public void OnDestroy()
@@ -88,8 +88,9 @@ namespace UnityModBase.HLogGUI
 
             foreach (var user in Users ?? Array.Empty<UserContext>())
             {
-                var context = user.GetContext(GuiContextKey) as GuiContext;
+                var context = user.GetChildContext(GuiContextKey) as GuiContext;
                 context?.Dispose();
+                user.RemoveChildContext(GuiContextKey);
             }
         }
 
