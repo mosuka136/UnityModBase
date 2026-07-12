@@ -124,7 +124,7 @@ namespace UnityModBase.HConfigSpace
                 var entryResult = ((ConfigFileEntry)entry).EncodeEntry();
                 if (entryResult.Success)
                     sb.AppendLine(entryResult.Value);
-                else
+                if (entryResult.HasErrors)
                     result.AddError(entryResult.Errors);
                 sb.AppendLine();
             }
@@ -166,7 +166,7 @@ namespace UnityModBase.HConfigSpace
                 return ConfigFileResult<ConfigFileTable>.Fail(headerResult.Errors);
 
             var table = new ConfigFileTable(headerResult.Value.Key, headerResult.Value.Description);
-            var result = new ConfigFileResult<ConfigFileTable>(table, true, null);
+            var result = new ConfigFileResult<ConfigFileTable>(table);
 
             for (var i = index; index < content.Length && !DecodeTableHeader(content, ref i).Success; i = index)
             {
@@ -177,11 +177,11 @@ namespace UnityModBase.HConfigSpace
                     if (!entryAddResult.Success)
                         result.AddError(entryAddResult.Errors);
                 }
-                else
+                if (entryResult.HasErrors)
                 {
-                    result.AddError(entryResult.Errors);
                     if (entryResult.Errors.Any(e => e.Code == ConfigFileErrorCode.EndOfContent))
                         break;
+                    result.AddError(entryResult.Errors);
                 }
             }
 

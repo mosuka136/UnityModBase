@@ -829,7 +829,7 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void DecodeEntry_WithEmptyContent_ReturnsEntryNotFound()
+        public void DecodeEntry_WithEmptyContent_ReturnsEndOfContent()
         {
             // Arrange
             var content = new string[0];
@@ -841,11 +841,11 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EntryNotFound);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EndOfContent);
         }
 
         [Fact]
-        public void DecodeEntry_WithOnlyComments_ReturnsEntryNotFound()
+        public void DecodeEntry_WithOnlyComments_ReturnsEndOfContent()
         {
             // Arrange
             var content = new[] { "# Comment 1", "## Comment 2" };
@@ -857,11 +857,11 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EntryNotFound);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EndOfContent);
         }
 
         [Fact]
-        public void DecodeEntry_WithOnlyWhitespace_ReturnsEntryNotFound()
+        public void DecodeEntry_WithOnlyWhitespace_ReturnsEndOfContent()
         {
             // Arrange
             var content = new[] { "   ", "\t", "" };
@@ -873,7 +873,7 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EntryNotFound);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EndOfContent);
         }
 
         [Fact]
@@ -893,7 +893,7 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void DecodeEntry_WithStartingIndexBeyondContent_ReturnsEntryNotFound()
+        public void DecodeEntry_WithStartingIndexBeyondContent_ReturnsEndOfContent()
         {
             // Arrange
             var content = new[] { "key = value" };
@@ -905,7 +905,7 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EntryNotFound);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.EndOfContent);
         }
 
         [Fact]

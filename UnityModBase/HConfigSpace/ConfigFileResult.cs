@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
 namespace UnityModBase.HConfigSpace
@@ -19,6 +20,7 @@ namespace UnityModBase.HConfigSpace
         /// 当前结果是否成功。
         /// </summary>
         public bool Success { get; private set; }
+        public bool HasErrors => Errors.Count > 0;
         /// <summary>
         /// 失败原因集合；成功时为空集合而不是 <c>null</c>。
         /// </summary>
@@ -26,6 +28,13 @@ namespace UnityModBase.HConfigSpace
 
         public ConfigFileResult()
         {
+            Errors = Array.Empty<ConfigFileError>();
+        }
+
+        public ConfigFileResult(T value)
+        {
+            Value = value;
+            Success = true;
             Errors = Array.Empty<ConfigFileError>();
         }
 

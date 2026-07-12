@@ -67,12 +67,12 @@ namespace UnityModBase.HConfigSpace
                 var tableResult = table.EncodeTable();
                 if (tableResult.Success)
                     sb.AppendLine(tableResult.Value);
-                else
+                if (tableResult.HasErrors)
                     result.AddError(tableResult.Errors);
                 sb.AppendLine();
             }
 
-            if (result.Errors.Count > 0)
+            if (result.HasErrors)
                 return ConfigFileResult<string>.Fail(result.Errors);
 
             result.SetValue(sb.ToString().Trim());
@@ -88,7 +88,7 @@ namespace UnityModBase.HConfigSpace
         public static ConfigFileResult<ConfigFileSheet> DecodeSheet(string[] content, ref int index)
         {
             var model = new ConfigFileSheet();
-            var result = new ConfigFileResult<ConfigFileSheet>(model, true, null);
+            var result = new ConfigFileResult<ConfigFileSheet>(model);
 
             while (index < content.Length)
             {
@@ -99,7 +99,7 @@ namespace UnityModBase.HConfigSpace
                     if (!addTableResult.Success)
                         result.AddError(addTableResult.Errors);
                 }
-                else
+                if (tableResult.HasErrors)
                 {
                     if (tableResult.Errors.Any(e => e.Code == ConfigFileErrorCode.EndOfContent))
                         break;

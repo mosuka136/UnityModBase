@@ -64,7 +64,7 @@ namespace UnityModBase.HConfigSpace
                 var content = File.ReadAllText(FilePath).Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
                 int index = 0;
                 var decodeResult = ConfigFileSheet.DecodeSheet(content, ref index);
-                if (!decodeResult.Success)
+                if (decodeResult.HasErrors)
                 {
                     foreach (var error in decodeResult.Errors)
                         BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, index);
@@ -86,13 +86,14 @@ namespace UnityModBase.HConfigSpace
         /// <returns>编码与写入是否成功；失败时记录日志并返回 <c>false</c>。</returns>
         public bool Write()
         {
-            var directoryPath = string.Empty;
             var tmpFilePath = string.Empty;
 
             try
             {
+                var directoryPath = string.Empty;
+
                 var encodeResult = FileSheet.EncodeSheet();
-                if (!encodeResult.Success)
+                if (encodeResult.HasErrors)
                 {
                     foreach (var error in encodeResult.Errors)
                         BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
@@ -129,7 +130,6 @@ namespace UnityModBase.HConfigSpace
                 }
                 catch
                 {
-
                 }
             }
         }
@@ -143,22 +143,36 @@ namespace UnityModBase.HConfigSpace
             var oldSaveOnConfigSet = SaveOnConfigSet;
             SaveOnConfigSet = false;
 
-            Read();
-            foreach (var table in Sheet.Values)
+            try
             {
-                foreach (var entry in table)
+                Read();
+                foreach (var table in Sheet.Values)
                 {
-                    var entryResult = FileSheet.GetEntry(entry.TableName, entry.Key);
-                    if (entryResult.Success)
+                    foreach (var entry in table)
                     {
-                        entry.Entry.CopyTo(entryResult.Value, false);
-                        entry.RebindEntry(entryResult.Value);
+                        var entryResult = FileSheet.GetEntry(entry.TableName, entry.Key);
+                        if (entryResult.Success)
+                        {
+                            entry.Entry.CopyTo(entryResult.Value, false);
+                            entry.RebindEntry(entryResult.Value);
+                        }
+                        if (entryResult.HasErrors)
+                        {
+                            foreach (var error in entryResult.Errors)
+                                BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                        }
                     }
                 }
+                Save();
             }
-
-            SaveOnConfigSet = oldSaveOnConfigSet;
-            Save();
+            catch (Exception ex)
+            {
+                BLog.Error($"Failed to reload config file: {FilePath}.", ex);
+            }
+            finally
+            {
+                SaveOnConfigSet = oldSaveOnConfigSet;
+            }
         }
 
         /// <summary>
@@ -219,6 +233,42 @@ namespace UnityModBase.HConfigSpace
             result.OnValueChangedBase += OnConfigEntryChanged;
 
             Sheet[tableKey].Add(result);
+            return result;
+        }
+
+        internal ConfigFileEntry CreateFileEntry<T>(string tableKey, string key, T defaultValue)
+        {
+            var tableResult = FileSheet.GetTable(tableKey);
+            if (!tableResult.Success)
+            {
+                foreach (var error in tableResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
+            }
+
+            var result = new ConfigFileEntry();
+
+            if (!ConfigFileEntry.IsValidKeyName(key))
+                throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
+            result.Key = key;
+
+            var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
+            if (!valueResult.Success)
+            {
+                foreach (var error in valueResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new InvalidOperationException($"Failed to encode default value for config entry: {tableKey}.{key}. Errors: {string.Join(", ", valueResult.Errors)}");
+            }
+            result.Value = valueResult.Value;
+
+            var addEntryResult = tableResult.Value.AddEntry(result);
+            if (!addEntryResult.Success)
+            {
+                foreach (var error in addEntryResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new InvalidOperationException($"Failed to add config entry to table: {tableKey}.{key}.");
+            }
+
             return result;
         }
 

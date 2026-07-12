@@ -385,7 +385,7 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            return ConfigFileResult<ConfigFileEntry>.Fail(new ConfigFileError(ConfigFileErrorCode.EntryNotFound, "No entry found in content"));
+            return ConfigFileResult<ConfigFileEntry>.Fail(new ConfigFileError(ConfigFileErrorCode.EndOfContent, "No more content to process"));
         }
     }
 }
