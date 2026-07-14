@@ -21,7 +21,7 @@ namespace UnityModBase.Test.HotkeyManager
         public void Fail_WithErrorList_ReturnsFailedResult()
         {
             // Arrange
-            IReadOnlyList<string> errors = new List<string> { "error1", "error2" };
+            var errors = new List<string> { "error1", "error2" };
 
             // Act
             var result = HotkeyResult<int>.Fail(errors);
@@ -29,7 +29,11 @@ namespace UnityModBase.Test.HotkeyManager
             // Assert
             Assert.Equal(default(int), result.Value);
             Assert.False(result.Success);
-            Assert.Same(errors, result.Errors);
+            Assert.NotSame(errors, result.Errors);
+            Assert.Equal(errors, result.Errors);
+
+            errors.Add("late mutation");
+            Assert.Equal(2, result.Errors.Count);
         }
 
         [Fact]

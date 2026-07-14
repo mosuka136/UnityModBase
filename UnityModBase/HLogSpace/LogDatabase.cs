@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using UnityModBase.HProvider;
@@ -11,8 +12,12 @@ namespace UnityModBase.HLogSpace
         public const int MaxLogCount = 500;
 
         private int _seq = 0;
+        private readonly ConcurrentQueue<LogEntry> _logs = new ConcurrentQueue<LogEntry>();
 
-        public ConcurrentQueue<LogEntry> Logs { get; } = new ConcurrentQueue<LogEntry>();
+        /// <summary>
+        /// 当前日志的只读快照。
+        /// </summary>
+        public IReadOnlyList<LogEntry> Logs => _logs.ToArray();
         public int Seq => _seq;
         public UnityProvider UnityService { get; }
 
@@ -30,7 +35,7 @@ namespace UnityModBase.HLogSpace
             if (log == null)
                 return;
 
-            var repeatLog = Logs.Where(l => l.Equals(log));
+            var repeatLog = _logs.Where(l => l.Equals(log));
             if (repeatLog.Any())
             {
                 var mainLog = repeatLog.First();
@@ -50,11 +55,11 @@ namespace UnityModBase.HLogSpace
                 return;
             }
 
-            Logs.Enqueue(log);
+            _logs.Enqueue(log);
 
-            if (Logs.Count > MaxLogCount)
+            if (_logs.Count > MaxLogCount)
             {
-                Logs.TryDequeue(out var removedLog);
+                _logs.TryDequeue(out var removedLog);
                 foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
                 {
                     try { handler?.Invoke(removedLog); }
@@ -96,7 +101,7 @@ namespace UnityModBase.HLogSpace
             try
             {
                 _seq = 0;
-                while (Logs.TryDequeue(out var log))
+                while (_logs.TryDequeue(out var log))
                 {
                     foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
                     {

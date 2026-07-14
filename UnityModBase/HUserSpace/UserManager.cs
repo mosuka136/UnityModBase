@@ -59,22 +59,22 @@ namespace UnityModBase.HUserSpace
             return context;
         }
 
-        private class ServiceEventHandler
+        private sealed class ServiceEventHandler
         {
-            public UserContext Context { get; }
+            private readonly UserContext _context;
 
-            public ServiceEventHandler(UserContext context)
+            internal ServiceEventHandler(UserContext context)
             {
-                Context = context;
+                _context = context;
             }
 
-            public void OnLogWriterRegisteredHandler(LogWriter writer)
+            internal void OnLogWriterRegisteredHandler(LogWriter writer)
             {
                 foreach (var handler in OnLogWriterRegistered.GetInvocationListOrEmpty())
                 {
                     try
                     {
-                        handler.Invoke(Context);
+                        handler.Invoke(_context);
                     }
                     catch (Exception ex)
                     {
@@ -83,13 +83,13 @@ namespace UnityModBase.HUserSpace
                 }
             }
 
-            public void OnConfigRegisteredHandler(ConfigService config)
+            internal void OnConfigRegisteredHandler(ConfigService config)
             {
                 foreach (var handler in OnConfigRegistered.GetInvocationListOrEmpty())
                 {
                     try
                     {
-                        handler.Invoke(Context);
+                        handler.Invoke(_context);
                     }
                     catch (Exception ex)
                     {

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
 namespace UnityModBase.HConfigSpace
@@ -42,7 +41,10 @@ namespace UnityModBase.HConfigSpace
         {
             Value = value;
             Success = success;
-            Errors = errors ?? Array.Empty<ConfigFileError>();
+            if (errors == null || errors.Count == 0)
+                Errors = Array.Empty<ConfigFileError>();
+            else
+                Errors = new List<ConfigFileError>(errors).AsReadOnly();
         }
 
         public void SetValue(T value)
@@ -57,14 +59,14 @@ namespace UnityModBase.HConfigSpace
         {
             var errorList = new List<ConfigFileError>(Errors ?? Array.Empty<ConfigFileError>());
             errorList.AddRange(errors);
-            Errors = errorList;
+            Errors = errorList.AsReadOnly();
         }
 
         public void AddError(params ConfigFileError[] errors)
         {
             var errorList = new List<ConfigFileError>(Errors ?? Array.Empty<ConfigFileError>());
             errorList.AddRange(errors);
-            Errors = errorList;
+            Errors = errorList.AsReadOnly();
         }
 
         public static ConfigFileResult<T> Ok(T value)
@@ -79,22 +81,12 @@ namespace UnityModBase.HConfigSpace
 
         public static ConfigFileResult<T> Fail(IReadOnlyList<ConfigFileError> errors)
         {
-            return new ConfigFileResult<T>
-            {
-                Value = default,
-                Success = false,
-                Errors = errors ?? Array.Empty<ConfigFileError>()
-            };
+            return new ConfigFileResult<T>(default, false, errors);
         }
 
         public static ConfigFileResult<T> Fail(params ConfigFileError[] errors)
         {
-            return new ConfigFileResult<T>
-            {
-                Value = default,
-                Success = false,
-                Errors = errors ?? Array.Empty<ConfigFileError>()
-            };
+            return new ConfigFileResult<T>(default, false, errors);
         }
 
         public override string ToString()
@@ -117,12 +109,7 @@ namespace UnityModBase.HConfigSpace
 
         public static implicit operator ConfigFileResult<object>(ConfigFileResult<T> result)
         {
-            return new ConfigFileResult<object>
-            {
-                Value = result.Value,
-                Success = result.Success,
-                Errors = result.Errors ?? Array.Empty<ConfigFileError>()
-            };
+            return new ConfigFileResult<object>(result.Value, result.Success, result.Errors);
         }
     }
 

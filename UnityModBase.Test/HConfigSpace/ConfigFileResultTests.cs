@@ -15,6 +15,19 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void Constructor_WithMutableErrors_CapturesReadOnlyCopy()
+        {
+            var error = new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Initial");
+            var errors = new List<ConfigFileError> { error };
+
+            var result = new ConfigFileResult<string>(null, false, errors);
+            errors.Clear();
+
+            Assert.NotSame(errors, result.Errors);
+            Assert.Equal(new[] { error }, result.Errors);
+        }
+
+        [Fact]
         public void AddError_WithReadOnlyList_AppendsErrorsInOrder()
         {
             var initial = new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Initial");

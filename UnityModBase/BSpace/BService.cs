@@ -8,19 +8,19 @@ namespace UnityModBase.BSpace
 {
     internal static class BService
     {
-        public const string DirectoryName = nameof(UnityModBase);
+        private const string DirectoryName = nameof(UnityModBase);
 
         private static readonly object _lock = new object();
         private static bool _initialized = false;
 
-        public static string BaseDirectory { get; private set; }
-        public static UserContext Context { get; private set; }
-        public static UserService Service => Context?.Service;
-        public static LogDatabase LogDatabase => Service?.LogDatabase;
-        public static LogWriter LogWriter => Service?.LogWriter;
-        public static ConfigService Config => Service?.Config;
+        internal static string BaseDirectory { get; set; }
+        internal static UserContext Context { get; set; }
+        internal static UserService Service => Context?.Service;
+        internal static LogDatabase LogDatabase => Service?.LogDatabase;
+        internal static LogWriter LogWriter => Service?.LogWriter;
+        internal static ConfigService Config => Service?.Config;
 
-        public static void Initialize(string baseDirectory)
+        internal static void Initialize(string baseDirectory)
         {
             lock (_lock)
             {
@@ -66,7 +66,7 @@ namespace UnityModBase.BSpace
             }
         }
 
-        public static void Dispose()
+        internal static void Dispose()
         {
             lock (_lock)
             {

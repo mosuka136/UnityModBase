@@ -22,12 +22,12 @@ namespace UnityModBase
         [RegisterOnGameBoot]
         public class Updater : MonoBehaviour
         {
-            public void Awake()
+            private void Awake()
             {
                 BLog.Debug("Frame update dispatcher created.");
             }
 
-            public void Update()
+            private void Update()
             {
                 foreach (var handler in OnFrameUpdate.GetInvocationListOrEmpty())
                 {

@@ -27,7 +27,10 @@ namespace UnityModBase.HotkeyManager
         {
             Value = value;
             Success = success;
-            Errors = errors ?? Array.Empty<string>();
+            if (errors == null || errors.Count == 0)
+                Errors = Array.Empty<string>();
+            else
+                Errors = new List<string>(errors).AsReadOnly();
         }
 
         public static HotkeyResult<T> Ok(T value)

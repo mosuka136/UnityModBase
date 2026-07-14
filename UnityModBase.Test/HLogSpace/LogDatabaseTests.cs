@@ -39,6 +39,19 @@ namespace UnityModBase.Test.HLogSpace
         }
 
         [Fact]
+        public void Entries_WhenDatabaseChanges_PreservesCapturedSnapshot()
+        {
+            using var database = new LogDatabase(null);
+            database.AddLog(CreateLog(1, "first"));
+            var snapshot = database.Logs;
+
+            database.AddLog(CreateLog(2, "second"));
+
+            Assert.Single(snapshot);
+            Assert.Equal(2, database.Logs.Count);
+        }
+
+        [Fact]
         public void AddLog_WhenEquivalentLogExists_UpdatesOriginalAndRaisesRepeatedEvent()
         {
             // Arrange

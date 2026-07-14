@@ -75,7 +75,7 @@ namespace UnityModBase.HLogGUI
             context.AddChildContext(GuiContextKey, guiContext);
         }
 
-        public void OnDestroy()
+        private void OnDestroy()
         {
             UserManager.OnUserRegistered -= RegisterContext;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;

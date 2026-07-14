@@ -9,14 +9,16 @@ namespace UnityModBase.HConfigGUI.Bindings
     public class GroupBinding : INodeBinding
     {
         private readonly List<INodeBinding> _children = new List<INodeBinding>();
+        private readonly IReadOnlyList<INodeBinding> _childrenView;
 
         public string Key { get; }
         public Translator Name { get; }
         public Translator Description { get; }
-        public IReadOnlyList<INodeBinding> Children => _children;
+        public IReadOnlyList<INodeBinding> Children => _childrenView;
 
         public GroupBinding(string key, Translator name, Translator description, IEnumerable<INodeBinding> children = null)
         {
+            _childrenView = _children.AsReadOnly();
             Key = key ?? throw new ArgumentNullException(nameof(key), "Key cannot be null.");
             Name = name ?? new Translator();
             Description = description ?? new Translator();

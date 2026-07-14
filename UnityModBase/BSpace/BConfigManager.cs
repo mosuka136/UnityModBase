@@ -17,25 +17,25 @@ namespace UnityModBase.BSpace
         /// <summary>
         /// 当前配置文件管理器。
         /// </summary>
-        public static ConfigService Config { get; private set; }
+        internal static ConfigService Config { get; set; }
 
-        public static ConfigEntry<bool> EnableLog { get; private set; }
-        public static ConfigEntry<LogLevel> LogLevel { get; private set; }
-        public static ConfigEntry<Hotkey> ConfigUIHotkey { get; private set; }
-        public static ConfigEntry<Hotkey> LogUIHotkey { get; private set; }
-        public static ConfigEntry<Hotkey> ReloadConfigHotkey { get; private set; }
-        public static ConfigEntry<LanguageType> SetLanguage { get; private set; }
+        internal static ConfigEntry<bool> EnableLog { get; private set; }
+        internal static ConfigEntry<LogLevel> LogLevel { get; private set; }
+        internal static ConfigEntry<Hotkey> ConfigUIHotkey { get; private set; }
+        internal static ConfigEntry<Hotkey> LogUIHotkey { get; private set; }
+        internal static ConfigEntry<Hotkey> ReloadConfigHotkey { get; set; }
+        internal static ConfigEntry<LanguageType> SetLanguage { get; private set; }
 
-        public const string SectionGeneral = "General";
-        public const string SectionHotkey = "Hotkey";
-        public const string SectionLog = "Log";
+        private const string SectionGeneral = "General";
+        private const string SectionHotkey = "Hotkey";
+        private const string SectionLog = "Log";
 
         /// <summary>
         /// 初始化全部配置表和配置项。
         /// 调用会读取现有配置文件，补齐缺失项，并在完成绑定后保存一次规范化后的配置文件。
         /// </summary>
         /// <param name="configFilePath">配置文件路径。</param>
-        public static void Initialize(string configFilePath)
+        internal static void Initialize(string configFilePath)
         {
             lock (_lock)
             {
@@ -206,7 +206,7 @@ namespace UnityModBase.BSpace
             }
         }
 
-        public static void Dispose()
+        internal static void Dispose()
         {
             lock (_lock)
             {
@@ -230,7 +230,7 @@ namespace UnityModBase.BSpace
         /// <summary>
         /// 从磁盘重新读取配置，并将已有静态配置项重新绑定到新文件项。
         /// </summary>
-        public static void ReloadConfig()
+        private static void ReloadConfig()
         {
             lock (_lock)
             {
@@ -242,7 +242,7 @@ namespace UnityModBase.BSpace
         /// <summary>
         /// 如果用户按下了指定的热键，则重新加载配置文件。
         /// </summary>
-        public static void ReloadConfigOnUserOrder()
+        private static void ReloadConfigOnUserOrder()
         {
             if (ReloadConfigHotkey?.Value?.WasPressedThisFrame() == true)
             {

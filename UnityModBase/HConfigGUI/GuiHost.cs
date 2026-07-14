@@ -99,7 +99,7 @@ namespace UnityModBase.HConfigGUI
             base.OnGUI();
         }
 
-        public void OnDestroy()
+        private void OnDestroy()
         {
             UserManager.OnConfigRegistered -= RegisterContext;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;

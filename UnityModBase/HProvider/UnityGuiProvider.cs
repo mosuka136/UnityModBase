@@ -6,7 +6,7 @@ namespace UnityModBase.HProvider
     /// Unity IMGUI/GUILayout 的适配层。
     /// 配置界面通过该类型访问 GUI API，主要目的是把渲染代码与 Unity 静态 API 隔开，并统一空样式回退策略。
     /// </summary>
-    public class UnityGuiProvider : IUnityGuiProvider
+    public sealed class UnityGuiProvider : IUnityGuiProvider
     {
         public string Tooltip => GUI.tooltip;
         public GUIStyle LabelStyle => GUI.skin.label;

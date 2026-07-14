@@ -67,7 +67,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var result = registry.GetEditor(entryMock.Object);
 
             // Assert
-            Assert.Same(UnsupportedEditor.Instance, result);
+            Assert.Same(UnsupportedEditor.Default, result);
             firstEditorMock.Verify(x => x.CanEdit(entryMock.Object), Times.Once);
             secondEditorMock.Verify(x => x.CanEdit(entryMock.Object), Times.Once);
             firstEditorMock.VerifyNoOtherCalls();

@@ -21,7 +21,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 if (editor.CanEdit(entry))
                     return editor;
             }
-            return UnsupportedEditor.Instance;
+            return UnsupportedEditor.Default;
         }
 
         public void Dispose()

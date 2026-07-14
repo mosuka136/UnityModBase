@@ -14,7 +14,7 @@ namespace UnityModBase.HClassAttribute
     public class ClassHelper
     {
         // 属性特性按“类型 + 属性名 + 特性类型”缓存；未找到时也缓存 null，避免重复反射。
-        private static ConcurrentDictionary<(Type classType, string propertyName, Type attributeType), Attribute> _attributeCache = new ConcurrentDictionary<(Type classType, string propertyName, Type attributeType), Attribute>();
+        private static readonly ConcurrentDictionary<(Type classType, string propertyName, Type attributeType), Attribute> _attributeCache = new ConcurrentDictionary<(Type classType, string propertyName, Type attributeType), Attribute>();
 
         /// <summary>
         /// 获取指定属性上的特性。

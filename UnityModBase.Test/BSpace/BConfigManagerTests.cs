@@ -1,4 +1,5 @@
 using System.Reflection;
+using UnityModBase.BSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
 
@@ -11,22 +12,19 @@ namespace UnityModBase.Test.BSpace
         {
             using var scope = BConfigManagerStateScope.Create();
 
-            var exception = Assert.Throws<TargetInvocationException>(() => scope.Initialize("missing.cfg"));
+            Assert.Throws<NullReferenceException>(() => scope.Initialize("missing.cfg"));
 
-            Assert.IsType<NullReferenceException>(exception.InnerException);
             Assert.False(scope.IsInitialized());
             Assert.Null(scope.GetStaticProperty("Config"));
-            Assert.Null(scope.GetStaticProperty("EnableLog"));
-            Assert.Null(scope.GetStaticProperty("LogLevel"));
+            Assert.Null(BConfigManager.EnableLog);
+            Assert.Null(BConfigManager.LogLevel);
         }
 
         private sealed class BConfigManagerStateScope : IDisposable
         {
-            private static readonly Assembly UnityModBaseAssembly = typeof(global::UnityModBase.UnityModBase).Assembly;
-            private static readonly Type BConfigManagerType = UnityModBaseAssembly.GetType("UnityModBase.BSpace.BConfigManager", true);
-            private static readonly Type BServiceType = UnityModBaseAssembly.GetType("UnityModBase.BSpace.BService", true);
+            private static readonly Type BConfigManagerType = typeof(BConfigManager);
+            private static readonly Type BServiceType = typeof(BService);
             private static readonly FieldInfo InitializedField = GetRequiredField(BConfigManagerType, "_initialized");
-            private static readonly MethodInfo InitializeMethod = GetRequiredMethod(BConfigManagerType, "Initialize");
             private static readonly PropertyInfo ContextProperty = GetRequiredProperty(BServiceType, "Context");
 
             private readonly bool _originalInitialized;
@@ -63,7 +61,7 @@ namespace UnityModBase.Test.BSpace
 
             public void Initialize(string configFilePath)
             {
-                InitializeMethod.Invoke(null, new object[] { configFilePath });
+                BConfigManager.Initialize(configFilePath);
             }
 
             public bool IsInitialized()
@@ -95,20 +93,9 @@ namespace UnityModBase.Test.BSpace
                 return field;
             }
 
-            private static MethodInfo GetRequiredMethod(Type type, string methodName)
-            {
-                var method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
-                if (method == null)
-                {
-                    throw new InvalidOperationException($"Method '{methodName}' was not found on {type.FullName}.");
-                }
-
-                return method;
-            }
-
             private static PropertyInfo GetRequiredProperty(Type type, string propertyName)
             {
-                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
+                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                 if (property == null)
                 {
                     throw new InvalidOperationException($"Property '{propertyName}' was not found on {type.FullName}.");

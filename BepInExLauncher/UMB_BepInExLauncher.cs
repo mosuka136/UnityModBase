@@ -16,7 +16,7 @@ namespace UnityModBase.BepInExLauncher
         private bool _sceneLoadedHandlerRegistered = false;
         private bool _gameBootInvoked = false;
 
-        public void Awake()
+        private void Awake()
         {
             try
             {
@@ -35,15 +35,15 @@ namespace UnityModBase.BepInExLauncher
             }
         }
 
-        public void Start()
+        private void Start()
         {
         }
 
-        public void Update()
+        private void Update()
         {
         }
 
-        public void OnDestroy()
+        private void OnDestroy()
         {
             UnregisterSceneLoadedHandler();
             UnityModBase.Dispose();

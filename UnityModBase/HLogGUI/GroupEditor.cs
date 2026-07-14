@@ -32,7 +32,7 @@ namespace UnityModBase.HLogGUI
 
         public class ColumnEditor
         {
-            private readonly float MinColumnWidth = 32f;
+            private const float MinColumnWidth = 32f;
             private const float ColumnWidthPadding = 18f;
 
             public bool IsVisible { get; set; } = true;

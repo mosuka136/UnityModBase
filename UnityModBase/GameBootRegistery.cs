@@ -201,12 +201,12 @@ namespace UnityModBase
         {
             private readonly Type _type;
 
-            public GameBootComponentRegistration(Type type)
+            internal GameBootComponentRegistration(Type type)
             {
                 _type = type;
             }
 
-            public void Invoke()
+            internal void Invoke()
             {
                 GameObject go = null;
 
@@ -234,13 +234,13 @@ namespace UnityModBase
             private readonly MethodInfo _method;
             private readonly string _methodName;
 
-            public GameBootMethodRegistration(MethodInfo method, string methodName)
+            internal GameBootMethodRegistration(MethodInfo method, string methodName)
             {
                 _method = method;
                 _methodName = methodName;
             }
 
-            public void Invoke()
+            internal void Invoke()
             {
                 try
                 {
@@ -258,7 +258,7 @@ namespace UnityModBase
                 }
             }
 
-            public static bool IsValidGameBootMethod(MethodInfo method)
+            private static bool IsValidGameBootMethod(MethodInfo method)
             {
                 if (method == null)
                     return false;

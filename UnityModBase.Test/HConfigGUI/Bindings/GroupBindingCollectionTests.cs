@@ -20,5 +20,17 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             Assert.Same(children, group.Children);
             Assert.Collection(children, child => Assert.Same(childMock.Object, child));
         }
+
+        [Fact]
+        public void Children_WhenCastToCollection_RejectsDirectMutation()
+        {
+            var group = new GroupBinding("Group", null, null);
+            var childMock = new Mock<INodeBinding>();
+            var children = Assert.IsAssignableFrom<ICollection<INodeBinding>>(group.Children);
+
+            Assert.True(children.IsReadOnly);
+            Assert.Throws<NotSupportedException>(() => children.Add(childMock.Object));
+            Assert.Empty(group.Children);
+        }
     }
 }

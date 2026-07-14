@@ -1,4 +1,5 @@
 using System.Reflection;
+using UnityModBase.BSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
 
@@ -21,8 +22,7 @@ namespace UnityModBase.Test
         private sealed class UnityModBaseInitializationStateScope : IDisposable
         {
             private static readonly Type UnityModBaseType = typeof(global::UnityModBase.UnityModBase);
-            private static readonly Assembly UnityModBaseAssembly = UnityModBaseType.Assembly;
-            private static readonly Type BServiceType = UnityModBaseAssembly.GetType("UnityModBase.BSpace.BService", true);
+            private static readonly Type BServiceType = typeof(BService);
             private static readonly Type UserManagerType = typeof(UserManager);
             private static readonly FieldInfo UnityModBaseInitializedField = GetRequiredField(UnityModBaseType, "_initialized");
             private static readonly FieldInfo BServiceInitializedField = GetRequiredField(BServiceType, "_initialized");
@@ -134,7 +134,7 @@ namespace UnityModBase.Test
 
             private static PropertyInfo GetRequiredProperty(Type type, string propertyName)
             {
-                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
+                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                 if (property == null)
                 {
                     throw new InvalidOperationException($"Property '{propertyName}' was not found on {type.FullName}.");

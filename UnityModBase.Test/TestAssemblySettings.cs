@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Reflection;
+using UnityModBase.BSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
 
@@ -20,9 +21,8 @@ namespace UnityModBase.Test
                 Service = service
             };
 
-            typeof(global::UnityModBase.UnityModBase).Assembly
-                .GetType("UnityModBase.BSpace.BService")
-                .GetProperty("Context", BindingFlags.Static | BindingFlags.Public)
+            typeof(BService)
+                .GetProperty("Context", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
                 .SetValue(null, context);
         }
     }

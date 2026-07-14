@@ -7,7 +7,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
     {
         public IUnityGuiProvider UnityGui { get; }
 
-        public static UnsupportedEditor Instance = new UnsupportedEditor();
+        public static UnsupportedEditor Default { get; } = new UnsupportedEditor();
 
         public UnsupportedEditor()
         {
