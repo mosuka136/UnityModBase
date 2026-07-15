@@ -64,6 +64,7 @@ namespace UnityModBase.HLogGUI
 
             _logDatabase.OnLogAdded -= OnLogChanged;
             _logDatabase.OnLogRepeated -= OnLogChanged;
+            _logDatabase.OnLogRemoved -= OnLogRemoved;
             _logDatabase = null;
             _userEditor = null;
 

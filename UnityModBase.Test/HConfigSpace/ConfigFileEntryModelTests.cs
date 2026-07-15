@@ -1143,6 +1143,42 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void CopyTo_WithOverrideValueFalse_CopiesMetadataButPreservesTargetValue()
+        {
+            // Arrange
+            var name = new Translator(chinese: "名称", english: "Name");
+            var description = new Translator(chinese: "描述", english: "Description");
+            var source = new ConfigFileEntry
+            {
+                Name = name,
+                Description = description,
+                Key = "TestKey",
+                DefaultValue = "10",
+                ValueType = "Int32",
+                AcceptableValues = "1, 2, 3",
+                Value = "42"
+            };
+            var target = new ConfigFileEntry
+            {
+                Key = "OtherKey",
+                Value = "100"
+            };
+
+            // Act
+            var result = source.CopyTo(target, overrideValue: false);
+
+            // Assert
+            Assert.True(result);
+            Assert.Same(name, target.Name);
+            Assert.Same(description, target.Description);
+            Assert.Equal("TestKey", target.Key);
+            Assert.Equal("10", target.DefaultValue);
+            Assert.Equal("Int32", target.ValueType);
+            Assert.Equal("1, 2, 3", target.AcceptableValues);
+            Assert.Equal("100", target.Value);
+        }
+
+        [Fact]
         public void EncodeValue_WithStringValue_ReturnsEncodedString()
         {
             // Arrange

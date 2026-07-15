@@ -319,7 +319,7 @@ namespace UnityModBase.HConfigSpace
 
             if (quote)
             {
-                if (value.StartsWith("\"") && value.EndsWith("\""))
+                if (value.Length >= 2 && value.StartsWith("\"") && value.EndsWith("\""))
                     value = value.Substring(1, value.Length - 2);
                 else
                     return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "String must start and end with a quote"));

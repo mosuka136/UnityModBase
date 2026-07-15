@@ -134,6 +134,58 @@ namespace UnityModBase.Test.HLogSpace
             Assert.Null(exception);
         }
 
+        [Fact]
+        public void Log_WhenEntryIsNull_ThrowsArgumentNullException()
+        {
+            using var writer = new LogWriter(CreateTempDirectory(), "null-log.log", LogLevel.Debug);
+
+            var exception = Assert.Throws<ArgumentNullException>(() => writer.Log(null));
+
+            Assert.Equal("log", exception.ParamName);
+        }
+
+        [Fact]
+        public void Write_WhenEntryIsNull_ThrowsArgumentNullException()
+        {
+            using var writer = new LogWriter(CreateTempDirectory(), "null-write.log", LogLevel.Debug);
+
+            var exception = Assert.Throws<ArgumentNullException>(() => writer.Write(null));
+
+            Assert.Equal("log", exception.ParamName);
+        }
+
+        [Fact]
+        public void Log_WhenSameEntryIsLoggedTwice_WritesItOnlyOnce()
+        {
+            var directory = CreateTempDirectory();
+            var writer = new LogWriter(directory, "duplicate.log", LogLevel.Debug);
+            var log = CreateLog(1, LogLevel.Info, "duplicate-entry");
+
+            writer.Log(log);
+            writer.Log(log);
+            writer.Dispose();
+
+            var content = ReadOnlyLogFile(directory);
+            Assert.Equal(1, content.Split(new[] { "duplicate-entry" }, StringSplitOptions.None).Length - 1);
+        }
+
+        [Fact]
+        public void Flush_WhenRepeatDurationExceedsLimit_WritesSummaryWithoutForce()
+        {
+            var directory = CreateTempDirectory();
+            var writer = new LogWriter(directory, "duration.log", LogLevel.Debug);
+            var timestamp = DateTime.Now;
+            var log = CreateLog(1, LogLevel.Info, "duration-entry", timestamp);
+            writer.Log(log);
+            log.RepeatCount = 2;
+            log.LastRepeatTime = timestamp.AddSeconds(6);
+
+            writer.Flush();
+            writer.Dispose();
+
+            Assert.Contains("Info x2 | duration-entry", ReadOnlyLogFile(directory), StringComparison.Ordinal);
+        }
+
         private string CreateTempDirectory()
         {
             var directory = Path.Combine(Path.GetTempPath(), $"UnityModBase.Test.{Guid.NewGuid():N}");
@@ -147,11 +199,11 @@ namespace UnityModBase.Test.HLogSpace
             return File.ReadAllText(path);
         }
 
-        private static LogEntry CreateLog(int id, LogLevel level, string message)
+        private static LogEntry CreateLog(int id, LogLevel level, string message, DateTime? timestamp = null)
         {
             return new LogEntry(
                 id,
-                new DateTime(2026, 7, 4, 12, 0, 0).AddSeconds(id),
+                timestamp ?? new DateTime(2026, 7, 4, 12, 0, 0).AddSeconds(id),
                 7,
                 10,
                 "Scene",

@@ -54,6 +54,26 @@ namespace UnityModBase.Test
             Assert.Null(scope.GetOnGameQuit());
         }
 
+        [Fact]
+        public async Task Dispose_HandlerReentersDispose_InvokesHandlerOnceWithoutDeadlock()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var scope = GameQuitManagerStateScope.Create();
+            GameQuitManager.OnGameQuit += () =>
+            {
+                invocationCount++;
+                GameQuitManager.Dispose();
+            };
+
+            // Act
+            var disposeTask = Task.Run(GameQuitManager.Dispose);
+            await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+            // Assert
+            Assert.Equal(1, invocationCount);
+        }
+
         private sealed class GameQuitManagerStateScope : IDisposable
         {
             private static readonly FieldInfo InitializedField = GetRequiredField("_initialized");

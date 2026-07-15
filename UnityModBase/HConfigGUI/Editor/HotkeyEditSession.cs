@@ -182,8 +182,14 @@ namespace UnityModBase.HConfigGUI.Editor
             if (!IsEditing)
                 return;
 
+            var chordIndex = WorkingValue.Hotkeys.IndexOf(chord);
             if (WorkingChord == chord)
+            {
                 CancelRecord();
+
+                if (chordIndex >= 0 && chordIndex < WorkingValue.Count)
+                    chord = WorkingValue.Hotkeys[chordIndex];
+            }
 
             WorkingValue.Remove(chord);
             State = HotkeyEditState.WaitingConfirm;

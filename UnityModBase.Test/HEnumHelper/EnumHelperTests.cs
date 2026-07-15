@@ -67,6 +67,23 @@ namespace UnityModBase.Test.HEnumHelper
             Assert.Null(result);
         }
 
+        [Fact]
+        public void UndefinedValue_WithGenericOverloads_ReturnsFallbackMetadata()
+        {
+            // Arrange
+            var enumValue = (TestEnum)999;
+
+            // Act
+            var attribute = EnumHelper.GetAttribute<TestEnum, DescriptionAttribute>(enumValue);
+            var description = EnumHelper.GetDescription(enumValue);
+            var isDisplay = EnumHelper.IsDisplay(enumValue);
+
+            // Assert
+            Assert.Null(attribute);
+            Assert.Equal("999", description);
+            Assert.True(isDisplay);
+        }
+
         // -----------------------------------------------------------------------
         // GetAttribute<TAttribute>(Type, Enum) - Basic tests
         // -----------------------------------------------------------------------
@@ -113,6 +130,24 @@ namespace UnityModBase.Test.HEnumHelper
 
             // Assert
             Assert.Null(result);
+        }
+
+        [Fact]
+        public void UndefinedValue_WithTypeAndEnumOverloads_ReturnsFallbackMetadata()
+        {
+            // Arrange
+            var enumType = typeof(TestEnum);
+            Enum enumValue = (TestEnum)999;
+
+            // Act
+            var attribute = EnumHelper.GetAttribute<DescriptionAttribute>(enumType, enumValue);
+            var description = EnumHelper.GetDescription(enumType, enumValue);
+            var isDisplay = EnumHelper.IsDisplay(enumType, enumValue);
+
+            // Assert
+            Assert.Null(attribute);
+            Assert.Equal("999", description);
+            Assert.True(isDisplay);
         }
 
         // -----------------------------------------------------------------------

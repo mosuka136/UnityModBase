@@ -1,5 +1,6 @@
 using UnityModBase.HConfigSpace;
 using UnityModBase.HTranslatorSpace;
+using System.Reflection;
 
 namespace UnityModBase.Test.HConfigSpace
 {
@@ -151,6 +152,31 @@ namespace UnityModBase.Test.HConfigSpace
                 var result = manager.Write();
                 Assert.False(result);
             }
+        }
+
+        [Fact]
+        public void Write_WhenReplacingExistingFile_CreatesBackupAndLeavesNoTemporaryFile()
+        {
+            // Arrange
+            var tempDirectory = CreateTempDirectory();
+            Directory.CreateDirectory(tempDirectory);
+            var tempPath = Path.Combine(tempDirectory, "settings.cfg");
+            var originalContent = "[Table]\nKey = \"old\"";
+            File.WriteAllText(tempPath, originalContent);
+            using var manager = new ConfigService(tempPath);
+            var entryResult = manager.FileSheet.GetEntry("Table", "Key");
+            Assert.True(entryResult.Success);
+            entryResult.Value.Value = "\"new\"";
+
+            // Act
+            var result = manager.Write();
+
+            // Assert
+            Assert.True(result);
+            Assert.Contains("Key = \"new\"", File.ReadAllText(tempPath));
+            Assert.True(File.Exists(tempPath + ".bak"));
+            Assert.Equal(originalContent, File.ReadAllText(tempPath + ".bak"));
+            Assert.Empty(Directory.GetFiles(tempDirectory, "*.tmp"));
         }
 
         [Fact]
@@ -333,6 +359,30 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void Reload_WhenStoredValueIsInvalid_RestoresFlagAndKeepsPreviousBindingAndValue()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 42\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var originalEntry = entry.Entry;
+            manager.SaveOnConfigSet = false;
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = invalid\n");
+
+            // Act
+            var exception = Record.Exception(manager.Reload);
+
+            // Assert
+            Assert.Null(exception);
+            Assert.False(manager.SaveOnConfigSet);
+            Assert.Equal(42, entry.Value);
+            Assert.Same(originalEntry, entry.Entry);
+            Assert.Equal("42", entry.Entry.Value);
+        }
+
+        [Fact]
         public void Bind_WhenDefaultValueTypeUnsupported_ThrowsInvalidOperationException()
         {
             var tempPath = CreateTempConfigPath();
@@ -375,6 +425,53 @@ namespace UnityModBase.Test.HConfigSpace
             var content = File.ReadAllText(tempPath);
 
             Assert.Contains("TestKey = \"UpdatedValue\"", content);
+        }
+
+        [Fact]
+        public void BoundEntry_WhenSaveOnConfigSetIsFalse_UpdatesMemoryWithoutWritingFile()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"OriginalValue\"\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            manager.SaveOnConfigSet = false;
+            var originalFileContent = File.ReadAllText(tempPath);
+
+            // Act
+            entry.Value = "UpdatedValue";
+
+            // Assert
+            Assert.Equal("UpdatedValue", entry.Value);
+            Assert.Equal("\"UpdatedValue\"", entry.Entry.Value);
+            Assert.Equal(originalFileContent, File.ReadAllText(tempPath));
+        }
+
+        [Fact]
+        public void Dispose_CalledTwice_UnsubscribesBoundEntriesAndClearsModels()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"Value\"\n");
+            var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var handlerField = typeof(ConfigEntry<string>).GetField(
+                nameof(ConfigEntry<string>.OnValueChangedBase),
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(handlerField);
+            Assert.NotNull(handlerField.GetValue(entry));
+
+            // Act
+            manager.Dispose();
+            var exception = Record.Exception(manager.Dispose);
+
+            // Assert
+            Assert.Null(exception);
+            Assert.Null(manager.FileSheet);
+            Assert.Null(manager.Sheet);
+            Assert.Null(handlerField.GetValue(entry));
         }
 
 

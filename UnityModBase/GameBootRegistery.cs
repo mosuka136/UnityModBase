@@ -42,6 +42,8 @@ namespace UnityModBase
                 if (_gameBootInvoked)
                     return;
 
+                _gameBootInvoked = true;
+
                 foreach (var handler in OnGameBoot.GetInvocationListOrEmpty())
                 {
                     try
@@ -55,7 +57,6 @@ namespace UnityModBase
                 }
 
                 OnGameBoot = null;
-                _gameBootInvoked = true;
                 BLog.Debug("Game boot initialization completed.");
             }
         }
@@ -125,6 +126,12 @@ namespace UnityModBase
         {
             lock (_lock)
             {
+                if (type == null)
+                {
+                    BLog.Warn("Cannot register a null component type for game boot.");
+                    return false;
+                }
+
                 if (!typeof(Component).IsAssignableFrom(type))
                 {
                     BLog.Warn($"Type {type.FullName} is not a Component, cannot register for game boot.");

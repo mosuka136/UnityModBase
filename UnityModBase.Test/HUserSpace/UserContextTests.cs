@@ -4,6 +4,17 @@ namespace UnityModBase.Test.HUserSpace
 {
     public class UserContextTests
     {
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void Constructor_WhenUserIdIsNullOrWhitespace_ThrowsArgumentException(string userId)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => new UserContext(userId, "User"));
+
+            Assert.Equal("userId", exception.ParamName);
+        }
+
         [Fact]
         public void Constructor_WhenNameIsNull_UsesEmptyName()
         {
@@ -44,6 +55,18 @@ namespace UnityModBase.Test.HUserSpace
             // Assert
             Assert.Equal("context", exception.ParamName);
             Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("child"));
+        }
+
+        [Fact]
+        public void AddContext_WhenAddingSelf_ThrowsArgumentException()
+        {
+            using var context = new UserContext("user", "User");
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                context.AddChildContext("self", context));
+
+            Assert.Equal("context", exception.ParamName);
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("self"));
         }
 
         [Fact]
@@ -94,6 +117,35 @@ namespace UnityModBase.Test.HUserSpace
             Assert.False(((UserContext)result).IsValid);
         }
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void RemoveContext_WhenKeyIsNullOrWhitespace_ThrowsArgumentException(string key)
+        {
+            using var context = new UserContext("user", "User");
+
+            var exception = Assert.Throws<ArgumentException>(() => context.RemoveChildContext(key));
+
+            Assert.Equal("key", exception.ParamName);
+        }
+
+        [Fact]
+        public void RemoveContext_WhenKeyExists_RemovesOnlySelectedContext()
+        {
+            using var context = new UserContext("user", "User");
+            using var removed = new TrackingContext();
+            using var retained = new TrackingContext();
+            context.AddChildContext("removed", removed);
+            context.AddChildContext("retained", retained);
+
+            context.RemoveChildContext("removed");
+
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("removed"));
+            Assert.Same(retained, context.GetChildContext("retained"));
+            Assert.False(removed.IsDisposed);
+        }
+
         [Fact]
         public void Dispose_WhenServiceAndChildrenExist_DisposesAndClearsAllResources()
         {
@@ -118,6 +170,22 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("second"));
         }
 
+        [Fact]
+        public void Dispose_WhenChildThrows_ContinuesDisposingRemainingChildren()
+        {
+            var context = new UserContext("user", "User");
+            var remaining = new TrackingContext();
+            context.AddChildContext("throwing", new ThrowingContext());
+            context.AddChildContext("remaining", remaining);
+
+            var exception = Record.Exception(context.Dispose);
+
+            Assert.Null(exception);
+            Assert.True(remaining.IsDisposed);
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("throwing"));
+            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("remaining"));
+        }
+
         private sealed class TrackingContext : IUserContext
         {
             public bool IsDisposed { get; private set; }
@@ -125,6 +193,14 @@ namespace UnityModBase.Test.HUserSpace
             public void Dispose()
             {
                 IsDisposed = true;
+            }
+        }
+
+        private sealed class ThrowingContext : IUserContext
+        {
+            public void Dispose()
+            {
+                throw new InvalidOperationException("dispose failure");
             }
         }
     }

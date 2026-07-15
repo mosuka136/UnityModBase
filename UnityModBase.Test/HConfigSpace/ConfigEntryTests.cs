@@ -148,6 +148,77 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void Value_WhenAssignedEquivalentValue_DoesNotRaiseTypedOrBaseEvents()
+        {
+            // Arrange
+            var model = new ConfigFileEntry
+            {
+                Key = "TestKey",
+                Value = "42"
+            };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var typedInvocationCount = 0;
+            var baseInvocationCount = 0;
+            entry.OnValueChanged += (sender, value) => typedInvocationCount++;
+            entry.OnValueChangedBase += (sender, args) => baseInvocationCount++;
+
+            // Act
+            entry.Value = 42;
+
+            // Assert
+            Assert.Equal(0, typedInvocationCount);
+            Assert.Equal(0, baseInvocationCount);
+            Assert.Equal(42, entry.Value);
+            Assert.Equal("42", model.Value);
+        }
+
+        [Fact]
+        public void Value_WhenTypedAndBaseHandlersThrow_UpdatesValueAndInvokesRemainingHandlers()
+        {
+            // Arrange
+            var model = new ConfigFileEntry
+            {
+                Key = "TestKey",
+                Value = "42"
+            };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var invocationOrder = new List<string>();
+            var typedValue = 0;
+            var baseValue = 0;
+
+            entry.OnValueChanged += (sender, value) =>
+            {
+                invocationOrder.Add("typed-throw");
+                throw new InvalidOperationException("Typed handler failed.");
+            };
+            entry.OnValueChanged += (sender, value) =>
+            {
+                invocationOrder.Add("typed-next");
+                typedValue = value;
+            };
+            entry.OnValueChangedBase += (sender, args) =>
+            {
+                invocationOrder.Add("base-throw");
+                throw new InvalidOperationException("Base handler failed.");
+            };
+            entry.OnValueChangedBase += (sender, args) =>
+            {
+                invocationOrder.Add("base-next");
+                baseValue = Assert.IsType<EntryValueChangedEventArgs<int>>(args).Value;
+            };
+
+            // Act
+            entry.Value = 100;
+
+            // Assert
+            Assert.Equal(100, entry.Value);
+            Assert.Equal("100", model.Value);
+            Assert.Equal(100, typedValue);
+            Assert.Equal(100, baseValue);
+            Assert.Equal(new[] { "typed-throw", "typed-next", "base-throw", "base-next" }, invocationOrder);
+        }
+
+        [Fact]
         public void BoxedValue_WhenGetting_ReturnsValue()
         {
             // Arrange

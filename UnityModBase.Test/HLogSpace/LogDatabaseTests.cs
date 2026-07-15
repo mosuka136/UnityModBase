@@ -119,6 +119,26 @@ namespace UnityModBase.Test.HLogSpace
             Assert.Same(exception, log.Exception);
         }
 
+        [Fact]
+        public void AddLog_WithDetailsCalledConcurrently_AssignsUniqueCompleteSequenceIds()
+        {
+            // Arrange
+            using var database = new LogDatabase(null);
+            const int logCount = 200;
+
+            // Act
+            Parallel.For(0, logCount, index =>
+                database.AddLog(LogLevel.Info, $"message-{index}", null, "Run", "Code.cs", index));
+
+            // Assert
+            var logs = database.Logs;
+            var ids = logs.Select(log => log.Id).OrderBy(id => id).ToArray();
+            Assert.Equal(logCount, database.Seq);
+            Assert.Equal(logCount, logs.Count);
+            Assert.Equal(logCount, ids.Distinct().Count());
+            Assert.Equal(Enumerable.Range(1, logCount), ids);
+        }
+
         [Theory]
         [InlineData(LogLevel.Debug)]
         [InlineData(LogLevel.Info)]

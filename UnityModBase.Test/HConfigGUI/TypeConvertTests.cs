@@ -23,6 +23,32 @@ namespace UnityModBase.Test.HConfigGUI
         }
 
         [Fact]
+        public void To_WhenValueIsNull_ThrowsArgumentNullException()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => TypeConvert.To(null, typeof(int)));
+
+            Assert.Equal("value", exception.ParamName);
+        }
+
+        [Fact]
+        public void To_WhenTargetTypeIsNull_ThrowsArgumentNullException()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => TypeConvert.To("42", null));
+
+            Assert.Equal("targetType", exception.ParamName);
+        }
+
+        [Fact]
+        public void To_WhenValueAlreadyMatchesTargetType_ReturnsOriginalReference()
+        {
+            var value = new object();
+
+            var result = TypeConvert.To(value, typeof(object));
+
+            Assert.Same(value, result);
+        }
+
+        [Fact]
         public void TryTo_WhenInputIsInvalid_ReturnsFalse()
         {
             var success = TypeConvert.TryTo("invalid", typeof(int), out var result);
@@ -38,6 +64,51 @@ namespace UnityModBase.Test.HConfigGUI
 
             Assert.False(success);
             Assert.Null(result);
+        }
+
+        [Fact]
+        public void TryTo_WhenEnumNameIsInvalid_ReturnsFalse()
+        {
+            var success = TypeConvert.TryTo("NotADay", typeof(DayOfWeek), out var result);
+
+            Assert.False(success);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void TryTo_WhenNumericValueOverflows_ReturnsFalse()
+        {
+            var success = TypeConvert.TryTo("256", typeof(byte), out var result);
+
+            Assert.False(success);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void TryTo_WhenTargetTypeIsNull_ThrowsArgumentNullException()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                TypeConvert.TryTo("42", null, out _));
+
+            Assert.Equal("targetType", exception.ParamName);
+        }
+
+        [Fact]
+        public void TryToGeneric_WhenConversionSucceeds_ReturnsTypedValue()
+        {
+            var success = TypeConvert.TryTo<int>("42", out var result);
+
+            Assert.True(success);
+            Assert.Equal(42, result);
+        }
+
+        [Fact]
+        public void TryToGeneric_WhenConversionFails_ReturnsDefaultValue()
+        {
+            var success = TypeConvert.TryTo<int>("invalid", out var result);
+
+            Assert.False(success);
+            Assert.Equal(default, result);
         }
 
         public static IEnumerable<object[]> GetSupportedConversions()

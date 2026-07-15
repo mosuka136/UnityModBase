@@ -42,6 +42,20 @@ namespace UnityModBase.Test
         }
 
         [Fact]
+        public void RegisterComponentOnGameBoot_NullType_ReturnsFalseWithoutThrowing()
+        {
+            using var scope = GameBootRegisteryStateScope.Create();
+            bool? wasRegistered = null;
+
+            var exception = Record.Exception(() =>
+                wasRegistered = GameBootRegistery.RegisterComponentOnGameBoot(null));
+
+            Assert.Null(exception);
+            Assert.Equal(false, wasRegistered);
+            Assert.Null(scope.GetOnGameBoot());
+        }
+
+        [Fact]
         public void LoadScenePatch_Postfix_CalledTwiceInvokesCustomHandlerOnlyOnce()
         {
             // Arrange
@@ -57,6 +71,115 @@ namespace UnityModBase.Test
 
             // Assert
             Assert.Equal(1, invocationCount);
+        }
+
+        [Fact]
+        public void Boot_WhenHandlerReentersBoot_StillInvokesOneShotHandlerOnlyOnce()
+        {
+            var invocationCount = 0;
+            using var scope = GameBootRegisteryStateScope.Create();
+            GameBootRegistery.OnGameBoot += () =>
+            {
+                invocationCount++;
+                if (invocationCount == 1)
+                    GameBootRegistery.Boot();
+            };
+
+            GameBootRegistery.Boot();
+
+            Assert.Equal(1, invocationCount);
+            Assert.Null(scope.GetOnGameBoot());
+        }
+
+        [Fact]
+        public void RegisterMethodOnGameBoot_StaticParameterlessVoidMethod_InvokesMethod()
+        {
+            // Arrange
+            var invocationCount = 0;
+            using var registryScope = GameBootRegisteryStateScope.Create();
+            using var targetScope = GameBootMethodTargetScope.Create();
+            _validGameBootMethodInvoked = () => invocationCount++;
+            var method = GetRequiredTestMethod(nameof(ValidGameBootMethod));
+
+            // Act
+            var wasRegistered = GameBootRegistery.RegisterMethodOnGameBoot(method);
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.True(wasRegistered);
+            Assert.Equal(1, invocationCount);
+        }
+
+        [Fact]
+        public void RegisterMethodOnGameBoot_NullMethod_DoesNotPreventFollowingValidMethod()
+        {
+            // Arrange
+            var validInvocationCount = 0;
+            using var registryScope = GameBootRegisteryStateScope.Create();
+            using var targetScope = GameBootMethodTargetScope.Create();
+            _validGameBootMethodInvoked = () => validInvocationCount++;
+            var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
+
+            // Act
+            var wasRegistered = GameBootRegistery.RegisterMethodOnGameBoot(null);
+            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.False(wasRegistered);
+            Assert.Equal(1, validInvocationCount);
+        }
+
+        [Theory]
+        [InlineData(nameof(InstanceGameBootMethod))]
+        [InlineData(nameof(ParameterizedGameBootMethod))]
+        [InlineData(nameof(NonVoidGameBootMethod))]
+        public void RegisterMethodOnGameBoot_InvalidSignature_DoesNotInvokeMethodOrPreventFollowingValidMethod(
+            string invalidMethodName)
+        {
+            // Arrange
+            var invalidInvocationCount = 0;
+            var validInvocationCount = 0;
+            using var registryScope = GameBootRegisteryStateScope.Create();
+            using var targetScope = GameBootMethodTargetScope.Create();
+            _invalidGameBootMethodInvoked = () => invalidInvocationCount++;
+            _validGameBootMethodInvoked = () => validInvocationCount++;
+            var invalidMethod = GetRequiredTestMethod(invalidMethodName);
+            var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
+
+            GameBootRegistery.RegisterMethodOnGameBoot(invalidMethod);
+            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
+
+            // Act
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(0, invalidInvocationCount);
+            Assert.Equal(1, validInvocationCount);
+        }
+
+        [Fact]
+        public void RegisterMethodOnGameBoot_MethodThrows_DoesNotPreventFollowingValidMethod()
+        {
+            // Arrange
+            var throwingInvocationCount = 0;
+            var validInvocationCount = 0;
+            using var registryScope = GameBootRegisteryStateScope.Create();
+            using var targetScope = GameBootMethodTargetScope.Create();
+            _throwingGameBootMethodInvoked = () => throwingInvocationCount++;
+            _validGameBootMethodInvoked = () => validInvocationCount++;
+            var throwingMethod = GetRequiredTestMethod(nameof(ThrowingGameBootMethod));
+            var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
+
+            GameBootRegistery.RegisterMethodOnGameBoot(throwingMethod);
+            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
+
+            // Act
+            GameBootRegistery.Boot();
+
+            // Assert
+            Assert.Equal(1, throwingInvocationCount);
+            Assert.Equal(1, validInvocationCount);
         }
 
         [Fact]
@@ -80,6 +203,88 @@ namespace UnityModBase.Test
 
         private abstract class AbstractTestComponent : MonoBehaviour
         {
+        }
+
+        private static Action _validGameBootMethodInvoked;
+        private static Action _invalidGameBootMethodInvoked;
+        private static Action _throwingGameBootMethodInvoked;
+
+        private static void ValidGameBootMethod()
+        {
+            _validGameBootMethodInvoked?.Invoke();
+        }
+
+        private void InstanceGameBootMethod()
+        {
+            _invalidGameBootMethodInvoked?.Invoke();
+        }
+
+        private static void ParameterizedGameBootMethod(int value)
+        {
+            _invalidGameBootMethodInvoked?.Invoke();
+        }
+
+        private static int NonVoidGameBootMethod()
+        {
+            _invalidGameBootMethodInvoked?.Invoke();
+            return 1;
+        }
+
+        private static void ThrowingGameBootMethod()
+        {
+            _throwingGameBootMethodInvoked?.Invoke();
+            throw new InvalidOperationException("game boot method failure");
+        }
+
+        private static MethodInfo GetRequiredTestMethod(string methodName)
+        {
+            var method = typeof(GameBootRegisteryTests).GetMethod(
+                methodName,
+                BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+            if (method == null)
+            {
+                throw new InvalidOperationException($"Method '{methodName}' was not found on {typeof(GameBootRegisteryTests).FullName}.");
+            }
+
+            return method;
+        }
+
+        private sealed class GameBootMethodTargetScope : IDisposable
+        {
+            private readonly Action _originalValidGameBootMethodInvoked;
+            private readonly Action _originalInvalidGameBootMethodInvoked;
+            private readonly Action _originalThrowingGameBootMethodInvoked;
+
+            private GameBootMethodTargetScope(
+                Action originalValidGameBootMethodInvoked,
+                Action originalInvalidGameBootMethodInvoked,
+                Action originalThrowingGameBootMethodInvoked)
+            {
+                _originalValidGameBootMethodInvoked = originalValidGameBootMethodInvoked;
+                _originalInvalidGameBootMethodInvoked = originalInvalidGameBootMethodInvoked;
+                _originalThrowingGameBootMethodInvoked = originalThrowingGameBootMethodInvoked;
+            }
+
+            public static GameBootMethodTargetScope Create()
+            {
+                var scope = new GameBootMethodTargetScope(
+                    _validGameBootMethodInvoked,
+                    _invalidGameBootMethodInvoked,
+                    _throwingGameBootMethodInvoked);
+
+                _validGameBootMethodInvoked = null;
+                _invalidGameBootMethodInvoked = null;
+                _throwingGameBootMethodInvoked = null;
+
+                return scope;
+            }
+
+            public void Dispose()
+            {
+                _throwingGameBootMethodInvoked = _originalThrowingGameBootMethodInvoked;
+                _invalidGameBootMethodInvoked = _originalInvalidGameBootMethodInvoked;
+                _validGameBootMethodInvoked = _originalValidGameBootMethodInvoked;
+            }
         }
 
         private sealed class GameBootRegisteryStateScope : IDisposable

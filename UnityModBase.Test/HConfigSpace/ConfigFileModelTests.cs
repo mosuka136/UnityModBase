@@ -451,6 +451,19 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void DecodeString_SingleQuoteCharacter_ReturnsFailureInsteadOfThrowing()
+        {
+            ConfigFileResult<string> result = null;
+
+            var exception = Record.Exception(() => result = ConfigFileModel.DecodeString("\""));
+
+            Assert.Null(exception);
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+        }
+
+        [Fact]
         public void DecodeString_InvalidEscapeSequence_ReturnsFailure()
         {
             // Arrange

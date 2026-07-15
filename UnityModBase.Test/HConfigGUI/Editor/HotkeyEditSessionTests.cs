@@ -759,6 +759,158 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
+        public void RemoveChord_WhenEditing_RemovesChordAndCommitsRemainingValue()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
+                unityProvider));
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)),
+                unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var workingValue = originalValue.Clone();
+            var removedChord = workingValue.Hotkeys[0];
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = HotkeyEditState.Expanded,
+                OriginalValue = originalValue,
+                WorkingValue = workingValue
+            };
+
+            session.RemoveChord(removedChord, new EntryChangeSink());
+
+            var committedValue = Assert.IsType<Hotkey>(entry.Object.Value);
+            Assert.NotSame(originalValue, committedValue);
+            Assert.Equal("B", committedValue.ToString());
+            Assert.DoesNotContain(removedChord, committedValue.Hotkeys);
+            Assert.Same(committedValue, session.OriginalValue);
+            Assert.Equal("B", session.WorkingValue.ToString());
+            Assert.False(session.WorkingValue.Valid);
+            Assert.Null(session.WorkingChord);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void RemoveChord_WhenChordIsCurrentlyRecording_RemovesMatchingChordFromWorkingCopy()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
+                unityProvider));
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)),
+                unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var workingValue = originalValue.Clone();
+            var recordingChord = workingValue.Hotkeys[0];
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = HotkeyEditState.WaitingPress,
+                OriginalValue = originalValue,
+                WorkingValue = workingValue,
+                WorkingChord = recordingChord,
+            };
+
+            session.RemoveChord(recordingChord, new EntryChangeSink());
+
+            var committedValue = Assert.IsType<Hotkey>(entry.Object.Value);
+            Assert.Equal("B", committedValue.ToString());
+            Assert.DoesNotContain(committedValue.Hotkeys, chord => chord.ToString() == "A");
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void RemoveChord_WhenNewChordIsCurrentlyRecording_CancelsAdditionWithoutWritingEntry()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
+                unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var workingValue = originalValue.Clone();
+            var addedChord = new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)),
+                unityProvider);
+            workingValue.Add(addedChord);
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = HotkeyEditState.WaitingPress,
+                OriginalValue = originalValue,
+                WorkingValue = workingValue,
+                WorkingChord = addedChord,
+            };
+
+            session.RemoveChord(addedChord, new EntryChangeSink());
+
+            Assert.Same(originalValue, entry.Object.Value);
+            Assert.Same(originalValue, session.OriginalValue);
+            Assert.Equal("A", session.WorkingValue.ToString());
+            Assert.DoesNotContain(session.WorkingValue.Hotkeys, chord => chord.ToString() == "B");
+            Assert.Null(session.WorkingChord);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void RemoveChord_WhenItIsTheLastChord_PreservesOriginalValue()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)),
+                unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var workingValue = originalValue.Clone();
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = HotkeyEditState.Expanded,
+                OriginalValue = originalValue,
+                WorkingValue = workingValue
+            };
+
+            session.RemoveChord(workingValue.Hotkeys[0], new EntryChangeSink());
+
+            Assert.Same(originalValue, entry.Object.Value);
+            Assert.Same(originalValue, session.OriginalValue);
+            Assert.Equal("C", session.WorkingValue.ToString());
+            Assert.False(session.WorkingValue.Valid);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void ConfirmRecord_WhenWorkingValueIsUnchanged_DoesNotWriteEntry()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            originalValue.Add(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.D, unityProvider)),
+                unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = HotkeyEditState.WaitingConfirm,
+                OriginalValue = originalValue,
+                WorkingValue = originalValue.Clone()
+            };
+
+            session.ConfirmRecord(new EntryChangeSink());
+
+            entry.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
+            Assert.Same(originalValue, session.OriginalValue);
+            Assert.Equal("D", session.WorkingValue.ToString());
+            Assert.False(session.WorkingValue.Valid);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
         public void DealWaitingPress_WhenNotEditingOrNotWaitingPress_DoesNothing()
         {
             var session = new HotkeyEditSession
@@ -921,6 +1073,32 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var result = session.CaptureHotkeyInput();
 
             Assert.Null(result);
+        }
+
+        [Fact]
+        public void Update_WhenStateIsUnknown_LeavesSessionUntouched()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey(unityProvider);
+            var entry = CreateEntryBinding(originalValue);
+            var workingValue = originalValue.Clone();
+            var workingChord = new HotkeyChord(unityProvider);
+            var session = new HotkeyEditSession
+            {
+                Entry = entry.Object,
+                State = (HotkeyEditState)int.MaxValue,
+                OriginalValue = originalValue,
+                WorkingValue = workingValue,
+                WorkingChord = workingChord
+            };
+
+            session.Update();
+
+            Assert.Same(entry.Object, session.Entry);
+            Assert.Equal((HotkeyEditState)int.MaxValue, session.State);
+            Assert.Same(originalValue, session.OriginalValue);
+            Assert.Same(workingValue, session.WorkingValue);
+            Assert.Same(workingChord, session.WorkingChord);
         }
 
 

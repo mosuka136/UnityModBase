@@ -1,4 +1,5 @@
 using System.Reflection;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HUserSpace;
 
@@ -21,6 +22,74 @@ namespace UnityModBase.Test.HUserSpace
                 {
                 }
             }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void Constructor_WhenUserIdIsNullOrWhitespace_ThrowsArgumentException(string userId)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => new UserService(userId));
+
+            Assert.Equal("userId", exception.ParamName);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void RegisterLog_WhenDirectoryIsNullOrWhitespace_ThrowsArgumentException(string directory)
+        {
+            using var service = new UserService("user");
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                service.RegisterLog(directory, "service.log", LogLevel.Info));
+
+            Assert.Equal("directory", exception.ParamName);
+            Assert.Null(service.LogWriter);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void RegisterLog_WhenFileNameIsNullOrWhitespace_ThrowsArgumentException(string fileName)
+        {
+            using var service = new UserService("user");
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                service.RegisterLog(CreateTempDirectory(), fileName, LogLevel.Info));
+
+            Assert.Equal("fileName", exception.ParamName);
+            Assert.Null(service.LogWriter);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void RegisterConfig_WhenPathIsNullOrEmpty_ThrowsArgumentException(string path)
+        {
+            using var service = new UserService("user");
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                service.RegisterConfig(typeof(TestConfigManager), path));
+
+            Assert.Equal("configFilePath", exception.ParamName);
+            Assert.Null(service.Config);
+        }
+
+        [Fact]
+        public void RegisterConfig_WhenManagerTypeIsNull_ThrowsArgumentNullException()
+        {
+            using var service = new UserService("user");
+            var path = Path.Combine(CreateTempDirectory(), "settings.cfg");
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                service.RegisterConfig(null, path));
+
+            Assert.Equal("configManagerType", exception.ParamName);
+            Assert.Null(service.Config);
         }
 
         [Fact]
@@ -102,6 +171,58 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Contains("future", ReadAllLogs(secondDirectory), StringComparison.Ordinal);
         }
 
+        [Fact]
+        public void RegisterLog_WhenHandlerThrows_InvokesRemainingHandlersAndRecordsFailure()
+        {
+            var directory = CreateTempDirectory();
+            using var service = new UserService("user");
+            var database = new LogDatabase(null);
+            SetLogDatabase(service, database);
+            var failingHandlerCalled = false;
+            LogWriter received = null;
+            service.OnLogWriterRegister += _ =>
+            {
+                failingHandlerCalled = true;
+                throw new InvalidOperationException("handler failure");
+            };
+            service.OnLogWriterRegister += writer => received = writer;
+
+            service.RegisterLog(directory, "service.log", LogLevel.Debug);
+
+            Assert.True(failingHandlerCalled);
+            Assert.Same(service.LogWriter, received);
+            var error = Assert.Single(database.Logs);
+            Assert.Equal(LogLevel.Error, error.Level);
+            Assert.Contains(nameof(service.OnLogWriterRegister), error.Message, StringComparison.Ordinal);
+            Assert.IsType<InvalidOperationException>(error.Exception);
+        }
+
+        [Fact]
+        public void RegisterConfig_WhenHandlerThrows_InvokesRemainingHandlersAndRecordsFailure()
+        {
+            using var service = new UserService("user");
+            var database = new LogDatabase(null);
+            SetLogDatabase(service, database);
+            var path = Path.Combine(CreateTempDirectory(), "settings.cfg");
+            var failingHandlerCalled = false;
+            ConfigService received = null;
+            service.OnConfigRegister += _ =>
+            {
+                failingHandlerCalled = true;
+                throw new InvalidOperationException("handler failure");
+            };
+            service.OnConfigRegister += config => received = config;
+
+            service.RegisterConfig(typeof(TestConfigManager), path);
+
+            Assert.True(failingHandlerCalled);
+            Assert.Same(service.Config, received);
+            var error = Assert.Single(database.Logs);
+            Assert.Equal(LogLevel.Error, error.Level);
+            Assert.Contains(nameof(service.OnConfigRegister), error.Message, StringComparison.Ordinal);
+            Assert.IsType<InvalidOperationException>(error.Exception);
+        }
+
         private string CreateTempDirectory()
         {
             var directory = Path.Combine(Path.GetTempPath(), $"UnityModBase.Test.{Guid.NewGuid():N}");
@@ -113,6 +234,7 @@ namespace UnityModBase.Test.HUserSpace
         {
             var property = typeof(UserService).GetProperty(nameof(UserService.LogDatabase), BindingFlags.Instance | BindingFlags.Public);
             Assert.NotNull(property);
+            service.LogDatabase?.Dispose();
             property.SetValue(service, database);
         }
 

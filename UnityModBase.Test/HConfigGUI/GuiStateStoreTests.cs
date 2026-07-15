@@ -1,5 +1,10 @@
-using System;
+using Moq;
 using UnityModBase.HConfigGUI;
+using UnityModBase.HConfigGUI.Bindings;
+using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigGUI
 {
@@ -96,6 +101,105 @@ namespace UnityModBase.Test.HConfigGUI
             Assert.False(context.IsEntryLabelWidthDirty);
             Assert.True(context.IsGroupButtonWidthDirty);
             Assert.False(context.IsResetButtonWidthDirty);
+        }
+
+        [Fact]
+        public void SubscribeToastNotifications_WhenToastEditorIsNull_ThrowsArgumentNullException()
+        {
+            var context = new GuiContext();
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                context.SubscribeToastNotifications(null));
+
+            Assert.Equal("toastEditor", exception.ParamName);
+        }
+
+        [Fact]
+        public void SubscribeToastNotifications_WhenEntryValueChanges_SetsChangedToast()
+        {
+            using var context = new GuiContext();
+            var toastEditor = CreateToastEditor();
+            var name = new Translator("名称", "Name");
+            var entry = CreateEntry(name, "old", "new");
+            context.SubscribeToastNotifications(toastEditor);
+
+            context.ChangeSink.SetValue(entry.Object, "new");
+
+            Assert.Equal(TranslatorResource.Changed + name, toastEditor.Message);
+        }
+
+        [Fact]
+        public void SubscribeToastNotifications_WhenEntryValueResets_SetsResetToast()
+        {
+            using var context = new GuiContext();
+            var toastEditor = CreateToastEditor();
+            var name = new Translator("名称", "Name");
+            var entry = CreateResettableEntry(name);
+            context.SubscribeToastNotifications(toastEditor);
+
+            context.ChangeSink.ResetValue(entry.Object);
+
+            Assert.Equal(TranslatorResource.ResetDone + name, toastEditor.Message);
+            entry.Verify(x => x.ResetValue(), Times.Once);
+        }
+
+        [Fact]
+        public void SubscribeToastNotifications_CalledTwice_RoutesEventsOnlyToLatestEditor()
+        {
+            using var context = new GuiContext();
+            var firstEditor = CreateToastEditor();
+            var secondEditor = CreateToastEditor();
+            var name = new Translator("名称", "Name");
+            var entry = CreateEntry(name, "old", "new");
+            context.SubscribeToastNotifications(firstEditor);
+            context.SubscribeToastNotifications(secondEditor);
+
+            context.ChangeSink.SetValue(entry.Object, "new");
+
+            Assert.Null(firstEditor.Message);
+            Assert.Equal(TranslatorResource.Changed + name, secondEditor.Message);
+        }
+
+        [Fact]
+        public void Dispose_AfterToastSubscription_StopsFutureNotifications()
+        {
+            var context = new GuiContext();
+            var toastEditor = CreateToastEditor();
+            var entry = CreateEntry(new Translator("名称", "Name"), "old", "new");
+            context.SubscribeToastNotifications(toastEditor);
+
+            context.Dispose();
+            context.ChangeSink.SetValue(entry.Object, "new");
+
+            Assert.Null(toastEditor.Message);
+        }
+
+        private static ToastEditor CreateToastEditor()
+        {
+            var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
+            unityService.SetupGet(x => x.RealtimeSinceStartup).Returns(10f);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var style = new Mock<IStyleResource>(MockBehavior.Strict);
+            return new ToastEditor(unityService.Object, unityGui.Object, style.Object);
+        }
+
+        private static Mock<IEntryBinding> CreateEntry(Translator name, object oldValue, object newValue)
+        {
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            entry.SetupGet(x => x.Value).Returns(oldValue);
+            entry.SetupSet(x => x.Value = newValue);
+            entry.SetupGet(x => x.Name).Returns(name);
+            return entry;
+        }
+
+        private static Mock<IEntryBinding> CreateResettableEntry(Translator name)
+        {
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            entry.Setup(x => x.ResetValue());
+            entry.SetupGet(x => x.Name).Returns(name);
+            return entry;
         }
     }
 }

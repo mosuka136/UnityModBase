@@ -203,5 +203,85 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Empty(result.Value.Sheet);
         }
 
+        [Fact]
+        public void DecodeSheet_WithMultipleTables_PreservesOrderAndAdvancesIndex()
+        {
+            // Arrange
+            var content = new[]
+            {
+                "# ignored",
+                "[First]",
+                "One = 1",
+                "",
+                "[Second]",
+                "Two = 2"
+            };
+            var index = 0;
+
+            // Act
+            var result = ConfigFileSheet.DecodeSheet(content, ref index);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.False(result.HasErrors);
+            Assert.Equal(content.Length, index);
+            Assert.Equal(new[] { "First", "Second" }, result.Value.Sheet.Keys.Cast<string>());
+            Assert.Equal("1", result.Value.GetEntry("First", "One").Value.Value);
+            Assert.Equal("2", result.Value.GetEntry("Second", "Two").Value.Value);
+        }
+
+        [Fact]
+        public void DecodeSheet_WithInvalidHeaderBeforeValidTable_CollectsErrorAndContinues()
+        {
+            // Arrange
+            var content = new[]
+            {
+                "NotATableHeader",
+                "[Valid]",
+                "Key = Value"
+            };
+            var index = 0;
+
+            // Act
+            var result = ConfigFileSheet.DecodeSheet(content, ref index);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.True(result.HasErrors);
+            Assert.Contains(result.Errors, error => error.Code == ConfigFileErrorCode.InvalidTableHeader);
+            Assert.Equal(content.Length, index);
+            Assert.Equal(new[] { "Valid" }, result.Value.Sheet.Keys.Cast<string>());
+            Assert.Equal("Value", result.Value.GetEntry("Valid", "Key").Value.Value);
+        }
+
+        [Fact]
+        public void DecodeSheet_WithDuplicateTable_PreservesFirstAndContinues()
+        {
+            // Arrange
+            var content = new[]
+            {
+                "[Duplicate]",
+                "Key = First",
+                "[Duplicate]",
+                "Key = Second",
+                "[Tail]",
+                "TailKey = 3"
+            };
+            var index = 0;
+
+            // Act
+            var result = ConfigFileSheet.DecodeSheet(content, ref index);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.True(result.HasErrors);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidTableName, error.Code);
+            Assert.Equal(content.Length, index);
+            Assert.Equal(new[] { "Duplicate", "Tail" }, result.Value.Sheet.Keys.Cast<string>());
+            Assert.Equal("First", result.Value.GetEntry("Duplicate", "Key").Value.Value);
+            Assert.Equal("3", result.Value.GetEntry("Tail", "TailKey").Value.Value);
+        }
+
     }
 }
