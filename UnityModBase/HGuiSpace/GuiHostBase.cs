@@ -9,32 +9,92 @@ using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HGuiSpace
 {
+    /// <summary>
+    /// 为基于 Unity IMGUI 的用户级工具窗口提供宿主生命周期、用户上下文切换、热键显隐和浮层绘制能力。
+    /// 派生类负责提供具体样式、窗口尺寸、用户数据编辑器及上下文注册；本类不创建或持久化业务数据。
+    /// 所有生命周期方法和窗口状态均按 Unity 主线程调用模型使用。
+    /// </summary>
     public abstract class GuiHostBase : MonoBehaviour
     {
+        /// <summary>
+        /// 供 IMGUI 区分窗口的运行时标识；不作为持久标识，哈希碰撞未额外处理。
+        /// </summary>
         public readonly int WindowID = Guid.NewGuid().GetHashCode();
 
+        /// <summary>
+        /// 当前选中用户标识的可变存储；派生宿主应通过用户选择流程更新，并同步刷新 <see cref="CurrentContext"/>。
+        /// </summary>
         protected string _selectedUserKey = string.Empty;
+        /// <summary>
+        /// 当前选中用户的标识。切换用户后，<see cref="CurrentContext"/> 会在本帧窗口绘制结束时同步更新。
+        /// </summary>
         public string SelectedUserKey => _selectedUserKey;
+        /// <summary>
+        /// 存储在用户上下文中的子上下文键，由具体 GUI 模块在初始化时设置。
+        /// </summary>
         public string GuiContextKey { get; protected set; } = string.Empty;
 
+        /// <summary>
+        /// 获取宿主可选择的用户上下文序列。
+        /// </summary>
         public IEnumerable<UserContext> Users { get; protected set; }
+        /// <summary>
+        /// 获取当前选中用户在本 GUI 模块下的子上下文。
+        /// </summary>
         public IUserContext CurrentContext { get; protected set; }
+        /// <summary>
+        /// 获取负责用户选择和模块内容绘制的编辑器。
+        /// </summary>
         public UserEditorBase UserEditor { get; protected set; }
+        /// <summary>
+        /// 获取短时提示消息编辑器。
+        /// </summary>
         public ToastEditor ToastEditor { get; protected set; }
+        /// <summary>
+        /// 获取工具提示编辑器。
+        /// </summary>
         public TooltipEditor TooltipEditor { get; protected set; }
 
+        /// <summary>
+        /// 获取 Unity 运行时服务抽象。
+        /// </summary>
         public IUnityProvider UnityService { get; protected set; }
+        /// <summary>
+        /// 获取 IMGUI 调用抽象。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; protected set; }
+        /// <summary>
+        /// 获取当前模块提供的通用浮层样式资源。
+        /// </summary>
         public IStyleResource StyleProvider { get; protected set; }
 
+        /// <summary>
+        /// 指示窗口是否参与当前帧绘制。
+        /// </summary>
         public bool IsVisible { get; protected set; } = false;
-        // 首次打开后如果用户拖动过窗口，则不再用“点击窗口外”自动隐藏，避免拖动释放时误判为失焦。
+        // 拖动释放产生的鼠标事件可能落在新窗口区域之外，继续自动隐藏会把正常拖动误判为失焦。
+        /// <summary>
+        /// 指示本次打开期间窗口是否移动过。移动后会禁用点击窗外自动隐藏，直至窗口再次隐藏。
+        /// </summary>
         public bool HasDraggedWindowSinceOpen { get; protected set; } = false;
 
+        /// <summary>
+        /// 获取窗口标题的本地化文本。
+        /// </summary>
         public Translator Title { get; protected set; }
+        /// <summary>
+        /// 获取当前窗口在屏幕坐标中的位置和尺寸。
+        /// </summary>
         public Rect WindowRect { get; protected set; }
+        /// <summary>
+        /// 获取切换窗口显隐的运行时热键。
+        /// </summary>
         public Hotkey UIHotkey { get; protected set; }
 
+        /// <summary>
+        /// 获取运行时依赖、创建通用浮层编辑器，并选择默认用户。
+        /// 派生类必须先设置 <see cref="StyleProvider"/>；初始化失败时会销毁当前组件。
+        /// </summary>
         public virtual void Awake()
         {
             try
@@ -56,6 +116,9 @@ namespace UnityModBase.HGuiSpace
             }
         }
 
+        /// <summary>
+        /// 在 Unity 更新阶段轮询界面热键，并切换窗口显隐状态。
+        /// </summary>
         public virtual void Update()
         {
             if (UIHotkey?.WasPressedThisFrame() == true)
@@ -65,6 +128,9 @@ namespace UnityModBase.HGuiSpace
             }
         }
 
+        /// <summary>
+        /// 绘制可见窗口、记录拖动结果，并在满足条件时处理点击窗外自动隐藏。
+        /// </summary>
         public virtual void OnGUI()
         {
             if (!IsVisible)
@@ -79,6 +145,11 @@ namespace UnityModBase.HGuiSpace
             TryAutoHideOnFocusLost();
         }
 
+        /// <summary>
+        /// 绘制用户选择器、当前用户内容、提示浮层和可拖动区域。
+        /// 用户选择发生变化时，会切换到对应模块上下文并使其布局状态失效。
+        /// </summary>
+        /// <param name="id">Unity IMGUI 传入的窗口标识。</param>
         public virtual void DrawWindow(int id)
         {
             var selectedUserKey = _selectedUserKey;
@@ -98,6 +169,10 @@ namespace UnityModBase.HGuiSpace
             }
         }
 
+        /// <summary>
+        /// 在窗口尚未被拖动时，将窗外鼠标按下视为失焦并隐藏窗口。
+        /// 该方法依赖当前 IMGUI 事件，只应在 <see cref="OnGUI"/> 调用链中执行。
+        /// </summary>
         public virtual void TryAutoHideOnFocusLost()
         {
             if (HasDraggedWindowSinceOpen)
@@ -116,7 +191,7 @@ namespace UnityModBase.HGuiSpace
         }
 
         /// <summary>
-        /// 隐藏配置窗口
+        /// 隐藏窗口并重置本次打开期间的拖动状态；重复调用不会产生额外状态变化。
         /// </summary>
         public virtual void Hide()
         {
@@ -130,7 +205,7 @@ namespace UnityModBase.HGuiSpace
         }
 
         /// <summary>
-        /// 切换配置窗口可见性。
+        /// 切换窗口可见性。由可见切换为隐藏时同时清除拖动状态。
         /// </summary>
         public virtual void ToggleVisibility()
         {
@@ -143,6 +218,13 @@ namespace UnityModBase.HGuiSpace
             }
         }
 
+        /// <summary>
+        /// 获取指定用户挂载的当前 GUI 模块上下文。
+        /// 用户不存在或尚未挂载该模块子上下文时返回 <see cref="UserContext.InvalidUserContext"/>，不会创建上下文。
+        /// </summary>
+        /// <param name="key">已注册用户的非空标识。</param>
+        /// <returns>模块子上下文；用户或子上下文无效时返回无效上下文哨兵。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="key"/> 为 null 或空字符串。</exception>
         public IUserContext GetContext(string key)
         {
             if (string.IsNullOrEmpty(key))
@@ -155,6 +237,10 @@ namespace UnityModBase.HGuiSpace
                 return UserContext.InvalidUserContext;
         }
 
+        /// <summary>
+        /// 获取用户管理器当前定义的默认用户标识。
+        /// </summary>
+        /// <returns>默认用户标识。</returns>
         public string GetDefaultUserKey()
         {
             return UserManager.GetDefaultUserId();

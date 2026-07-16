@@ -6,10 +6,15 @@ using UnityModBase.HUserSpace;
 
 namespace UnityModBase.BSpace
 {
+    /// <summary>
+    /// 组装 UnityModBase 自身的用户上下文、配置服务和文件日志，并维护它们的生命周期。
+    /// 具体配置项由 <see cref="BConfigManager"/> 声明，通用服务资源由 <see cref="UserService"/> 持有。
+    /// </summary>
     internal static class BService
     {
         private const string DirectoryName = nameof(UnityModBase);
 
+        // 只串行化基础服务的初始化与释放；子服务的日常调用仍遵循各自的线程安全约束。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
 
@@ -20,6 +25,13 @@ namespace UnityModBase.BSpace
         internal static LogWriter LogWriter => Service?.LogWriter;
         internal static ConfigService Config => Service?.Config;
 
+        /// <summary>
+        /// 创建框架用户上下文，并在规范化后的基础目录中注册配置文件和按小时命名的日志文件。
+        /// 重复调用不会重建资源；初始化失败时释放本次创建的全局状态并重新抛出原始异常。
+        /// </summary>
+        /// <param name="baseDirectory">
+        /// UnityModBase 数据目录或其父目录；末级目录名不是 <c>UnityModBase</c> 时会自动追加该子目录。
+        /// </param>
         internal static void Initialize(string baseDirectory)
         {
             lock (_lock)
@@ -66,6 +78,10 @@ namespace UnityModBase.BSpace
             }
         }
 
+        /// <summary>
+        /// 解除配置联动并释放框架配置、日志及用户上下文。
+        /// 当前实现通过 <see cref="UserManager.Dispose"/> 释放注册表中的全部用户，而不只释放框架自身上下文。
+        /// </summary>
         internal static void Dispose()
         {
             lock (_lock)

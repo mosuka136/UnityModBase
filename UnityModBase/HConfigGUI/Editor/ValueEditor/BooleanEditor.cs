@@ -4,20 +4,32 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
+    /// <summary>
+    /// 使用本地化开关控件编辑布尔配置，并在切换发生时立即提交。
+    /// </summary>
     public class BooleanEditor : IValueEditor
     {
+        /// <summary>
+        /// 获取开关控件使用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
 
+        /// <summary>
+        /// 创建布尔值编辑器。
+        /// </summary>
+        /// <param name="unityGui">用于绘制开关控件的 IMGUI 提供器。</param>
         public BooleanEditor(IUnityGuiProvider unityGui)
         {
             UnityGui = unityGui;
         }
 
+        /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
             return entry.ValueType == typeof(bool);
         }
 
+        /// <inheritdoc/>
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             var value = ValueProvider.GetValidValue<bool>(entry);
@@ -26,10 +38,14 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 context.ChangeSink.SetValue(entry, newValue);
         }
 
+        /// <inheritdoc/>
         public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
 
+        /// <summary>
+        /// 释放编辑器；此实现不持有需释放状态。
+        /// </summary>
         public void Dispose()
         {
         }

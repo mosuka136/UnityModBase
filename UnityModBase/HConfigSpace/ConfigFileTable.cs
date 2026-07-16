@@ -10,6 +10,7 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 表示配置文件中的一个表段。
     /// 表段按插入顺序保存配置项，负责编码/解码 <c>[Table]</c> 头和表内键值项，不处理跨表级别的文件结构。
+    /// 解码只恢复表键名和配置项，不恢复名称、说明等注释元数据；模型可变且不提供并发保护。
     /// </summary>
     public class ConfigFileTable
     {
@@ -23,13 +24,21 @@ namespace UnityModBase.HConfigSpace
         public Translator Description { get; set; }
         /// <summary>
         /// 表键名，对应配置文件中的 <c>[Key]</c>。
+        /// 构造时会校验，但属性本身允许后续写入任意值；编码表头时会再次校验。
         /// </summary>
         public string Key { get; set; }
         /// <summary>
         /// 表内配置项，使用有序字典以保持写出顺序稳定。
+        /// 返回的是可变字典；直接修改会绕过键重复检查以及字典键与 <see cref="ConfigFileEntry.Key"/> 的一致性约束。
         /// </summary>
         public OrderedDictionary Table { get; private set; } = new OrderedDictionary();
 
+        /// <summary>
+        /// 创建空文件表。
+        /// </summary>
+        /// <param name="tableKey">表键名，只允许 Unicode 字母、数字和下划线。</param>
+        /// <param name="description">写出时使用的多语言说明，允许为 <c>null</c>。</param>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表名语法。</exception>
         public ConfigFileTable(string tableKey, Translator description)
         {
             if (IsValidTableName(tableKey))
@@ -39,6 +48,12 @@ namespace UnityModBase.HConfigSpace
             Description = description;
         }
 
+        /// <summary>
+        /// 按配置项键名追加文件项，并拒绝重复键。
+        /// </summary>
+        /// <param name="entry">待加入的文件项。</param>
+        /// <returns>成功时携带当前表；输入为空或键重复时返回失败结果。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 非空但尚未设置键名。</exception>
         public ConfigFileResult<ConfigFileTable> AddEntry(ConfigFileEntry entry)
         {
             if (entry == null)
@@ -51,6 +66,12 @@ namespace UnityModBase.HConfigSpace
             return this;
         }
 
+        /// <summary>
+        /// 按键名查询文件项。
+        /// </summary>
+        /// <param name="key">配置项键名。</param>
+        /// <returns>找到的文件项，或带 <see cref="ConfigFileErrorCode.EntryNotFound"/> 的失败结果。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="key"/> 为 <c>null</c>。</exception>
         public ConfigFileResult<ConfigFileEntry> GetEntry(string key)
         {
             if (Table.Contains(key))
@@ -58,6 +79,10 @@ namespace UnityModBase.HConfigSpace
             return ConfigFileResult<ConfigFileEntry>.Fail(new ConfigFileError(ConfigFileErrorCode.EntryNotFound, $"Entry not found: {key}"));
         }
 
+        /// <summary>
+        /// 将全部非空名称翻译编码到单行 <c># Name:</c> 注释中。
+        /// </summary>
+        /// <returns>逗号分隔的名称注释；没有可用名称时为空字符串。</returns>
         public ConfigFileResult<string> EncodeName()
         {
             if (Name == null)
@@ -72,6 +97,10 @@ namespace UnityModBase.HConfigSpace
             return $"# Name: {string.Join(", ", list)}";
         }
 
+        /// <summary>
+        /// 将全部非空说明翻译编码为 <c>##</c> 注释；多行说明会逐行添加前缀。
+        /// </summary>
+        /// <returns>说明注释；没有可用说明时为空字符串。</returns>
         public ConfigFileResult<string> EncodeDescription()
         {
             if (Description == null)
@@ -88,6 +117,10 @@ namespace UnityModBase.HConfigSpace
             return sb.ToString().Trim();
         }
 
+        /// <summary>
+        /// 编码 <c>[Table]</c> 表头，并再次验证当前键名。
+        /// </summary>
+        /// <returns>表头文本，或表名非法诊断。</returns>
         public ConfigFileResult<string> EncodeTableHeader()
         {
             if (!IsValidTableName(Key))
@@ -95,6 +128,11 @@ namespace UnityModBase.HConfigSpace
             return $"[{Key}]";
         }
 
+        /// <summary>
+        /// 编码表注释、表头和全部可编码配置项。
+        /// 单个配置项失败时会跳过该项并继续编码其余内容，返回值因此可能成功且同时携带错误；整文件编码器会把这类诊断视为写出失败。
+        /// </summary>
+        /// <returns>去除首尾空白后的表段文本，或无法生成表头时的失败结果。</returns>
         public ConfigFileResult<string> EncodeTable()
         {
             var nameResult = EncodeName();
@@ -134,8 +172,10 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 判断表名是否符合配置文件语法约束。
+        /// 判断表名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
         /// </summary>
+        /// <param name="tableKey">待检查的表名。</param>
+        /// <returns>表名是否可以安全写入方括号表头。</returns>
         public static bool IsValidTableName(string tableKey)
         {
             if (string.IsNullOrWhiteSpace(tableKey))
@@ -145,6 +185,12 @@ namespace UnityModBase.HConfigSpace
             return false;
         }
 
+        /// <summary>
+        /// 验证表名并创建空文件表，不会自动加入任何 <see cref="ConfigFileSheet"/>。
+        /// </summary>
+        /// <param name="tableName">表键名。</param>
+        /// <param name="description">写出时使用的多语言说明。</param>
+        /// <returns>新文件表，或表名非法诊断。</returns>
         public static ConfigFileResult<ConfigFileTable> Create(string tableName, Translator description)
         {
             if (!IsValidTableName(tableName))
@@ -157,8 +203,11 @@ namespace UnityModBase.HConfigSpace
         /// 从当前位置解析一个完整表段。
         /// </summary>
         /// <param name="content">按行拆分后的配置文件内容。</param>
-        /// <param name="index">读取起点；返回时推进到下一个表头或文件结尾。</param>
-        /// <returns>解析出的表段。表内部分配置项失败时会保留已成功解析的项并收集错误。</returns>
+        /// <param name="index">读取起点；返回时停在当前表已消费内容之后，下一表前的空行或注释可能仍留给后续解析。</param>
+        /// <returns>
+        /// 解析出的表段。表内部分配置项失败时会保留已成功解析的项并收集错误，
+        /// 因而结果可能同时为成功状态并携带诊断。
+        /// </returns>
         public static ConfigFileResult<ConfigFileTable> DecodeTable(string[] content, ref int index)
         {
             var headerResult = DecodeTableHeader(content, ref index);
@@ -168,6 +217,7 @@ namespace UnityModBase.HConfigSpace
             var table = new ConfigFileTable(headerResult.Value.Key, headerResult.Value.Description);
             var result = new ConfigFileResult<ConfigFileTable>(table);
 
+            // 使用独立索引前瞻后续有效内容是否为表头，避免结束当前表时消费下一表及其前置注释。
             for (var i = index; index < content.Length && !DecodeTableHeader(content, ref i).Success; i = index)
             {
                 var entryResult = ConfigFileEntry.DecodeEntry(content, ref index);
@@ -190,10 +240,10 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 从当前位置查找并解析下一个表头。
+        /// 跳过空行和注释后解析第一个有效内容行；该行不是合法表头时会被消费并返回失败。
         /// </summary>
         /// <param name="content">按行拆分后的配置文件内容。</param>
-        /// <param name="index">读取起点；成功时推进到表头后一行。</param>
+        /// <param name="index">读取起点；成功或遇到非法内容时推进到该行之后。</param>
         /// <returns>只包含表键名的表模型；没有更多内容时返回 <see cref="ConfigFileErrorCode.EndOfContent"/>。</returns>
         public static ConfigFileResult<ConfigFileTable> DecodeTableHeader(string[] content, ref int index)
         {

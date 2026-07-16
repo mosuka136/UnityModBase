@@ -7,23 +7,50 @@ using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.BSpace
 {
+    /// <summary>
+    /// 声明 UnityModBase 自身使用的配置表和配置项，并把语言与配置重载热键接入运行时事件。
+    /// 配置文件的创建、解析和持久化由 <see cref="ConfigService"/> 负责，本类型只维护配置项的静态引用。
+    /// </summary>
     internal static class BConfigManager
     {
-
-        // 初始化和重载都会改写静态配置引用，需要串行化以避免 GUI 或输入回调读到中间状态。
+        // 保护静态配置引用及其事件订阅的完整生命周期，避免初始化、重载热键与释放交错。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
 
         /// <summary>
         /// 当前配置文件管理器。
+        /// 初始化前、初始化失败回滚后及释放后为 <c>null</c>。
         /// </summary>
         internal static ConfigService Config { get; set; }
 
+        /// <summary>
+        /// 是否向独立日志文件写入内容，默认启用；修改后会同步到当前 <see cref="LogWriter"/>。
+        /// </summary>
         internal static ConfigEntry<bool> EnableLog { get; private set; }
+
+        /// <summary>
+        /// 独立日志文件的最低记录等级，默认为 <see cref="HLogSpace.LogLevel.Info"/>。
+        /// </summary>
         internal static ConfigEntry<LogLevel> LogLevel { get; private set; }
+
+        /// <summary>
+        /// 打开配置界面的热键，默认值为 <c>F1</c>。
+        /// </summary>
         internal static ConfigEntry<Hotkey> ConfigUIHotkey { get; private set; }
+
+        /// <summary>
+        /// 打开日志界面的热键，默认值为 <c>F2</c>。
+        /// </summary>
         internal static ConfigEntry<Hotkey> LogUIHotkey { get; private set; }
+
+        /// <summary>
+        /// 从磁盘重新加载配置的热键，默认值为 <c>Ctrl+R</c>。
+        /// </summary>
         internal static ConfigEntry<Hotkey> ReloadConfigHotkey { get; set; }
+
+        /// <summary>
+        /// GUI 与配置注释使用的语言，默认值为 <see cref="LanguageType.English"/>；修改后更新全局翻译语言。
+        /// </summary>
         internal static ConfigEntry<LanguageType> SetLanguage { get; private set; }
 
         private const string SectionGeneral = "General";
@@ -31,10 +58,14 @@ namespace UnityModBase.BSpace
         private const string SectionLog = "Log";
 
         /// <summary>
-        /// 初始化全部配置表和配置项。
-        /// 调用会读取现有配置文件，补齐缺失项，并在完成绑定后保存一次规范化后的配置文件。
+        /// 从 <see cref="BService.Config"/> 绑定全部框架配置项，补齐缺失项并保存一次规范化后的文件。
+        /// 重复调用直接返回；失败时撤销已建立的静态引用和事件订阅，然后重新抛出原始异常。
         /// </summary>
-        /// <param name="configFilePath">配置文件路径。</param>
+        /// <param name="configFilePath">用于初始化完成日志的配置文件路径；实际读写路径由已注册的 <see cref="ConfigService"/> 决定。</param>
+        /// <remarks>
+        /// 调用前必须先通过 <see cref="HUserSpace.UserService"/> 建立配置服务。
+        /// 初始化期间会暂时关闭逐项保存，待所有默认项绑定完成后统一写盘。
+        /// </remarks>
         internal static void Initialize(string configFilePath)
         {
             lock (_lock)
@@ -206,6 +237,10 @@ namespace UnityModBase.BSpace
             }
         }
 
+        /// <summary>
+        /// 移除语言与逐帧热键订阅，并清空所有静态配置引用。
+        /// 此方法不释放 <see cref="ConfigService"/>，其所有权属于 <see cref="HUserSpace.UserService"/>。
+        /// </summary>
         internal static void Dispose()
         {
             lock (_lock)
@@ -228,7 +263,7 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 从磁盘重新读取配置，并将已有静态配置项重新绑定到新文件项。
+        /// 从当前配置路径重新读取文件，将已有运行时配置项重新绑定到新文件项并写回规范化内容。
         /// </summary>
         private static void ReloadConfig()
         {
@@ -240,7 +275,7 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 如果用户按下了指定的热键，则重新加载配置文件。
+        /// 在逐帧回调中检测重载热键；重载期间发生的异常只记录日志，不传播到帧更新派发器。
         /// </summary>
         private static void ReloadConfigOnUserOrder()
         {

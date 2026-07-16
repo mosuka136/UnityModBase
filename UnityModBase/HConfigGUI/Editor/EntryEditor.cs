@@ -6,17 +6,40 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
+    /// <summary>
+    /// 绘制单个配置项的一行通用结构，并把具体值控件委托给注册表选出的 <see cref="ValueEditor.IValueEditor"/>。
+    /// 本类负责名称、说明、重置按钮和变更入口，不负责选择分组或推进延迟提交。
+    /// </summary>
     public class EntryEditor
     {
+        /// <summary>
+        /// 获取按类型选择具体值编辑器的注册表。
+        /// </summary>
         public ValueEditorRegistry Registry { get; }
+        /// <summary>
+        /// 获取配置行绘制所用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
 
+        /// <summary>
+        /// 创建配置项行编辑器。
+        /// </summary>
+        /// <param name="registry">用于选择值控件的编辑器注册表。</param>
+        /// <param name="unity">用于绘制配置行的 IMGUI 提供器。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="registry"/> 或 <paramref name="unity"/> 为 null。</exception>
         public EntryEditor(ValueEditorRegistry registry, IUnityGuiProvider unity)
         {
             Registry = registry ?? throw new ArgumentNullException(nameof(registry), "Registry cannot be null.");
             UnityGui = unity ?? throw new ArgumentNullException(nameof(unity), "UnityGui cannot be null.");
         }
 
+        /// <summary>
+        /// 绘制配置项标签、匹配的值控件、重置按钮及编辑器附加区域。
+        /// 重置操作会立即写回默认值并触发上下文变更通知；无效上下文只记录错误并停止绘制。
+        /// </summary>
+        /// <param name="entry">要绘制的配置项绑定。</param>
+        /// <param name="context">提供布局状态和变更提交器的有效 GUI 上下文。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 或 <paramref name="context"/> 为 null。</exception>
         public void Draw(IEntryBinding entry, GuiContext context)
         {
             if (entry == null)

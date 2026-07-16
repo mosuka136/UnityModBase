@@ -3,6 +3,10 @@ using System.Runtime.CompilerServices;
 
 namespace UnityModBase.BSpace
 {
+    /// <summary>
+    /// UnityModBase 内部日志入口，将调用点信息和日志等级转发到当前基础服务的日志数据库。
+    /// 基础服务尚未建立或已经释放时，各方法均为安全的空操作。
+    /// </summary>
     internal static class BLog
     {
         internal static void Debug(string msg,

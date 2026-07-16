@@ -6,23 +6,37 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
+    /// <summary>
+    /// 以可展开单选列表编辑枚举配置，并尊重 <see cref="DisplayEnumAttribute"/> 的显示约束。
+    /// 可见枚举值、索引映射和说明文本按配置项绑定缓存，适用于这些元数据在绑定生命周期内保持不变的场景。
+    /// </summary>
     public class EnumEditor : IValueEditor
     {
+        // 映射列表保存“可见选项索引 -> Enum.GetValues 原始索引”，避免隐藏项破坏 SelectionGrid 的索引对应关系。
         private readonly Dictionary<IEntryBinding, (Array values, List<int> mapIndex, string[] names)> _cacheEnumInfo =
             new Dictionary<IEntryBinding, (Array values, List<int> mapIndex, string[] names)>();
 
+        /// <summary>
+        /// 获取枚举按钮和选择列表使用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
 
+        /// <summary>
+        /// 创建枚举编辑器及其绑定级元数据缓存。
+        /// </summary>
+        /// <param name="unityGui">用于绘制枚举控件的 IMGUI 提供器。</param>
         public EnumEditor(IUnityGuiProvider unityGui)
         {
             UnityGui = unityGui;
         }
 
+        /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
             return entry.ValueType.IsEnum;
         }
 
+        /// <inheritdoc/>
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsEnum)
@@ -38,6 +52,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             }
         }
 
+        /// <inheritdoc/>
         public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsEnum)
@@ -71,6 +86,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             }
         }
 
+        /// <summary>
+        /// 获取可显示枚举值、其原始索引映射和显示名称；首次读取后按绑定实例缓存。
+        /// 非枚举配置项返回三个 null。
+        /// </summary>
+        /// <param name="entry">要读取枚举元数据的配置项绑定。</param>
+        /// <returns>全部枚举值、可见项原始索引和可见项显示名称。</returns>
         public (Array values, List<int> mapIndex, string[] names) GetEnumInfo(IEntryBinding entry)
         {
             if (!entry.ValueType.IsEnum)
@@ -112,6 +133,9 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return (values, mapIndexList, names);
         }
 
+        /// <summary>
+        /// 释放编辑器；缓存随编辑器实例一起等待回收。
+        /// </summary>
         public void Dispose()
         {
         }

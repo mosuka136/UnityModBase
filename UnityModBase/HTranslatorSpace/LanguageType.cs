@@ -9,12 +9,27 @@ namespace UnityModBase.HTranslatorSpace
     /// </summary>
     public enum LanguageType
     {
+        /// <summary>
+        /// 未指定语言的控制值；翻译解析时回退为英文，GUI 中隐藏。
+        /// </summary>
         [DisplayEnum(false)]
         None,
+
+        /// <summary>
+        /// 实例跟随全局默认语言的控制值，GUI 中隐藏。
+        /// </summary>
         [DisplayEnum(false)]
         Default,
+
+        /// <summary>
+        /// 简体中文。
+        /// </summary>
         [Description("简体中文")]
         Chinese,
+
+        /// <summary>
+        /// 英文。
+        /// </summary>
         [Description("English")]
         English,
     }

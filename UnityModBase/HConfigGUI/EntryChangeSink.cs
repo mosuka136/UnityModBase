@@ -4,13 +4,32 @@ using UnityModBase.HConfigGUI.Bindings;
 
 namespace UnityModBase.HConfigGUI
 {
+    /// <summary>
+    /// 集中处理配置编辑值的转换、暂存、延迟提交、重置及变更通知。
+    /// 延迟以调用方传入的帧增量递减，实例没有并发保护，预期由所属 GUI 上下文在 Unity 主线程使用。
+    /// </summary>
     public class EntryChangeSink
     {
+        // 每个配置项只保留一个剩余延迟；同一项的新输入会覆盖倒计时并使用缓冲区中的最新序号值。
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
+        /// <summary>
+        /// 在有效新值实际写入配置项后触发；无变化或无效输入不会触发。
+        /// </summary>
         public event Action<IEntryBinding> OnEntryValueChanged;
+        /// <summary>
+        /// 在配置项恢复默认值后触发，即使默认值与原值相同也会触发。
+        /// </summary>
         public event Action<IEntryBinding> OnEntryValueReset;
 
+        /// <summary>
+        /// 尝试将输入转换为配置项声明类型，再按指定延迟暂存或提交。
+        /// 转换失败时仍保留原始输入用于界面回显，但会标记为无效且不会写入配置。
+        /// </summary>
+        /// <param name="entry">目标配置项绑定。</param>
+        /// <param name="value">通常来自文本控件的待转换输入。</param>
+        /// <param name="delay">提交延迟，单位由 <see cref="FlushValue"/> 的增量保持一致；小于等于 0 时立即提交。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
         public void SetConvertedValue(IEntryBinding entry, object value, float delay = 0.0f)
         {
             if (entry == null)
@@ -20,6 +39,14 @@ namespace UnityModBase.HConfigGUI
             SetValue(entry, isValid ? convertedValue : value, isValid, delay);
         }
 
+        /// <summary>
+        /// 写入无键暂存值，并立即提交或启动延迟提交。
+        /// </summary>
+        /// <param name="entry">目标配置项绑定。</param>
+        /// <param name="value">要暂存的输入值。</param>
+        /// <param name="isValid">为 false 时输入仅供回显，提交时会被丢弃。</param>
+        /// <param name="delay">小于等于 0 时立即提交；正值会替换该配置项已有的剩余延迟。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
         public void SetValue(IEntryBinding entry, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
@@ -33,6 +60,17 @@ namespace UnityModBase.HConfigGUI
                 _pendingEntries[entry] = delay;
         }
 
+        /// <summary>
+        /// 以来源键暂存值，并立即提交或启动延迟提交。
+        /// 多来源同时写入时，最终提交由缓冲区记录的全局写入顺序决定，而不是键名决定。
+        /// </summary>
+        /// <param name="entry">目标配置项绑定。</param>
+        /// <param name="key">同一配置项内区分输入来源的非空键。</param>
+        /// <param name="value">要暂存的输入值。</param>
+        /// <param name="isValid">为 false 时输入仅供回显，提交时会被丢弃。</param>
+        /// <param name="delay">小于等于 0 时立即提交；正值会替换该配置项已有的剩余延迟。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
+        /// <exception cref="ArgumentException"><paramref name="key"/> 为 null 或空字符串。</exception>
         public void SetValue(IEntryBinding entry, string key, object value, bool isValid = true, float delay = 0.0f)
         {
             if (entry == null)
@@ -49,6 +87,11 @@ namespace UnityModBase.HConfigGUI
                 _pendingEntries[entry] = delay;
         }
 
+        /// <summary>
+        /// 取消目标配置项的待提交值、恢复默认值并发送重置通知。
+        /// </summary>
+        /// <param name="entry">要恢复默认值的配置项绑定。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
         public void ResetValue(IEntryBinding entry)
         {
             if (entry == null)
@@ -61,6 +104,10 @@ namespace UnityModBase.HConfigGUI
             OnEntryValueReset?.Invoke(entry);
         }
 
+        /// <summary>
+        /// 推进所有延迟提交的倒计时，并提交已到期项。
+        /// </summary>
+        /// <param name="deltaTime">从所有待提交项扣除的非缩放帧增量；调用方负责保证单位和取值合理。</param>
         public void FlushValue(float deltaTime)
         {
             var entries = new List<IEntryBinding>(_pendingEntries.Keys);
@@ -77,6 +124,12 @@ namespace UnityModBase.HConfigGUI
             }
         }
 
+        /// <summary>
+        /// 尝试提交缓冲区中最新的有效值，并清空该配置项的全部暂存输入。
+        /// 仅在已提交值确实变化时发送变更通知。
+        /// </summary>
+        /// <param name="entry">要提交暂存值的配置项绑定。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
         public void Commit(IEntryBinding entry)
         {
             if (entry == null)

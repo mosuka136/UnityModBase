@@ -22,6 +22,12 @@ namespace UnityModBase.HClassAttribute
         /// </summary>
         public float Step { get; set; }
 
+        /// <summary>
+        /// 创建滑条元数据。
+        /// </summary>
+        /// <param name="min">滑条最小显示值。</param>
+        /// <param name="max">滑条最大显示值。</param>
+        /// <param name="step">步进吸附间隔；默认 <c>-1</c> 表示连续取值。</param>
         public ConfigSliderAttribute(float min, float max, float step = -1f)
         {
             Min = min;

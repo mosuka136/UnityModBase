@@ -3,22 +3,37 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
+    /// <summary>
+    /// 使用文本框编辑字符串配置。输入先进入配置项缓冲区，并在无新输入达到指定时长后提交，避免每次击键都写配置。
+    /// </summary>
     public class StringEditor : IValueEditor
     {
+        /// <summary>
+        /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.5 秒，小于等于 0 时立即提交。
+        /// </summary>
         public float DelayApplyDuration { get; set; } = 0.5f;
 
+        /// <summary>
+        /// 获取文本框使用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
 
+        /// <summary>
+        /// 创建字符串编辑器。
+        /// </summary>
+        /// <param name="unityGui">用于绘制文本框的 IMGUI 提供器。</param>
         public StringEditor(IUnityGuiProvider unityGui)
         {
             UnityGui = unityGui;
         }
 
+        /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
             return entry.ValueType == typeof(string);
         }
 
+        /// <inheritdoc/>
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             var value = ValueProvider.GetValidValue<string>(entry);
@@ -27,10 +42,14 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 context.ChangeSink.SetValue(entry, newValue, delay: DelayApplyDuration);
         }
 
+        /// <inheritdoc/>
         public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
         }
 
+        /// <summary>
+        /// 释放编辑器；此实现不持有需释放状态。
+        /// </summary>
         public void Dispose()
         {
         }

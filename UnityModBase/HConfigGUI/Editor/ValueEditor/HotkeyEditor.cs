@@ -6,12 +6,30 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
+    /// <summary>
+    /// 绘制热键组合列表，并协调 <see cref="HotkeyEditSession"/> 与配置模态窗口完成录制、增删和提交。
+    /// 编辑期间显示工作副本，只有状态机确认后的非空变化才通过上下文提交器写回配置。
+    /// </summary>
     public class HotkeyEditor : IValueEditor
     {
+        /// <summary>
+        /// 获取当前编辑器独占的热键录制会话。
+        /// </summary>
         public HotkeyEditSession Session { get; }
+        /// <summary>
+        /// 获取热键列表和录制弹窗使用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
+        /// <summary>
+        /// 获取热键录制提示样式资源。
+        /// </summary>
         public StyleResource StyleProvider { get; }
 
+        /// <summary>
+        /// 创建热键编辑器和独立录制会话。
+        /// </summary>
+        /// <param name="unityGui">用于绘制热键控件的 IMGUI 提供器。</param>
+        /// <param name="styleProvider">提供录制提示样式的资源。</param>
         public HotkeyEditor(IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             Session = new HotkeyEditSession();
@@ -19,11 +37,13 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             StyleProvider = styleProvider;
         }
 
+        /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
             return typeof(Hotkey).IsAssignableFrom(entry.ValueType);
         }
 
+        /// <inheritdoc/>
         public void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!typeof(Hotkey).IsAssignableFrom(entry.ValueType))
@@ -45,6 +65,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             }
         }
 
+        /// <inheritdoc/>
         public void DrawExtra(IEntryBinding entry, GuiContext context)
         {
             if (Session.Entry != entry)
@@ -92,6 +113,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             UnityGui.EndHorizontal();
         }
 
+        /// <summary>
+        /// 将上下文弹窗配置为当前热键录制界面；关闭弹窗会取消本轮录制但保留展开编辑会话。
+        /// </summary>
+        /// <param name="context">接收弹窗状态和回调的配置 GUI 上下文。</param>
         public void SetPopupWindow(GuiContext context)
         {
             context.Popup.IsOpen = true;
@@ -100,6 +125,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             context.Popup.CloseAction = Session.CancelRecord;
         }
 
+        /// <summary>
+        /// 推进录制状态并绘制当前组合预览。点击应用后会关闭弹窗；只有等待确认状态会提交组合，其他录制阶段按会话规则取消本轮录制。
+        /// </summary>
+        /// <param name="context">提供变更提交器和弹窗状态的配置 GUI 上下文。</param>
         public void RecordHotkey(GuiContext context)
         {
             if (!Session.IsRecording)
@@ -118,6 +147,11 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             }
         }
 
+        /// <summary>
+        /// 获取按钮应显示的热键文本；当前编辑项优先使用工作副本，其他项使用最后一个有效值。
+        /// </summary>
+        /// <param name="entry">要生成显示文本的配置项绑定。</param>
+        /// <returns>工作副本或有效配置值的文本；工作副本为 null 时返回空字符串。</returns>
         public string GetHotkeyDisplayString(IEntryBinding entry)
         {
             if (Session.Entry == entry)
@@ -126,6 +160,9 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return ValueProvider.GetValidValue(entry)?.ToString();
         }
 
+        /// <summary>
+        /// 释放录制会话，并将可能被禁用的热键标记强制设为有效。
+        /// </summary>
         public void Dispose()
         {
             Session?.Dispose();

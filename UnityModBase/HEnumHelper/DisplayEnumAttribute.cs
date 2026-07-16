@@ -13,6 +13,11 @@ namespace UnityModBase.HEnumHelper
         /// 是否在枚举选择控件中显示该值。
         /// </summary>
         public bool IsDisplay { get; set; }
+
+        /// <summary>
+        /// 创建枚举值显示元数据。
+        /// </summary>
+        /// <param name="isDisplay">是否允许 GUI 把该枚举值作为选项展示，默认展示。</param>
         public DisplayEnumAttribute(bool isDisplay = true)
         {
             IsDisplay = isDisplay;

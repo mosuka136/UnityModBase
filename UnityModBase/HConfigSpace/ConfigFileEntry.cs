@@ -11,6 +11,8 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 表示配置文件中的一个键值项及其写出时附带的说明元数据。
     /// 该类型只维护文件层面的字符串表示，强类型值的校验和运行时事件由 <see cref="ConfigEntry{T}"/> 负责。
+    /// 解码现有文件时只恢复键和值，名称、说明、默认值和类型提示会在运行时绑定阶段重新生成。
+    /// 实例可变且不提供并发保护。
     /// </summary>
     public class ConfigFileEntry
     {
@@ -25,8 +27,9 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         public Translator Description { get; set; }
         /// <summary>
-        /// 配置项键名，只允许字母、数字和下划线，以避免与配置文件语法冲突。
+        /// 配置项键名，只允许 Unicode 字母、数字和下划线，以避免与配置文件语法冲突。
         /// </summary>
+        /// <exception cref="ArgumentException">赋值不符合键名语法。</exception>
         public string Key
         {
             get => _key;
@@ -40,7 +43,8 @@ namespace UnityModBase.HConfigSpace
             }
         }
         /// <summary>
-        /// 配置文件中的值文本，已经按 <see cref="ConfigFileModel"/> 规则编码。
+        /// 配置文件中的值文本，约定使用 <see cref="ConfigFileModel"/> 规则编码。
+        /// 属性赋值本身不验证强类型格式；<see cref="ConfigEntry{T}"/> 在建立或替换运行时绑定时才按声明类型解码。
         /// </summary>
         public string Value { get; set; }
         /// <summary>
@@ -52,10 +56,14 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         public string ValueType { get; set; }
         /// <summary>
-        /// 可接受值的说明文本，用于枚举类型。
+        /// 可接受值的说明文本，通常由枚举成员名生成，仅用于人工编辑提示。
         /// </summary>
         public string AcceptableValues { get; set; }
 
+        /// <summary>
+        /// 将全部非空名称翻译编码到单行 <c># Name:</c> 注释中。
+        /// </summary>
+        /// <returns>逗号分隔的名称注释；没有可用名称时为空字符串。</returns>
         public ConfigFileResult<string> EncodeName()
         {
             if (Name == null)
@@ -70,6 +78,10 @@ namespace UnityModBase.HConfigSpace
             return $"# Name: {string.Join(", ", list)}";
         }
 
+        /// <summary>
+        /// 将全部非空说明翻译编码为 <c>##</c> 注释；多行说明会逐行添加前缀。
+        /// </summary>
+        /// <returns>说明注释；没有可用说明时为空字符串。</returns>
         public ConfigFileResult<string> EncodeDescription()
         {
             if (Description == null)
@@ -86,6 +98,10 @@ namespace UnityModBase.HConfigSpace
             return sb.ToString().TrimEnd();
         }
 
+        /// <summary>
+        /// 将类型提示编码为 <c># Value Type:</c> 注释。
+        /// </summary>
+        /// <returns>类型提示注释；未设置提示时为空字符串。</returns>
         public ConfigFileResult<string> EncodeValueType()
         {
             if (string.IsNullOrEmpty(ValueType))
@@ -93,6 +109,10 @@ namespace UnityModBase.HConfigSpace
             return $"# Value Type: {ValueType}";
         }
 
+        /// <summary>
+        /// 将可接受值提示编码为 <c># Acceptable Values:</c> 注释。
+        /// </summary>
+        /// <returns>可接受值注释；未设置提示时为空字符串。</returns>
         public ConfigFileResult<string> EncodeAcceptableValues()
         {
             if (string.IsNullOrEmpty(AcceptableValues))
@@ -100,6 +120,10 @@ namespace UnityModBase.HConfigSpace
             return $"# Acceptable Values: {AcceptableValues}";
         }
 
+        /// <summary>
+        /// 将声明默认值编码为 <c># Default Value:</c> 注释，不影响当前值。
+        /// </summary>
+        /// <returns>默认值注释；未设置默认值文本时为空字符串。</returns>
         public ConfigFileResult<string> EncodeDefaultValue()
         {
             if (string.IsNullOrEmpty(DefaultValue))
@@ -107,6 +131,10 @@ namespace UnityModBase.HConfigSpace
             return $"# Default Value: {DefaultValue}";
         }
 
+        /// <summary>
+        /// 编码必需的 <c>Key = Value</c> 行，并校验键名和值非空白。
+        /// </summary>
+        /// <returns>键值行，或键名/值非法诊断。</returns>
         public ConfigFileResult<string> EncodeKeyValuePair()
         {
             if (!IsValidKeyName(_key))
@@ -119,7 +147,7 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 将配置项编码为完整文件片段，包含可选注释和必需的键值行。
         /// </summary>
-        /// <returns>可直接写入配置文件的文本片段。</returns>
+        /// <returns>成功时为可直接写入配置文件的文本片段；键名或值非法时返回失败结果。</returns>
         public ConfigFileResult<string> EncodeEntry()
         {
             var nameResult = EncodeName();
@@ -164,10 +192,12 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 将当前项的元数据复制到另一个文件项。
+        /// 名称和说明按引用浅复制；<paramref name="overrideValue"/> 为 <c>false</c> 时目标当前值是唯一保留字段。
         /// </summary>
         /// <param name="target">目标配置项。</param>
         /// <param name="overrideValue">是否连同当前值一起覆盖目标值；重载配置时通常应为 <c>false</c>，以保留用户编辑。</param>
         /// <returns>目标存在且复制完成时返回 <c>true</c>。</returns>
+        /// <exception cref="ArgumentException">当前项尚未设置合法键名，导致目标键赋值失败。</exception>
         public bool CopyTo(ConfigFileEntry target, bool overrideValue)
         {
             if (target == null)
@@ -185,34 +215,67 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 判断键名是否符合配置文件语法约束。
+        /// 判断键名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
         /// </summary>
+        /// <param name="key">待检查的键名。</param>
+        /// <returns>键名是否可以安全写入键值行。</returns>
         public static bool IsValidKeyName(string key)
         {
             return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
         }
 
+        /// <summary>
+        /// 粗略判断一行是否可能是键值对。
+        /// 该检查只要求存在等号且不是注释，不校验键名和值；需要可靠结果时应调用 <see cref="DecodeKeyValuePair"/>。
+        /// </summary>
+        /// <param name="content">待分类的单行文本。</param>
+        /// <returns>该行是否应进入键值解析流程。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="content"/> 为 <c>null</c>。</exception>
         public static bool IsKeyValuePair(string content)
         {
             content = content.Trim();
             return content.Contains('=') && !content.StartsWith("#");
         }
 
+        /// <summary>
+        /// 判断忽略行首空白后是否以井号开头。
+        /// </summary>
+        /// <param name="content">待分类的单行文本。</param>
+        /// <returns>该行是否为配置注释。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="content"/> 为 <c>null</c>。</exception>
         public static bool IsComment(string content)
         {
             return content.TrimStart().StartsWith("#");
         }
 
+        /// <summary>
+        /// 使用 <see cref="ConfigFileModel"/> 的静态类型规则编码配置值。
+        /// </summary>
+        /// <typeparam name="T">配置值的声明类型。</typeparam>
+        /// <param name="value">待编码值；<c>null</c> 不受支持。</param>
+        /// <returns>可写入等号右侧的文本，或类型/值诊断。</returns>
         public static ConfigFileResult<string> EncodeValue<T>(T value)
         {
             return Encode(value);
         }
 
+        /// <summary>
+        /// 按泛型声明类型生成人工可读的类型提示。
+        /// </summary>
+        /// <typeparam name="T">配置值的声明类型。</typeparam>
+        /// <returns>类型提示，或不受支持的类型诊断。</returns>
         public static ConfigFileResult<string> EncodeValueType<T>()
         {
             return EncodeValueType(typeof(T));
         }
 
+        /// <summary>
+        /// 按运行时类型生成人工可读的配置值类型提示。
+        /// 集合会在元素类型提示后追加 <c>[]</c>；当前实现不会传播嵌套元素类型的失败结果，不受支持的泛型元素可能退化为空类型提示 <c>[]</c>。
+        /// </summary>
+        /// <param name="type">配置值声明类型；适配器类型必须提供可访问的无参构造函数。</param>
+        /// <returns>内置类型、枚举、集合或适配器的类型提示；非集合的其他类型返回失败结果。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="type"/> 为空，或集合元素类型无法识别。</exception>
         public static ConfigFileResult<string> EncodeValueType(Type type)
         {
             if (typeof(IConfigEntryAdapter).IsAssignableFrom(type))
@@ -271,11 +334,22 @@ namespace UnityModBase.HConfigSpace
             return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Unsupported type: {type.FullName}"));
         }
 
+        /// <summary>
+        /// 获取枚举或枚举集合允许的成员名提示。
+        /// </summary>
+        /// <typeparam name="T">枚举或枚举集合类型。</typeparam>
+        /// <returns>逗号分隔的枚举成员名；非枚举元素类型返回失败结果。</returns>
         public static ConfigFileResult<string> EncodeAcceptableValues<T>()
         {
             return EncodeAcceptableValues(typeof(T));
         }
 
+        /// <summary>
+        /// 按运行时类型获取枚举配置允许的成员名提示。
+        /// </summary>
+        /// <param name="type">枚举或枚举集合类型。</param>
+        /// <returns>逗号分隔的枚举成员名；非枚举元素类型返回失败结果。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="type"/> 为空，或集合元素类型无法识别。</exception>
         public static ConfigFileResult<string> EncodeAcceptableValues(Type type)
         {
             if (typeof(IEnumerable).IsAssignableFrom(type))
@@ -289,6 +363,17 @@ namespace UnityModBase.HConfigSpace
             return acceptableValues;
         }
 
+        /// <summary>
+        /// 从强类型当前值和默认值创建文件项，并生成名称、说明及类型元数据。
+        /// 当前实现不自动填充 <see cref="AcceptableValues"/>，枚举绑定会由 <see cref="ConfigEntry{T}"/> 补充该提示。
+        /// </summary>
+        /// <typeparam name="T">配置值的声明类型。</typeparam>
+        /// <param name="key">配置项键名。</param>
+        /// <param name="value">当前值。</param>
+        /// <param name="defaultValue">声明默认值。</param>
+        /// <param name="name">多语言展示名称。</param>
+        /// <param name="description">多语言说明。</param>
+        /// <returns>初始化完成的文件项，或首个编码/校验诊断。</returns>
         public static ConfigFileResult<ConfigFileEntry> CreateEntry<T>(string key, T value, T defaultValue, Translator name, Translator description)
         {
             if (!IsValidKeyName(key))
@@ -319,6 +404,12 @@ namespace UnityModBase.HConfigSpace
             return entry;
         }
 
+        /// <summary>
+        /// 按泛型声明类型解码等号右侧的配置文本。
+        /// </summary>
+        /// <typeparam name="T">目标配置值类型。</typeparam>
+        /// <param name="value">待解码的值文本。</param>
+        /// <returns>强类型值，或格式/类型诊断。</returns>
         public static ConfigFileResult<T> DecodeValue<T>(string value)
         {
             return Decode<T>(value);
@@ -328,7 +419,8 @@ namespace UnityModBase.HConfigSpace
         /// 解析单行键值对。
         /// </summary>
         /// <param name="content">形如 <c>Key = Value</c> 的配置行，值部分可包含额外的等号。</param>
-        /// <returns>键和值的原始字符串。</returns>
+        /// <returns>移除键和值首尾空白后的字符串。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="content"/> 为 <c>null</c>。</exception>
         public static ConfigFileResult<(string, string)> DecodeKeyValuePair(string content)
         {
             if (!IsKeyValuePair(content))
@@ -349,10 +441,11 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 从当前位置开始解析下一个配置项。
+        /// 空行和注释会被跳过且不会恢复为元数据；遇到第一个非法内容行时会消费该行并立即返回失败。
         /// </summary>
         /// <param name="content">按行拆分后的配置文件内容。</param>
         /// <param name="index">读取起点；返回时会推进到已消费内容之后。</param>
-        /// <returns>解析出的文件项；到达结尾或遇到非法键值行时返回失败。</returns>
+        /// <returns>仅包含键和值的文件项；到达结尾时返回 <see cref="ConfigFileErrorCode.EndOfContent"/>。</returns>
         public static ConfigFileResult<ConfigFileEntry> DecodeEntry(string[] content, ref int index)
         {
             // 解析阶段只信任实际键值行；注释用于人工阅读，启动后会由运行时声明重新写入最新元数据。

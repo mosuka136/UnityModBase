@@ -12,11 +12,20 @@ using UnityModBase.HUserSpace;
 
 namespace UnityModBase.HLogGUI
 {
+    /// <summary>
+    /// 日志查看器的 Unity 宿主组件。
+    /// 游戏启动时为每个用户创建日志绑定和数据库订阅，负责热键显隐、按内容宽度调整窗口并绘制表格；
+    /// 不负责日志的内存收集、去重、容量控制或文件写入；前者由用户的日志数据库负责，文件持久化由日志写入器负责。
+    /// </summary>
     [RegisterOnGameBoot]
     public class GuiHost : GuiHostBase
     {
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
 
+        /// <summary>
+        /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，并订阅后续用户、语言和热键变更。
+        /// 初始化失败时记录错误并销毁组件。
+        /// </summary>
         public override void Awake()
         {
             try
@@ -55,6 +64,12 @@ namespace UnityModBase.HLogGUI
             }
         }
 
+        /// <summary>
+        /// 为用户建立当前日志快照、后续数据库事件订阅和复制提示订阅，并挂载日志 GUI 子上下文。
+        /// 调用方应避免对同一用户重复注册相同模块键。
+        /// </summary>
+        /// <param name="context">要挂载日志 GUI 子上下文的用户上下文。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 null。</exception>
         public void RegisterContext(UserContext context)
         {
             if (context == null)
@@ -75,6 +90,7 @@ namespace UnityModBase.HLogGUI
             context.AddChildContext(GuiContextKey, guiContext);
         }
 
+        // Unity 销毁组件时解除全局事件和每个用户的日志订阅，避免数据库继续回调已失效的编辑器。
         private void OnDestroy()
         {
             UserManager.OnUserRegistered -= RegisterContext;
@@ -94,6 +110,10 @@ namespace UnityModBase.HLogGUI
             }
         }
 
+        /// <summary>
+        /// 根据当前列总宽度调整窗口宽度到屏幕的 50%～90%，再交由通用宿主绘制。
+        /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变。
+        /// </summary>
         public override void OnGUI()
         {
             var context = CurrentContext as GuiContext;

@@ -12,13 +12,14 @@ namespace UnityModBase.HConfigSpace
     /// 配置文件值的编码/解码工具。
     /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合使用方括号和逗号分隔，数字使用不随系统区域变化的格式。
     /// 它只处理单个值及集合值，不解析表头、键名或注释。
+    /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryAdapter"/> 实现代码，其线程安全和副作用由适配器自行保证。
     /// </summary>
     public class ConfigFileModel
     {
         /// <summary>
         /// 将强类型值编码为配置文件中的文本表示。
         /// </summary>
-        /// <typeparam name="T">待编码值的静态类型。</typeparam>
+        /// <typeparam name="T">待编码值的静态类型；编码规则不会改用对象的运行时类型。</typeparam>
         /// <param name="value">待编码值，当前格式不支持 <c>null</c>。</param>
         /// <returns>编码结果；不支持的类型会返回失败结果。</returns>
         public static ConfigFileResult<string> Encode<T>(T value)
@@ -30,8 +31,9 @@ namespace UnityModBase.HConfigSpace
         /// 按指定类型将对象编码为配置文本。
         /// </summary>
         /// <param name="value">待编码对象。</param>
-        /// <param name="type">用于选择编码规则的类型。</param>
+        /// <param name="type">用于选择编码规则的声明类型；应与 <paramref name="value"/> 兼容。</param>
         /// <returns>编码后的字符串，或包含错误信息的失败结果。</returns>
+        /// <exception cref="InvalidCastException">内置类型的值与 <paramref name="type"/> 不兼容。</exception>
         public static ConfigFileResult<string> Encode(object value, Type type)
         {
             if (value == null)
@@ -105,7 +107,7 @@ namespace UnityModBase.HConfigSpace
                     elements.Add(result.Value);
                 }
 
-                // 集合元素本身可能是带引号字符串或嵌套集合，因此分隔符只在解码阶段按状态机处理。
+                // 每个元素先独立完成引号、转义或嵌套集合编码；解码器据此只把顶层逗号视为分隔符。
                 return ConfigFileResult<string>.Ok($"[{string.Join(",", elements)}]");
             }
 
@@ -117,7 +119,7 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         /// <typeparam name="T">目标类型。</typeparam>
         /// <param name="value">配置文件中的值文本。</param>
-        /// <returns>解码后的强类型值。</returns>
+        /// <returns>解码后且可直接转换为 <typeparamref name="T"/> 的值，否则返回失败结果。</returns>
         public static ConfigFileResult<T> Decode<T>(string value)
         {
             var result = Decode(value, typeof(T));
@@ -134,7 +136,7 @@ namespace UnityModBase.HConfigSpace
         /// 按运行时类型解码配置文本。
         /// </summary>
         /// <param name="value">配置文件中的值文本。</param>
-        /// <param name="type">目标类型。</param>
+        /// <param name="type">目标声明类型。适配器类型必须提供可访问的无参构造函数。</param>
         /// <returns>解码后的对象，或包含错误信息的失败结果。</returns>
         public static ConfigFileResult<object> Decode(string value, Type type)
         {
@@ -268,6 +270,7 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         /// <param name="collectionType">数组、<see cref="IEnumerable{T}"/> 或实现泛型 IEnumerable 的类型。</param>
         /// <returns>元素类型；无法识别时返回 <c>null</c>。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="collectionType"/> 为 <c>null</c>。</exception>
         public static Type GetCollectionElementType(Type collectionType)
         {
             if (collectionType.IsArray)
@@ -285,11 +288,12 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 按配置格式编码字符串。
         /// </summary>
-        /// <param name="value">待编码字符串。</param>
+        /// <param name="value">待编码的非空字符串。</param>
         /// <param name="quote">是否用双引号包裹。</param>
         /// <param name="trim">是否在编码前去掉首尾空白。</param>
         /// <param name="escape">是否转义反斜杠、双引号和常见控制字符。</param>
         /// <returns>编码后的字符串。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="value"/> 为 <c>null</c> 且需要去空白或转义。</exception>
         public static string EncodeString(string value, bool quote = true, bool trim = false, bool escape = true)
         {
             if (trim)
@@ -303,6 +307,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 按配置格式解码字符串。
+        /// <c>null</c>、空字符串和纯空白会在引号校验之前统一解码为空字符串，这是当前格式的兼容规则。
         /// </summary>
         /// <param name="value">待解码文本。</param>
         /// <param name="quote">是否要求文本以双引号包裹。</param>
@@ -448,7 +453,8 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 根据目标集合类型创建解码结果。
-        /// 支持数组、可由数组/List 构造的类型，以及有无参构造函数并提供兼容 <c>Add</c> 方法的集合类型。
+        /// 创建顺序依次为数组、可直接赋值的 <see cref="List{T}"/>、接受辅助 List/数组的公开构造函数，
+        /// 最后是公开无参构造函数加兼容的 <c>Add</c> 方法；所有路径都使用已经校验类型的元素。
         /// </summary>
         /// <param name="type">目标集合类型。</param>
         /// <param name="elementType">集合元素类型。</param>
@@ -597,6 +603,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 尝试通过单参数构造函数创建目标集合类型。
+        /// 反射返回的首个兼容公开构造函数一旦执行（无论成功或抛出异常）即结束尝试，不会回退到其他兼容构造函数。
         /// </summary>
         /// <param name="type">目标集合类型。</param>
         /// <param name="list">辅助列表参数。</param>
@@ -645,6 +652,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 尝试通过无参构造函数和 <c>Add</c> 方法创建目标集合类型。
+        /// 创建或逐项添加失败时返回失败结果；此前已添加元素的临时实例不会暴露给调用方。
         /// </summary>
         /// <param name="type">目标集合类型。</param>
         /// <param name="elementType">集合元素类型。</param>
@@ -703,6 +711,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 查找可接受指定元素类型的公开实例 <c>Add</c> 方法。
+        /// 若存在多个兼容重载，返回反射枚举到的第一个方法，因此集合类型应避免提供语义不同但参数都兼容的重载。
         /// </summary>
         /// <param name="type">集合类型。</param>
         /// <param name="elementType">集合元素类型。</param>
@@ -738,6 +747,7 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         /// <param name="value">不含外层引号的字符串内容。</param>
         /// <returns>解析后的字符串。</returns>
+        /// <exception cref="NullReferenceException"><paramref name="value"/> 为 <c>null</c>。</exception>
         public static ConfigFileResult<string> UnescapeString(string value)
         {
             var builder = new StringBuilder(value.Length);

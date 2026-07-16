@@ -9,20 +9,50 @@ using UnityModBase.HProvider;
 
 namespace UnityModBase.HConfigGUI.Editor
 {
+    /// <summary>
+    /// 负责配置绑定树的分组导航、递归内容绘制、布局尺寸缓存刷新和延迟值提交。
+    /// 编辑器本身保存当前根节点及滚动位置，用户相关选择和尺寸缓存保存在 <see cref="GuiContext"/>；切换根节点会取消热键编辑会话。
+    /// </summary>
     public class GroupEditor : IDisposable
     {
+        /// <summary>
+        /// 获取布局测量和数值运算使用的 Unity 服务。
+        /// </summary>
         public IUnityProvider UnityService { get; }
+        /// <summary>
+        /// 获取配置分组绘制所用的 IMGUI 提供器。
+        /// </summary>
         public IUnityGuiProvider UnityGui { get; }
+        /// <summary>
+        /// 获取侧栏、标题和滑条样式资源。
+        /// </summary>
         public StyleResource StyleProvider { get; }
 
+        /// <summary>
+        /// 获取当前分组编辑器拥有的值编辑器注册表。
+        /// </summary>
         public ValueEditorRegistry EditorRegistry { get; }
+        /// <summary>
+        /// 获取单项配置行编辑器。
+        /// </summary>
         public EntryEditor EntryEditor { get; }
+        /// <summary>
+        /// 获取注册表中的热键编辑器及其录制会话。
+        /// </summary>
         public HotkeyEditor HotkeyEditor { get; }
 
         private Vector2 _sidebarScrollPosition = Vector2.zero;
         private Vector2 _contentScrollPosition = Vector2.zero;
         private GroupBinding _currentRoot;
 
+        // 滑条也匹配通用数值类型，因此必须先注册滑条编辑器，确保带元数据的配置项采用专用控件。
+        /// <summary>
+        /// 创建分组编辑器并按“专用类型优先于通用数值”的顺序注册内置值编辑器。
+        /// </summary>
+        /// <param name="unityService">用于布局测量和数值运算的 Unity 服务。</param>
+        /// <param name="unityGui">用于绘制分组和配置项的 IMGUI 提供器。</param>
+        /// <param name="styleProvider">提供配置界面样式的资源。</param>
+        /// <exception cref="ArgumentNullException">任一依赖为 null。</exception>
         public GroupEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
@@ -41,6 +71,12 @@ namespace UnityModBase.HConfigGUI.Editor
             EntryEditor = new EntryEditor(EditorRegistry, unityGui);
         }
 
+        /// <summary>
+        /// 绘制当前用户的配置树。根节点变化时重置滚动位置、取消热键编辑并使布局缓存失效。
+        /// 没有一级分组的根节点会直接作为内容绘制，不显示侧边栏。
+        /// </summary>
+        /// <param name="context">包含根绑定和用户级显示状态的配置 GUI 上下文。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 null。</exception>
         public void Draw(GuiContext context)
         {
             if (context == null)
@@ -82,6 +118,12 @@ namespace UnityModBase.HConfigGUI.Editor
             context.SelectedGroupKey = selectedGroup.Key;
         }
 
+        /// <summary>
+        /// 推进指定上下文的延迟配置提交，不处理其他用户上下文中的待提交项。
+        /// </summary>
+        /// <param name="context">要推进延迟提交的配置 GUI 上下文。</param>
+        /// <param name="deltaTime">用于递减提交延迟的时间增量，通常为非缩放秒数。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 null。</exception>
         public void Update(GuiContext context, float deltaTime)
         {
             if (context == null)
@@ -96,6 +138,13 @@ namespace UnityModBase.HConfigGUI.Editor
             context.ChangeSink.FlushValue(deltaTime);
         }
 
+        /// <summary>
+        /// 仅重算上下文中标记为脏的标签宽度、侧栏宽度和重置按钮宽度。
+        /// 这些尺寸依赖翻译文本和配置结构，调用方应在相应内容变化后先设置脏标记。
+        /// </summary>
+        /// <param name="root">要测量的配置根绑定。</param>
+        /// <param name="context">保存尺寸缓存和脏标记的 GUI 上下文。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="root"/> 或 <paramref name="context"/> 为 null。</exception>
         public void UpdateLayoutIfNeeded(GroupBinding root, GuiContext context)
         {
             if (root == null)
@@ -228,6 +277,11 @@ namespace UnityModBase.HConfigGUI.Editor
             return groups;
         }
 
+        /// <summary>
+        /// 计算分组及其后代配置项名称所需的最大标签宽度，并附加 10 像素间距。
+        /// </summary>
+        /// <param name="root">要递归测量的分组；null 时返回 0。</param>
+        /// <returns>标签最大宽度加 10 像素间距；根为 null 时返回 0。</returns>
         public float GetEntryLabelWidth(GroupBinding root)
         {
             if (root == null)
@@ -244,6 +298,11 @@ namespace UnityModBase.HConfigGUI.Editor
             return maxWidth + 10f;
         }
 
+        /// <summary>
+        /// 计算根节点直属分组按钮的最大宽度，并附加 60 像素侧栏余量。
+        /// </summary>
+        /// <param name="root">要测量直属分组的根节点；null 时返回 0。</param>
+        /// <returns>按钮最大宽度加 60 像素余量；根为 null 时返回 0。</returns>
         public float GetGroupButtonWidth(GroupBinding root)
         {
             if (root == null)
@@ -281,6 +340,9 @@ namespace UnityModBase.HConfigGUI.Editor
             }
         }
 
+        /// <summary>
+        /// 释放值编辑器注册表；这也会清理热键录制状态，并将全局热键标记强制设为有效。
+        /// </summary>
         public void Dispose()
         {
             EditorRegistry?.Dispose();
