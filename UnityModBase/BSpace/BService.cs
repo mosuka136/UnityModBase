@@ -28,11 +28,15 @@ namespace UnityModBase.BSpace
 
         /// <summary>
         /// 创建框架用户上下文，并在规范化后的基础目录中注册配置文件和按小时命名的日志文件。
-        /// 重复调用不会重建资源；初始化失败时释放本次创建的全局状态并重新抛出原始异常。
+        /// 重复调用不会重建资源；初始化失败时会清理本类建立的事件联动和静态引用，并重新抛出原始异常。
         /// </summary>
         /// <param name="baseDirectory">
         /// UnityModBase 数据目录或其父目录；末级目录名不是 <c>UnityModBase</c> 时会自动追加该子目录。
         /// </param>
+        /// <remarks>
+        /// 已登记到 <see cref="UserManager"/> 的上下文不由本类直接释放。顶层初始化失败回滚会通过
+        /// <see cref="UnityModBase.Dispose"/> 统一释放用户注册表及其配置和日志资源。
+        /// </remarks>
         internal static void Initialize(string baseDirectory)
         {
             lock (_lock)

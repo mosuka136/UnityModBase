@@ -8,18 +8,21 @@ using UnityModBase.HClassAttribute;
 namespace UnityModBase
 {
     /// <summary>
-    /// 发现并登记游戏启动扩展点，在宿主确认首次场景可用后一次性创建常驻组件并调用初始化方法。
+    /// 发现并登记游戏启动扩展点，在宿主确认当前游戏生命周期的首个可用场景就绪后，
+    /// 一次性创建常驻组件并调用初始化方法。
     /// </summary>
     /// <remarks>
     /// 该注册器只管理带 <see cref="RegisterOnGameBootAttribute"/> 或
     /// <see cref="InitializeOnGameBootAttribute"/> 的扩展点，不负责判断具体游戏是否已进入可操作状态。
     /// 启动回调可能使用 Unity API，因此 <see cref="Boot"/> 和 <see cref="Dispose"/> 应在 Unity 主线程调用。
+    /// <see cref="Dispose"/> 会结束当前登记周期；随后重新初始化会重新扫描程序集，并允许再次派发启动回调。
     /// </remarks>
     public static class GameBootRegistery
     {
+        // 只表示程序集扫描及 AssemblyLoad 监听已启用，与当前周期是否已经执行 Boot 相互独立。
         private static bool _initialized = false;
 
-        // 进程级一次性哨兵。Dispose 不会复位它，释放后重新初始化也不会再次派发游戏启动回调。
+        // 当前登记周期的一次性哨兵；Dispose 会复位它，使重新初始化后的下一周期可以再次派发。
         private static bool _gameBootInvoked = false;
 
         // 串行化初始化、启动派发、回调登记以及已创建 Unity 对象列表的变更。
@@ -29,7 +32,8 @@ namespace UnityModBase
         private static readonly List<GameObject> _createdGameBootObjects = new List<GameObject>();
 
         /// <summary>
-        /// 游戏启动阶段的一次性回调。首次 <see cref="Boot"/> 后会清空；此后新增订阅也不会再执行。
+        /// 当前登记周期的游戏启动回调。首次 <see cref="Boot"/> 后会清空；
+        /// 同一周期内此后新增的订阅不会执行，并会在 <see cref="Dispose"/> 时丢弃。
         /// </summary>
         public static event Action OnGameBoot;
 
@@ -54,7 +58,7 @@ namespace UnityModBase
         }
 
         /// <summary>
-        /// 执行登记的游戏启动回调，并保证同一进程内最多派发一次。
+        /// 执行登记的游戏启动回调，并保证两次 <see cref="Dispose"/> 之间最多派发一次。
         /// 单个回调失败只会记录日志，不会阻止其余回调；重入调用会立即返回。
         /// </summary>
         /// <remarks>
@@ -128,7 +132,8 @@ namespace UnityModBase
 
         /// <summary>
         /// 反射指定程序集，登记带启动特性的组件类型和方法。
-        /// 游戏启动完成后才加载的程序集不会补执行其中的扩展点。
+        /// 当前周期的游戏启动完成后才加载的程序集不会补执行其中的扩展点；
+        /// 结束当前周期并重新初始化后，程序集会在全量扫描中重新参与登记。
         /// </summary>
         /// <param name="assembly">要扫描的程序集，不可为 <c>null</c>。</param>
         public static void RegisterAssembly(Assembly assembly)
@@ -166,7 +171,8 @@ namespace UnityModBase
         /// <returns>通过组件类型检查并加入启动回调时为 <c>true</c>，否则为 <c>false</c>。</returns>
         /// <remarks>
         /// 抽象类型等无法由 Unity 实例化的情况会延迟到启动阶段处理，失败时记录日志且不影响其他回调。
-        /// 必须在首次 <see cref="Boot"/> 前调用；启动后的直接登记不会被补执行。
+        /// 必须在当前周期首次 <see cref="Boot"/> 前调用；启动后的直接登记不会被补执行，
+        /// 且其回调会在 <see cref="Dispose"/> 时丢弃，不会带入下一周期。
         /// </remarks>
         public static bool RegisterComponentOnGameBoot(Type type)
         {
@@ -199,7 +205,8 @@ namespace UnityModBase
         /// <returns><paramref name="method"/> 非空并加入启动回调时为 <c>true</c>，否则为 <c>false</c>。</returns>
         /// <remarks>
         /// 签名在启动回调执行时校验，因此签名无效的方法也可能登记成功，但不会被调用。
-        /// 必须在首次 <see cref="Boot"/> 前调用；启动后的直接登记不会被补执行。
+        /// 必须在当前周期首次 <see cref="Boot"/> 前调用；启动后的直接登记不会被补执行，
+        /// 且其回调会在 <see cref="Dispose"/> 时丢弃，不会带入下一周期。
         /// </remarks>
         public static bool RegisterMethodOnGameBoot(MethodInfo method)
         {
@@ -337,11 +344,12 @@ namespace UnityModBase
         }
 
         /// <summary>
-        /// 停止监听程序集加载、丢弃尚未执行的启动回调，并销毁本注册器创建的常驻对象。
+        /// 结束当前登记周期：停止监听程序集加载、丢弃尚未执行的启动回调，
+        /// 销毁本注册器创建的常驻对象，并允许重新初始化后的下一周期再次执行 <see cref="Boot"/>。
         /// </summary>
         /// <remarks>
         /// Unity 对象在锁外销毁，避免销毁过程中的 Unity 回调进入注册器时形成锁内副作用。
-        /// 进程级启动哨兵不会复位，因此该方法不是开始第二轮游戏启动周期的重置操作。
+        /// 该方法只复位注册器状态，不会自动重新扫描程序集；下一周期仍需先调用 <see cref="Initialize"/>。
         /// </remarks>
         public static void Dispose()
         {
@@ -356,6 +364,7 @@ namespace UnityModBase
                 gameObjects = _createdGameBootObjects.ToArray();
                 _createdGameBootObjects.Clear();
 
+                _gameBootInvoked = false;
                 _initialized = false;
             }
 
