@@ -1,5 +1,6 @@
 using UnityModBase.BSpace;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase
 {
@@ -49,7 +50,7 @@ namespace UnityModBase
         }
 
         /// <summary>
-        /// 释放所有进程级服务，并清空启动、逐帧、退出和语言切换事件的订阅者。
+        /// 释放所有进程级服务和已注册用户上下文，并清空启动、逐帧、退出和语言切换事件的订阅者。
         /// 该方法也用于初始化失败后的回滚；各子模块负责容忍尚未初始化或重复释放的情况。
         /// </summary>
         public static void Dispose()
@@ -59,7 +60,9 @@ namespace UnityModBase
                 // 先派发退出回调，使订阅者执行时其余基础服务仍然可用。
                 GameQuitManager.Dispose();
                 GameBootRegistery.Dispose();
+                // 先解除框架自身的配置联动并丢弃静态引用，再统一释放注册表中所有用户的配置和日志资源。
                 BService.Dispose();
+                UserManager.Dispose();
                 FrameUpdateManager.Dispose();
                 Translator.Dispose();
 

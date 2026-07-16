@@ -7,8 +7,9 @@ using UnityModBase.HUserSpace;
 namespace UnityModBase.BSpace
 {
     /// <summary>
-    /// 组装 UnityModBase 自身的用户上下文、配置服务和文件日志，并维护它们的生命周期。
-    /// 具体配置项由 <see cref="BConfigManager"/> 声明，通用服务资源由 <see cref="UserService"/> 持有。
+    /// 组装 UnityModBase 自身的用户上下文、配置服务和文件日志，并维护框架专属的引用与事件联动。
+    /// 具体配置项由 <see cref="BConfigManager"/> 声明，通用服务资源由 <see cref="UserService"/> 持有；
+    /// 用户注册表及其中资源的最终释放由进程级生命周期通过 <see cref="UserManager.Dispose"/> 统一完成。
     /// </summary>
     internal static class BService
     {
@@ -79,8 +80,8 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 解除配置联动并释放框架配置、日志及用户上下文。
-        /// 当前实现通过 <see cref="UserManager.Dispose"/> 释放注册表中的全部用户，而不只释放框架自身上下文。
+        /// 解除框架配置的事件联动，并清除本类保存的基础目录和用户上下文引用。
+        /// 此方法不从用户注册表移除或释放上下文；进程级释放流程会随后调用 <see cref="UserManager.Dispose"/>。
         /// </summary>
         internal static void Dispose()
         {
@@ -100,7 +101,6 @@ namespace UnityModBase.BSpace
                         BConfigManager.LogLevel.OnValueChanged -= OnLogLevelChanged;
 
                     BConfigManager.Dispose();
-                    UserManager.Dispose();
                 }
                 catch (Exception ex)
                 {
