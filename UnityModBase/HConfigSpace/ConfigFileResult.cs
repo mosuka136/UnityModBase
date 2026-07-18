@@ -241,6 +241,11 @@ namespace UnityModBase.HConfigSpace
     public enum ConfigFileErrorCode
     {
         /// <summary>
+        /// 文件 IO 或解析入口捕获到的未分类异常；用于把异常转换为不携带有效值的失败结果。
+        /// </summary>
+        Exception,
+
+        /// <summary>
         /// 声明类型没有可用的编码、解码或集合构造路径。
         /// </summary>
         UnsupportedType,

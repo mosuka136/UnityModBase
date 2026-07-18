@@ -323,9 +323,40 @@ namespace UnityModBase.Test.HConfigSpace
             var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
 
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"UpdatedValue\"\n");
-            manager.Reload();
+            var result = manager.Reload();
 
+            Assert.True(result);
             Assert.Equal("UpdatedValue", entry.Value);
+        }
+
+        [Fact]
+        public void Reload_WhenSuccessful_RebindsFileTableAndPreservesTableMetadata()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 1\n");
+            using var manager = new ConfigService(tempPath);
+            var tableName = new Translator("测试表", "Test Table");
+            var tableDescription = new Translator("表说明", "Table Description");
+            manager.CreateTable("TestTable", tableName, tableDescription);
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var runtimeTable = manager.Sheet["TestTable"];
+            var originalFileTable = runtimeTable.FileTable;
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 2\n");
+
+            var result = manager.Reload();
+
+            var activeFileTable = manager.FileSheet.GetTable("TestTable").Value;
+            Assert.True(result);
+            Assert.Equal(2, entry.Value);
+            Assert.NotSame(originalFileTable, activeFileTable);
+            Assert.Same(activeFileTable, runtimeTable.FileTable);
+            Assert.Same(tableName, activeFileTable.Name);
+            Assert.Same(tableDescription, activeFileTable.Description);
+
+            var persistedContent = File.ReadAllText(tempPath);
+            Assert.Contains("# Name: 测试表, Test Table", persistedContent);
+            Assert.Contains("## 表说明", persistedContent);
+            Assert.Contains("## Table Description", persistedContent);
         }
 
         [Fact]
@@ -338,24 +369,28 @@ namespace UnityModBase.Test.HConfigSpace
             manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
             manager.SaveOnConfigSet = true;
 
-            manager.Reload();
+            var result = manager.Reload();
 
+            Assert.True(result);
             Assert.True(manager.SaveOnConfigSet);
         }
 
         [Fact]
-        public void Reload_WhenEntryDoesNotExistInFile_SkipsRebinding()
+        public void Reload_WhenEntryDoesNotExistInFile_ReturnsFalseAndKeepsPreviousBindingAndValue()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"Value\"\n");
             var manager = new ConfigService(tempPath);
             manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
             var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var originalEntry = entry.Entry;
 
             File.WriteAllText(tempPath, "[TestTable]\n");
-            manager.Reload();
+            var result = manager.Reload();
 
+            Assert.False(result);
             Assert.Equal("Value", entry.Value);
+            Assert.Same(originalEntry, entry.Entry);
         }
 
         [Fact]
@@ -372,14 +407,207 @@ namespace UnityModBase.Test.HConfigSpace
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = invalid\n");
 
             // Act
-            var exception = Record.Exception(manager.Reload);
+            bool? reloadResult = null;
+            var exception = Record.Exception(() =>
+            {
+                reloadResult = manager.Reload();
+            });
 
             // Assert
             Assert.Null(exception);
+            Assert.False(reloadResult);
             Assert.False(manager.SaveOnConfigSet);
             Assert.Equal(42, entry.Value);
             Assert.Same(originalEntry, entry.Entry);
             Assert.Equal("42", entry.Entry.Value);
+        }
+
+        [Fact]
+        public void Reload_WhenReadFails_ReturnsFalseAndKeepsPreviousBindingAndValue()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 42\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var originalEntry = entry.Entry;
+
+            bool result;
+            using (File.Open(tempPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                result = manager.Reload();
+
+            Assert.False(result);
+            Assert.Equal(42, entry.Value);
+            Assert.Same(originalEntry, entry.Entry);
+        }
+
+        [Fact]
+        public void Reload_WhenMultipleEntriesChange_PublishesEventsAfterAllEntriesAreCommitted()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 1\nSecondKey = 2\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var firstEntry = manager.Bind<int>("TestTable", "FirstKey", 0, new Translator("第一项", "First"), new Translator("描述", "Description"));
+            var secondEntry = manager.Bind<int>("TestTable", "SecondKey", 0, new Translator("第二项", "Second"), new Translator("描述", "Description"));
+            var invocationCount = 0;
+            var secondValueObservedByFirstHandler = 0;
+            firstEntry.OnValueChanged += (_, _) =>
+            {
+                invocationCount++;
+                secondValueObservedByFirstHandler = secondEntry.Value;
+            };
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 10\nSecondKey = 20\n");
+
+            var result = manager.Reload();
+
+            Assert.True(result);
+            Assert.Equal(10, firstEntry.Value);
+            Assert.Equal(20, secondEntry.Value);
+            Assert.Equal(1, invocationCount);
+            Assert.Equal(20, secondValueObservedByFirstHandler);
+        }
+
+        [Fact]
+        public void Reload_WhenEarlierHandlerChangesLaterEntry_DoesNotPublishSupersededReloadEvent()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 1\nSecondKey = 2\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var firstEntry = manager.Bind<int>("TestTable", "FirstKey", 0, new Translator("第一项", "First"), new Translator("描述", "Description"));
+            var secondEntry = manager.Bind<int>("TestTable", "SecondKey", 0, new Translator("第二项", "Second"), new Translator("描述", "Description"));
+            var secondEventValues = new List<int>();
+            firstEntry.OnValueChanged += (_, _) => secondEntry.Value = 30;
+            secondEntry.OnValueChanged += (_, value) => secondEventValues.Add(value);
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 10\nSecondKey = 20\n");
+
+            var result = manager.Reload();
+
+            Assert.True(result);
+            Assert.Equal(10, firstEntry.Value);
+            Assert.Equal(30, secondEntry.Value);
+            Assert.Equal(new[] { 30 }, secondEventValues);
+            Assert.Contains("SecondKey = 30", File.ReadAllText(tempPath));
+        }
+
+        [Fact]
+        public void Reload_WhenHandlerChangesSameEntry_PublishesOrderedValueSnapshots()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 1\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var eventValues = new List<int>();
+            entry.OnValueChanged += (_, value) =>
+            {
+                if (value == 10)
+                    entry.Value = 11;
+            };
+            entry.OnValueChanged += (_, value) => eventValues.Add(value);
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 10\n");
+
+            var result = manager.Reload();
+
+            Assert.True(result);
+            Assert.Equal(11, entry.Value);
+            Assert.Equal(new[] { 10, 11 }, eventValues);
+            Assert.Contains("TestKey = 11", File.ReadAllText(tempPath));
+        }
+
+        [Fact]
+        public void Reload_WithAdapterValue_DecodesAndEncodesCandidateOnlyOnce()
+        {
+            ReloadProbeAdapter.Reset();
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = original\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind(
+                "TestTable",
+                "TestKey",
+                new ReloadProbeAdapter("default"),
+                new Translator("测试键", "TestKey"),
+                new Translator("描述", "Description"));
+            ReloadProbeAdapter.Reset();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = updated\n");
+
+            var result = manager.Reload();
+
+            Assert.True(result);
+            Assert.Equal("updated", entry.Value.Content);
+            Assert.Equal(1, ReloadProbeAdapter.DecodeCount);
+            Assert.Equal(1, ReloadProbeAdapter.EncodeCount);
+        }
+
+        [Fact]
+        public void Reload_WhenPreparedAdapterValueCannotEncode_KeepsPreviousFileModelBindingAndValue()
+        {
+            ReloadProbeAdapter.Reset();
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = original\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind(
+                "TestTable",
+                "TestKey",
+                new ReloadProbeAdapter("default"),
+                new Translator("测试键", "TestKey"),
+                new Translator("描述", "Description"));
+            var originalFileSheet = manager.FileSheet;
+            var originalEntry = entry.Entry;
+            var originalValue = entry.Value;
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            ReloadProbeAdapter.Reset();
+            ReloadProbeAdapter.FailEncode = true;
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = updated\n");
+
+            try
+            {
+                var result = manager.Reload();
+
+                Assert.False(result);
+                Assert.Same(originalFileSheet, manager.FileSheet);
+                Assert.Same(originalEntry, entry.Entry);
+                Assert.Same(originalValue, entry.Value);
+                Assert.Equal("original", entry.Value.Content);
+                Assert.Equal(1, ReloadProbeAdapter.DecodeCount);
+                Assert.Equal(1, ReloadProbeAdapter.EncodeCount);
+                Assert.Equal(0, invocationCount);
+            }
+            finally
+            {
+                ReloadProbeAdapter.Reset();
+            }
+        }
+
+        [Fact]
+        public void Reload_WhenLaterCommitThrows_RollsBackEarlierEntriesWithoutPublishingEvents()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 1\nSecondKey = 2\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var firstEntry = manager.Bind<int>("TestTable", "FirstKey", 0, new Translator("第一项", "First"), new Translator("描述", "Description"));
+            manager.Sheet["TestTable"].Add(new ThrowingReloadEntry("TestTable", "SecondKey"));
+            var originalFileSheet = manager.FileSheet;
+            var originalFileTable = manager.Sheet["TestTable"].FileTable;
+            var originalEntry = firstEntry.Entry;
+            var invocationCount = 0;
+            firstEntry.OnValueChanged += (_, _) => invocationCount++;
+            File.WriteAllText(tempPath, "[TestTable]\nFirstKey = 10\nSecondKey = 20\n");
+
+            var result = manager.Reload();
+
+            Assert.False(result);
+            Assert.Same(originalFileSheet, manager.FileSheet);
+            Assert.Same(originalFileTable, manager.Sheet["TestTable"].FileTable);
+            Assert.Same(originalEntry, firstEntry.Entry);
+            Assert.Equal(1, firstEntry.Value);
+            Assert.Equal("1", firstEntry.Entry.Value);
+            Assert.Equal(0, invocationCount);
         }
 
         [Fact]
@@ -474,6 +702,116 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Null(handlerField.GetValue(entry));
         }
 
+        // 记录重载期间的编解码次数，并可注入编码失败，用于验证预检不会重复转换或泄漏部分状态。
+        private sealed class ReloadProbeAdapter : IConfigEntryAdapter
+        {
+            public static int DecodeCount { get; private set; }
+            public static int EncodeCount { get; private set; }
+            public static bool FailEncode { get; set; }
+
+            public string Content { get; private set; }
+
+            public ReloadProbeAdapter()
+                : this(string.Empty)
+            {
+            }
+
+            public ReloadProbeAdapter(string content)
+            {
+                Content = content;
+            }
+
+            public ConfigFileResult<string> Encode()
+            {
+                EncodeCount++;
+                if (FailEncode)
+                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "encode failed"));
+
+                return ConfigFileResult<string>.Ok(Content);
+            }
+
+            public ConfigFileResult<object> Decode(string content)
+            {
+                DecodeCount++;
+                return ConfigFileResult<object>.Ok(new ReloadProbeAdapter(content));
+            }
+
+            public ConfigFileResult<string> EncodeValueType()
+            {
+                return ConfigFileResult<string>.Ok(nameof(ReloadProbeAdapter));
+            }
+
+            public static void Reset()
+            {
+                DecodeCount = 0;
+                EncodeCount = 0;
+                FailEncode = false;
+            }
+        }
+
+        // 返回一个在提交阶段抛出异常的计划，用于覆盖“前序计划已应用、后序计划失败”的回滚路径。
+        private sealed class ThrowingReloadEntry : IConfigEntry, IConfigEntryReloadParticipant
+        {
+            public Translator Name { get; } = new Translator("抛出异常的配置项", "Throwing Entry");
+            public Translator Description { get; } = new Translator("测试提交回滚", "Tests commit rollback");
+            public string TableName { get; }
+            public string Key { get; }
+            public ConfigFileEntry Entry { get; }
+            public Type ValueType => typeof(int);
+            public object BoxedValue { get; set; }
+            public object BoxedDefaultValue => 0;
+
+            public event EventHandler OnValueChangedBase
+            {
+                add { }
+                remove { }
+            }
+
+            public ThrowingReloadEntry(string tableName, string key)
+            {
+                TableName = tableName;
+                Key = key;
+                Entry = new ConfigFileEntry
+                {
+                    Key = key,
+                    Value = "2"
+                };
+                BoxedValue = 2;
+            }
+
+            public void RebindEntry(ConfigFileEntry entry)
+            {
+                // 此测试替身只通过事务协议参与重载，不覆盖单项直接重绑定入口。
+            }
+
+            bool IConfigEntryReloadParticipant.TryPrepareRebind(
+                ConfigFileEntry candidate,
+                out ConfigReloadPlan plan,
+                out string errorMessage)
+            {
+                plan = new ThrowingRebindPlan();
+                errorMessage = string.Empty;
+                return true;
+            }
+        }
+
+        private sealed class ThrowingRebindPlan : ConfigReloadPlan
+        {
+            internal override void Apply()
+            {
+                throw new InvalidOperationException("commit failed");
+            }
+
+            internal override void Rollback()
+            {
+                // Apply 在写入任何测试状态前即抛出，因此没有需要恢复的局部状态。
+            }
+
+            internal override void Publish()
+            {
+                // 提交阶段必定失败，协调器不应到达该计划的发布阶段。
+            }
+        }
 
     }
 }

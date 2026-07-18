@@ -72,7 +72,9 @@
     <Compile Include="BSpace\BConfigManager.cs" />
     <Compile Include="HConfigGUI\ValueProvider.cs" />
     <Compile Include="HConfigSpace\ConfigEntry.cs" />
+    <Compile Include="HConfigSpace\IConfigEntryReloadParticipant.cs" />
     <Compile Include="HConfigSpace\ConfigFileEntry.cs" />
+    <Compile Include="HConfigSpace\ConfigReloadPlan.cs" />
     <Compile Include="HConfigSpace\ConfigService.cs" />
     <Compile Include="HConfigSpace\ConfigFileModel.cs" />
     <Compile Include="HConfigSpace\ConfigFileResult.cs" />

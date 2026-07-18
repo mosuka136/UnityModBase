@@ -13,7 +13,8 @@ namespace UnityModBase.BSpace
     /// </summary>
     internal static class BConfigManager
     {
-        // 保护静态配置引用及其事件订阅的完整生命周期，避免初始化、重载热键与释放交错。
+        // 串行化初始化、实际重载和释放对静态引用及事件订阅的修改。
+        // 热键状态读取发生在加锁前，因此该锁不使整个管理器具备线程安全性。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
 
@@ -58,13 +59,15 @@ namespace UnityModBase.BSpace
         private const string SectionLog = "Log";
 
         /// <summary>
-        /// 从 <see cref="BService.Config"/> 绑定全部框架配置项，补齐缺失项并保存一次规范化后的文件。
+        /// 从 <see cref="BService.Config"/> 绑定全部框架配置项，补齐缺失项并尝试保存一次规范化后的文件。
         /// 重复调用直接返回；失败时撤销已建立的静态引用和事件订阅，然后重新抛出原始异常。
         /// </summary>
         /// <param name="configFilePath">用于初始化完成日志的配置文件路径；实际读写路径由已注册的 <see cref="ConfigService"/> 决定。</param>
         /// <remarks>
         /// 调用前必须先通过 <see cref="HUserSpace.UserService"/> 建立配置服务。
-        /// 初始化期间会暂时关闭逐项保存，待所有默认项绑定完成后统一写盘。
+        /// 绑定期间会关闭逐项保存，待所有默认项建立后重新启用并统一写盘；该过程不会保留服务原有的开关值。
+        /// 若绑定阶段抛出异常，静态引用和事件订阅会被清理，但配置服务的 <see cref="ConfigService.SaveOnConfigSet"/> 不会恢复。
+        /// 最终写入失败只记录错误，不阻止配置继续以内存模型完成初始化。
         /// </remarks>
         internal static void Initialize(string configFilePath)
         {
@@ -221,7 +224,8 @@ namespace UnityModBase.BSpace
                     Translator.DefaultLanguage = SetLanguage.Value;
 
                     Config.SaveOnConfigSet = true;
-                    Config.Save();
+                    if (!Config.Save())
+                        BLog.Error("Failed to save config file.");
 
                     FrameUpdateManager.OnFrameUpdate += ReloadConfigOnUserOrder;
 
@@ -263,14 +267,18 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 从当前配置路径重新读取文件，将已有运行时配置项重新绑定到新文件项并写回规范化内容。
+        /// 从当前配置路径重新读取文件，并根据重载及规范化写入结果记录成功或失败日志。
+        /// 配置应用的原子性边界与失败后的内存状态由 <see cref="ConfigService.Reload"/> 定义。
+        /// 因此失败日志也可能仅表示事件发布或最终写入失败，此时已提交的运行时配置仍然有效。
         /// </summary>
         private static void ReloadConfig()
         {
             lock (_lock)
             {
-                Config.Reload();
-                BLog.Info("Config file reloaded.");
+                if (Config.Reload())
+                    BLog.Info("Config file reloaded.");
+                else
+                    BLog.Error("Failed to reload config file.");
             }
         }
 

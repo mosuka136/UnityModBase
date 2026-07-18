@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Text;
 using UnityModBase.BSpace;
 using UnityModBase.HTranslatorSpace;
 
@@ -8,6 +10,8 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 运行时配置项的非泛型视图。
     /// UI 层通过该接口读取元数据并写入装箱值，而不需要在绑定阶段知道具体泛型类型。
+    /// 自定义实现可以参与运行时展示，但 <see cref="ConfigService.Reload"/> 只接受同时实现程序集内部重载协议的配置项；
+    /// 将外部自定义实现直接加入配置表会使事务重载预检失败。
     /// </summary>
     public interface IConfigEntry
     {
@@ -67,17 +71,35 @@ namespace UnityModBase.HConfigSpace
     /// 一个强类型运行时配置项。
     /// 它把文件层面的 <see cref="ConfigFileEntry"/> 与业务代码使用的 <typeparamref name="T"/> 值绑定起来，并在值变化时同步文件项文本与触发事件。
     /// 该类不直接写文件；写回时机由 <see cref="ConfigService"/> 订阅变化事件后决定。
+    /// 批量重载时，它先生成不发布事件的可回滚计划，再由配置服务统一提交；单项重绑定不提供跨配置项原子性。
     /// 实例不提供并发保护；赋值、重绑定和事件订阅应由调用方串行化。
     /// </summary>
     /// <typeparam name="T">配置项值类型。</typeparam>
-    public class ConfigEntry<T> : IConfigEntry
+    public class ConfigEntry<T> : IConfigEntry, IConfigEntryReloadParticipant
     {
         private T _value;
 
+        // 同一配置项的每次有效值变化（包括重载提交）都会递增该版本。重载发布阶段用它识别已被事件处理器后续赋值取代的候选值；
+        // 该字段不承担跨线程同步职责。
+        private long _changeVersion;
+
+        // 事件处理器允许同步修改本项。队列把这种重入赋值延后到当前一轮订阅者通知结束后，
+        // 确保每轮处理器收到同一个值，并按赋值顺序发布后续变化。
+        private readonly Queue<T> _pendingValueChanges = new Queue<T>();
+
+        // 仅标识当前调用栈是否正在排空事件队列，不是线程安全锁。
+        private bool _publishingValueChanged;
+
         /// <summary>
         /// 当前配置值。
-        /// 新值与旧值不等价时，会先编码并更新绑定文件项，再同步触发强类型和非泛型事件；订阅者异常只记录日志，不回滚已写入的内存状态。
+        /// 新值与旧值不等价时，会先完成编码并同步运行时值与绑定文件项，再触发强类型和非泛型事件；
+        /// 订阅者异常只记录日志，不回滚已写入的内存状态。
         /// </summary>
+        /// <remarks>
+        /// 事件处理器再次设置本项时，新变化会排到当前一轮通知之后发布，避免递归通知使后续订阅者观察到错乱的值快照。
+        /// 队列仍在当前赋值线程上同步排空；处理器若持续产生不同值，会延长当前调用，且可能使通知无法结束。
+        /// 未绑定文件项时，当前实现会先更新运行时值，再因写入 <see cref="Entry"/> 失败而抛出异常；该失败不会发布事件。
+        /// </remarks>
         /// <exception cref="InvalidOperationException">新值无法按配置格式编码。</exception>
         /// <exception cref="NullReferenceException">实例尚未绑定文件项，且新值与当前值不等价。</exception>
         public T Value
@@ -97,32 +119,9 @@ namespace UnityModBase.HConfigSpace
                 }
 
                 _value = value;
-
                 Entry.Value = valueResult.Value;
-
-                foreach(var handler in OnValueChanged.GetInvocationListOrEmpty())
-                {
-                    try
-                    {
-                        handler.Invoke(this, _value);
-                    }
-                    catch (Exception ex)
-                    {
-                        BLog.Error($"Exception in value changed event for key: {Key}, value: {_value}.", ex);
-                    }
-                }
-
-                foreach (var handler in OnValueChangedBase.GetInvocationListOrEmpty())
-                {
-                    try
-                    {
-                        handler.Invoke(this, new EntryValueChangedEventArgs<T>(_value));
-                    }
-                    catch (Exception ex)
-                    {
-                        BLog.Error($"Exception in value changed event for key: {Key}, value: {_value}.", ex);
-                    }
-                }
+                _changeVersion++;
+                PublishValueChanged();
             }
         }
 
@@ -177,11 +176,16 @@ namespace UnityModBase.HConfigSpace
         /// 强类型值变化事件。只有新值与旧值不等价时才触发，并且先于 <see cref="OnValueChangedBase"/> 同步调用。
         /// 单个订阅者抛出的异常会被记录，不会阻止其余订阅者。
         /// </summary>
+        /// <remarks>
+        /// 批量重载先提交全部配置项再发布事件。若较早发布的处理器已经改写尚未发布的配置项，
+        /// 后者不会再发布已被取代的重载候选值，而由普通赋值流程发布处理器写入的新值。
+        /// </remarks>
         public event EventHandler<T> OnValueChanged;
 
         /// <summary>
         /// 非泛型值变化事件，参数为 <see cref="EntryValueChangedEventArgs{T}"/> 包装的强类型新值。
-        /// 该事件在全部强类型订阅者之后同步调用；单个订阅者异常不会阻止其余订阅者。
+        /// 该事件在对应值的全部强类型订阅者之后同步调用；单个订阅者异常不会阻止其余订阅者。
+        /// 批量重载中的过期候选值遵循 <see cref="OnValueChanged"/> 的抑制规则。
         /// </summary>
         public event EventHandler OnValueChangedBase;
 
@@ -262,23 +266,239 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 将配置项重新绑定到另一个文件项，并从文件项的文本值解码当前值。
         /// 常用于重新读取配置文件后保留已有 <see cref="ConfigEntry{T}"/> 引用。
-        /// 解码在替换绑定之前完成，因此失败时原文件项和值保持不变；若解码值与当前值等价，只替换绑定而不触发事件。
+        /// 解码、必要的规范化编码和元数据复制均在替换绑定之前完成，因此失败时原文件项和值保持不变；
+        /// 若解码值与当前值等价，只替换绑定并保留候选项的原始值文本，不触发变化事件。
         /// </summary>
         /// <param name="entry">新的文件项；为 <c>null</c> 时不做处理。</param>
-        /// <exception cref="InvalidOperationException">文件项的值无法解码为 <typeparamref name="T"/>。</exception>
+        /// <remarks>
+        /// 该入口只处理单个配置项，不提供多个配置项之间的原子性；批量重载应由 <see cref="ConfigService.Reload"/> 协调。
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">文件项的值无法解码为 <typeparamref name="T"/>、解码值无法重新编码，或元数据复制失败。</exception>
         public void RebindEntry(ConfigFileEntry entry)
         {
             if (entry == null)
                 return;
-            var decodeResult = ConfigFileEntry.DecodeValue<T>(entry.Value);
-            if (!decodeResult.Success)
+
+            if (!TryPrepareRebind(entry, out var plan, out var errorMessage))
             {
-                foreach (var error in decodeResult.Errors)
-                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new InvalidOperationException($"Failed to decode value for key: {entry.Key}, value: {entry.Value}. Errors: {string.Join(", ", decodeResult.Errors)}");
+                BLog.Error(errorMessage, null, string.Empty, string.Empty, 0);
+                throw new InvalidOperationException(errorMessage);
             }
-            Entry = entry;
-            Value = decodeResult.Value;
+
+            plan.Apply();
+            plan.Publish();
+        }
+
+        bool IConfigEntryReloadParticipant.TryPrepareRebind(ConfigFileEntry candidate, out ConfigReloadPlan plan, out string errorMessage)
+        {
+            return TryPrepareRebind(candidate, out plan, out errorMessage);
+        }
+
+        /// <summary>
+        /// 在不切换当前绑定的前提下验证候选项，并构造可回滚的内存提交计划。
+        /// 配置服务批量重载时，候选项属于尚未生效的新文件模型，因此准备阶段可以向其复制当前运行时元数据；
+        /// 直接重绑定也复用该预检，但会立即应用返回的计划。活动绑定、当前值和变化事件在本阶段保持不变。
+        /// </summary>
+        /// <param name="candidate">从新文件模型读取的候选项。</param>
+        /// <param name="plan">成功时返回捕获新旧状态的单次提交计划；失败时为 <c>null</c>。</param>
+        /// <param name="errorMessage">失败时返回可直接记录的完整诊断；成功时为空字符串。</param>
+        /// <returns>候选值是否已完成解码、必要的规范化编码和元数据准备，可以进入提交阶段。</returns>
+        private bool TryPrepareRebind(ConfigFileEntry candidate, out ConfigReloadPlan plan, out string errorMessage)
+        {
+            plan = null;
+
+            if (candidate == null)
+            {
+                errorMessage = "Candidate config entry cannot be null.";
+                return false;
+            }
+
+            try
+            {
+                var decodeResult = ConfigFileEntry.DecodeValue<T>(candidate.Value);
+                if (!decodeResult.Success)
+                {
+                    errorMessage = CreatePreparationError(candidate, "decode", decodeResult.Errors);
+                    return false;
+                }
+
+                var changed = !Equal(decodeResult.Value, _value);
+                var encodedValue = candidate.Value;
+
+                if (changed)
+                {
+                    // 在预检阶段完成规范化编码，确保 Apply 只包含可回滚的内存赋值。
+                    // 等价值沿用用户原始文本，与 Value 的等值短路规则保持一致。
+                    var encodeResult = ConfigFileEntry.EncodeValue(decodeResult.Value);
+                    if (!encodeResult.Success)
+                    {
+                        errorMessage = CreatePreparationError(candidate, "encode", encodeResult.Errors);
+                        return false;
+                    }
+
+                    encodedValue = encodeResult.Value;
+                }
+
+                // false 表示只把运行时声明的名称、说明和类型约束写入候选项，不覆盖用户刚读取的值。
+                if (Entry != null && !Entry.CopyTo(candidate, false))
+                {
+                    errorMessage = $"Failed to copy metadata for config entry: {TableName}.{candidate.Key}.";
+                    return false;
+                }
+
+                plan = new EntryReloadPlan(this, Entry, _value, candidate, decodeResult.Value, encodedValue, changed);
+                errorMessage = string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Unexpected error while preparing config entry {TableName}.{candidate.Key}: {ex}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 汇总编解码器返回的全部结构化错误，供重载协调器一次记录完整诊断。
+        /// </summary>
+        /// <param name="candidate">产生错误的候选配置项。</param>
+        /// <param name="operation">失败的编解码操作名称，用于诊断文本。</param>
+        /// <param name="errors">编解码器返回的结构化错误集合。</param>
+        /// <returns>包含配置键、原始值和全部底层错误的多行诊断。</returns>
+        private static string CreatePreparationError(ConfigFileEntry candidate, string operation, IReadOnlyList<ConfigFileError> errors)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"Failed to {operation} value for key: {candidate.Key}, value: {candidate.Value}.");
+
+            foreach (var error in errors)
+            {
+                sb.AppendLine();
+                sb.Append(error.GetFullMessage());
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// 按强类型、非泛型的固定顺序同步通知订阅者，并隔离单个订阅者异常。
+        /// 调用前绑定文件项和运行时值必须已经一致；通知失败不会回滚该状态。
+        /// 重入赋值只追加到待发布队列，由最外层调用依次排空，避免递归改变当前轮次的事件参数。
+        /// </summary>
+        private void PublishValueChanged()
+        {
+            _pendingValueChanges.Enqueue(_value);
+            if (_publishingValueChanged)
+                return;
+
+            _publishingValueChanged = true;
+            try
+            {
+                while (_pendingValueChanges.Count > 0)
+                {
+                    var publishedValue = _pendingValueChanges.Dequeue();
+
+                    foreach (var handler in OnValueChanged.GetInvocationListOrEmpty())
+                    {
+                        try
+                        {
+                            handler.Invoke(this, publishedValue);
+                        }
+                        catch (Exception ex)
+                        {
+                            BLog.Error($"Exception in value changed event for key: {Key}, value: {publishedValue}.", ex);
+                        }
+                    }
+
+                    foreach (var handler in OnValueChangedBase.GetInvocationListOrEmpty())
+                    {
+                        try
+                        {
+                            handler.Invoke(this, new EntryValueChangedEventArgs<T>(publishedValue));
+                        }
+                        catch (Exception ex)
+                        {
+                            BLog.Error($"Exception in value changed event for key: {Key}, value: {publishedValue}.", ex);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                _pendingValueChanges.Clear();
+                _publishingValueChanged = false;
+            }
+        }
+
+        /// <summary>
+        /// 保存单个配置项重绑定前后的状态，使批量重载可以先静默提交，再统一发布事件。
+        /// 回滚只会发生在事件发布前；候选项的元数据随废弃的新文件模型一起丢弃，无需恢复。
+        /// </summary>
+        private sealed class EntryReloadPlan : ConfigReloadPlan
+        {
+            private readonly ConfigEntry<T> _owner;
+            private readonly ConfigFileEntry _oldEntry;
+            private readonly T _oldValue;
+            private readonly ConfigFileEntry _newEntry;
+            private readonly T _newValue;
+            private readonly string _encodedValue;
+            // Apply 会规范化候选值；回滚时需恢复它，避免失败计划残留部分提交痕迹。
+            private readonly string _originalCandidateValue;
+            private readonly bool _changed;
+
+            // 旧版本用于回滚；应用后版本用于判断计划值是否已被事件处理器的后续赋值取代。
+            private readonly long _oldChangeVersion;
+            private long _appliedChangeVersion;
+
+            // 在 Apply 的第一步置位，使后续任一赋值意外失败时，本计划仍会进入回滚路径。
+            private bool _applied;
+
+            internal EntryReloadPlan(ConfigEntry<T> owner, ConfigFileEntry oldEntry, T oldValue, ConfigFileEntry newEntry, T newValue, string encodedValue, bool changed)
+            {
+                _owner = owner;
+                _oldEntry = oldEntry;
+                _oldValue = oldValue;
+                _newEntry = newEntry;
+                _newValue = newValue;
+                _encodedValue = encodedValue;
+                _originalCandidateValue = newEntry.Value;
+                _changed = changed;
+                _oldChangeVersion = owner._changeVersion;
+            }
+
+            internal override void Apply()
+            {
+                _applied = true;
+
+                if (_changed)
+                    _newEntry.Value = _encodedValue;
+
+                _owner.Entry = _newEntry;
+                if (_changed)
+                {
+                    _owner._value = _newValue;
+                    _owner._changeVersion++;
+                    _appliedChangeVersion = _owner._changeVersion;
+                }
+            }
+
+            internal override void Rollback()
+            {
+                if (!_applied)
+                    return;
+
+                _owner.Entry = _oldEntry;
+                _owner._value = _oldValue;
+                _owner._changeVersion = _oldChangeVersion;
+                _newEntry.Value = _originalCandidateValue;
+                _applied = false;
+            }
+
+            internal override void Publish()
+            {
+                // 其他配置项的处理器可能已经再次修改本项；此时普通赋值流程已经发布了更新后的值，
+                // 不再发布本计划捕获的旧变化，避免重复或失真的通知。
+                if (_applied && _changed && _owner._changeVersion == _appliedChangeVersion)
+                    _owner.PublishValueChanged();
+            }
         }
 
         /// <summary>

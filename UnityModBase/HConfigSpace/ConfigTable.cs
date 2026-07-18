@@ -8,14 +8,15 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 运行时配置表。
     /// 它把文件表 <see cref="ConfigFileTable"/> 与一组强类型配置项关联起来，供 GUI 按表展示并供业务代码按声明顺序遍历。
-    /// 构造时会把名称和说明同步到文件表；之后直接替换本类的元数据属性不会再次自动同步。
+    /// 构造和配置重载预检会把名称与说明同步到对应文件表；直接替换本类的元数据属性不会立即更新当前文件表。
     /// 该类型暴露可变列表且不提供并发保护，绑定和遍历应由调用方串行化。
     /// </summary>
     public class ConfigTable : IEnumerable<IConfigEntry>
     {
         /// <summary>
         /// 运行时表键名，对应配置文件中的表头。
-        /// 只有构造函数会校验该值，后续赋值不会同步或校验 <see cref="FileTable"/> 的键名。
+        /// 只有构造函数会校验该值，后续赋值不会同步或校验 <see cref="FileTable"/> 的键名、<see cref="ConfigSheet"/> 的索引键或表内配置项的所属表名。
+        /// 配置服务重载时会用当前值查找候选文件表，因此完成绑定后修改该值可能导致整批重载失败。
         /// </summary>
         public string Key { get; set; }
 
@@ -31,11 +32,13 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 表内已绑定配置项，顺序与绑定顺序一致。
-        /// 返回的是可变列表；直接修改会绕过 <see cref="Add"/> 对 <c>null</c> 的忽略规则。
+        /// 返回的是可变列表；直接修改会绕过 <see cref="Add"/> 对 <c>null</c> 的忽略规则，
+        /// 也不会创建文件项或建立 <see cref="ConfigService"/> 的自动保存订阅。
+        /// 不支持程序集内部事务协议的自定义项还会使 <see cref="ConfigService.Reload"/> 预检失败。
         /// </summary>
         public List<IConfigEntry> Table { get; private set; }
         /// <summary>
-        /// 与该运行时表对应的文件表模型。
+        /// 与该运行时表对应的活动文件表模型；配置重载提交成功后会替换为新文件模型中的实例。
         /// </summary>
         public ConfigFileTable FileTable { get; private set; }
 
@@ -64,6 +67,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 按绑定顺序追加配置项；<c>null</c> 输入会被忽略。
+        /// 该低级入口只修改运行时列表，不负责文件模型、自动保存订阅或重载能力；正常声明配置项应使用 <see cref="ConfigService.Bind{T}"/>。
         /// </summary>
         /// <param name="entry">待追加的运行时配置项。</param>
         public void Add(IConfigEntry entry)
@@ -71,6 +75,17 @@ namespace UnityModBase.HConfigSpace
             if (entry == null)
                 return;
             Table.Add(entry);
+        }
+
+        /// <summary>
+        /// 将运行时表切换到重新读取后的文件表模型。
+        /// 该方法只供配置重载事务在静默提交和回滚阶段使用。
+        /// </summary>
+        /// <param name="table">新的活动文件表模型。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="table"/> 为 <c>null</c>。</exception>
+        internal void RebindFileTable(ConfigFileTable table)
+        {
+            FileTable = table ?? throw new ArgumentNullException(nameof(table));
         }
 
         /// <summary>

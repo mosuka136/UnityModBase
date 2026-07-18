@@ -95,6 +95,33 @@ namespace UnityModBase.Test.BSpace
             Assert.Equal(new[] { scope.SentinelFrameUpdateHandler }, scope.GetFrameUpdateHandlers());
         }
 
+        [Fact]
+        public void ReloadConfig_WhenReloadSucceeds_LogsSuccessAtInfoLevel()
+        {
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+
+            scope.ReloadConfig();
+
+            var log = Assert.Single(scope.LogDatabase.Logs.Where(log => log.Message == "Config file reloaded."));
+            Assert.Equal(LogLevel.Info, log.Level);
+            Assert.DoesNotContain(scope.LogDatabase.Logs, log => log.Message == "Failed to reload config file.");
+        }
+
+        [Fact]
+        public void ReloadConfig_WhenReloadFails_LogsFailureAtErrorLevel()
+        {
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            File.WriteAllText(scope.ConfigFilePath, string.Empty);
+
+            scope.ReloadConfig();
+
+            var log = Assert.Single(scope.LogDatabase.Logs.Where(log => log.Message == "Failed to reload config file."));
+            Assert.Equal(LogLevel.Error, log.Level);
+            Assert.DoesNotContain(scope.LogDatabase.Logs, log => log.Message == "Config file reloaded.");
+        }
+
         private sealed class BConfigManagerStateScope : IDisposable
         {
             private static readonly Type BConfigManagerType = typeof(BConfigManager);
@@ -104,6 +131,7 @@ namespace UnityModBase.Test.BSpace
             private static readonly FieldInfo FrameUpdateHandlersField = GetRequiredField(typeof(FrameUpdateManager), nameof(FrameUpdateManager.OnFrameUpdate));
             private static readonly FieldInfo DefaultLanguageField = GetRequiredField(typeof(Translator), "_defaultLanguage");
             private static readonly FieldInfo DefaultLanguageHandlersField = GetRequiredField(typeof(Translator), nameof(Translator.OnDefaultLanguageChanged));
+            private static readonly MethodInfo ReloadConfigMethod = GetRequiredMethod(BConfigManagerType, "ReloadConfig");
             private static readonly PropertyInfo[] StaticProperties =
             {
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.Config)),
@@ -147,6 +175,7 @@ namespace UnityModBase.Test.BSpace
             public string ConfigFilePath { get; private set; }
             public string AlternateConfigFilePath => Path.Combine(_tempDirectory, "alternate.cfg");
             public Action SentinelFrameUpdateHandler { get; private set; }
+            public LogDatabase LogDatabase => _testContext.Service.LogDatabase;
 
             public static BConfigManagerStateScope Create()
             {
@@ -189,6 +218,11 @@ namespace UnityModBase.Test.BSpace
             public bool IsInitialized()
             {
                 return (bool)InitializedField.GetValue(null);
+            }
+
+            public void ReloadConfig()
+            {
+                ReloadConfigMethod.Invoke(null, null);
             }
 
             public Action[] GetFrameUpdateHandlers()
@@ -272,6 +306,17 @@ namespace UnityModBase.Test.BSpace
                 }
 
                 return property;
+            }
+
+            private static MethodInfo GetRequiredMethod(Type type, string methodName)
+            {
+                var method = type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static);
+                if (method == null)
+                {
+                    throw new InvalidOperationException($"Method '{methodName}' was not found on {type.FullName}.");
+                }
+
+                return method;
             }
         }
     }
