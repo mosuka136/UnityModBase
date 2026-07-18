@@ -8,20 +8,23 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HLogSpace
 {
     /// <summary>
-    /// 保存进程内日志快照，为新日志分配序号，并把内容等价的日志合并为重复计数。
-    /// 容量超过 <see cref="MaxLogCount"/> 时移除队首条目；文件输出由订阅此数据库的 <see cref="LogWriter"/> 负责。
+    /// 维护进程内的有界日志集合，为新日志分配序号，并把内容等价的条目合并为重复计数。
+    /// 本类只管理内存状态及变更通知；文件持久化由订阅数据库事件的 <see cref="LogWriter"/> 负责。
     /// </summary>
     /// <remarks>
-    /// 队列和序号分配支持并发追加，但重复项查找及 <see cref="LogEntry.RepeatCount"/> 更新不是原子事务；
-    /// 多线程同时写入内容等价的日志时，调用方不应依赖严格的合并次数或容量瞬时上限。
+    /// 条目查找与合并、容量淘汰、事件通知和队列清理由同一实例锁串行化；序号则通过原子递增分配。
+    /// 事件处理器在持有该锁时同步执行，不应长时间阻塞，也不应等待需要写入同一数据库的其他线程。
+    /// <see cref="Dispose"/> 只复位状态而不终止实例；生命周期所有者仍应避免将其与详细参数重载的日志写入并发调用。
     /// </remarks>
     public class LogDatabase : IDisposable
     {
         /// <summary>
-        /// 正常追加路径保留的目标日志条数上限。
+        /// 新增非重复日志后保留的条目数上限；重复日志只累加计数，不占用新条目。
         /// </summary>
         public const int MaxLogCount = 500;
 
+        // 保护重复项合并、容量淘汰、事件顺序和释放清理，避免并发追加等价日志时生成多个主条目。
+        private readonly object _lock = new object();
         private int _seq = 0;
         private readonly ConcurrentQueue<LogEntry> _logs = new ConcurrentQueue<LogEntry>();
 
@@ -31,7 +34,8 @@ namespace UnityModBase.HLogSpace
         public IReadOnlyList<LogEntry> Logs => _logs.ToArray();
 
         /// <summary>
-        /// 通过详细参数重载创建过的日志序号；直接传入 <see cref="LogEntry"/> 不会更新该值。
+        /// 详细参数重载最近分配的日志序号；初始值及释放复位值为 <c>0</c>。
+        /// 直接传入 <see cref="LogEntry"/> 不会更新该值。
         /// </summary>
         public int Seq => _seq;
 
@@ -41,17 +45,17 @@ namespace UnityModBase.HLogSpace
         public UnityProvider UnityService { get; }
 
         /// <summary>
-        /// 新的非重复日志入队后触发。
+        /// 新的非重复日志入队且完成容量淘汰后同步触发。
         /// </summary>
         public event Action<LogEntry> OnLogAdded;
 
         /// <summary>
-        /// 因容量限制或释放而移除日志时触发。
+        /// 因容量限制或释放而移除日志时同步触发。
         /// </summary>
         public event Action<LogEntry> OnLogRemoved;
 
         /// <summary>
-        /// 内容等价的日志合并到已有条目后触发，参数为已更新的原条目。
+        /// 内容等价的日志合并到已有条目后同步触发，参数为已更新的首个匹配条目。
         /// </summary>
         public event Action<LogEntry> OnLogRepeated;
 
@@ -65,51 +69,59 @@ namespace UnityModBase.HLogSpace
         }
 
         /// <summary>
-        /// 添加已有日志条目。<c>null</c> 按空操作处理；等价条目会合并到队列中首个匹配项，而不触发新增事件。
-        /// 单个事件订阅者抛出的异常会被忽略，后续订阅者仍会执行。
+        /// 添加已有日志条目。等价条目会合并到队列中首个匹配项，并累加重复次数；
+        /// 新条目导致超容量时，会先移除最早条目，再通知新增事件。
         /// </summary>
-        /// <param name="log">要添加或合并的日志条目。</param>
+        /// <param name="log">要添加或合并的日志条目，不能为 <c>null</c>。</param>
+        /// <remarks>
+        /// 查找、合并、入队、容量淘汰和相关事件通知在同一临界区内完成。
+        /// 单个事件订阅者抛出的异常会被忽略，后续订阅者仍会执行。
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="log"/> 为 <c>null</c>。</exception>
         public void AddLog(LogEntry log)
         {
             if (log == null)
-                return;
+                throw new ArgumentNullException(nameof(log));
 
-            var repeatLog = _logs.Where(l => l.Equals(log));
-            if (repeatLog.Any())
+            lock (_lock)
             {
-                var mainLog = repeatLog.First();
-
-                foreach (var l in repeatLog.Skip(1))
-                    mainLog.RepeatCount += l.RepeatCount;
-
-                mainLog.LastRepeatTime = log.Timestamp;
-                mainLog.RepeatCount += log.RepeatCount;
-
-                foreach (var handler in OnLogRepeated.GetInvocationListOrEmpty())
+                var repeatLog = _logs.Where(l => l.Equals(log));
+                if (repeatLog.Any())
                 {
-                    try { handler?.Invoke(mainLog); }
-                    catch { }
+                    var mainLog = repeatLog.First();
+
+                    foreach (var l in repeatLog.Skip(1))
+                        mainLog.RepeatCount += l.RepeatCount;
+
+                    mainLog.LastRepeatTime = log.Timestamp;
+                    mainLog.RepeatCount += log.RepeatCount;
+
+                    foreach (var handler in OnLogRepeated.GetInvocationListOrEmpty())
+                    {
+                        try { handler?.Invoke(mainLog); }
+                        catch { }
+                    }
+
+                    return;
                 }
 
-                return;
-            }
+                _logs.Enqueue(log);
 
-            _logs.Enqueue(log);
-
-            if (_logs.Count > MaxLogCount)
-            {
-                _logs.TryDequeue(out var removedLog);
-                foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
+                if (_logs.Count > MaxLogCount)
                 {
-                    try { handler?.Invoke(removedLog); }
+                    _logs.TryDequeue(out var removedLog);
+                    foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
+                    {
+                        try { handler?.Invoke(removedLog); }
+                        catch { }
+                    }
+                }
+
+                foreach (var handler in OnLogAdded.GetInvocationListOrEmpty())
+                {
+                    try { handler?.Invoke(log); }
                     catch { }
                 }
-            }
-
-            foreach (var handler in OnLogAdded.GetInvocationListOrEmpty())
-            {
-                try { handler?.Invoke(log); }
-                catch { }
             }
         }
 
@@ -122,6 +134,10 @@ namespace UnityModBase.HLogSpace
         /// <param name="member">调用成员名；<c>null</c> 会规范化为空字符串。</param>
         /// <param name="file">调用源文件路径；<c>null</c> 会规范化为空字符串。</param>
         /// <param name="line">调用源文件行号；<c>0</c> 表示未提供。</param>
+        /// <remarks>
+        /// 序号在进入 <see cref="AddLog(LogEntry)"/> 的写入临界区前分配；
+        /// 请勿与 <see cref="Dispose"/> 并发调用，否则复位前构造的条目可能在复位后入队，且序号可能被重新使用。
+        /// </remarks>
         public void AddLog(LogLevel logLevel, string msg, Exception ex, string member, string file, int line)
         {
             var id = Interlocked.Increment(ref _seq);
@@ -181,28 +197,34 @@ namespace UnityModBase.HLogSpace
         public void Error(string msg, Exception ex, string member, string file, int line) => AddLog(LogLevel.Error, msg, ex, member, file, line);
 
         /// <summary>
-        /// 清空队列、把序号复位为 <c>0</c> 并移除全部事件订阅者。
-        /// 此方法不会把实例标记为终止状态，释放后仍可重新添加日志。
+        /// 在写入临界区内清空队列、把序号复位为 <c>0</c> 并移除全部事件订阅者。
+        /// 每个已存条目均会在出队后通知移除事件，订阅者异常不会中断后续清理。
         /// </summary>
-        /// <remarks>应避免与并发写入交错；复位序号和清空队列不是相对于 <see cref="AddLog(LogLevel, string, Exception, string, string, int)"/> 的原子操作。</remarks>
+        /// <remarks>
+        /// 此方法不会把实例标记为终止状态，释放后仍可重新添加日志。
+        /// 队列清理与 <see cref="AddLog(LogEntry)"/> 串行执行，但详细参数重载会在取得该锁前分配序号，因此仍不应与本方法并发调用。
+        /// </remarks>
         public void Dispose()
         {
-            try
+            lock (_lock)
             {
-                _seq = 0;
-                while (_logs.TryDequeue(out var log))
+                try
                 {
-                    foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
+                    _seq = 0;
+                    while (_logs.TryDequeue(out var log))
                     {
-                        try { handler?.Invoke(log); }
-                        catch { }
+                        foreach (var handler in OnLogRemoved.GetInvocationListOrEmpty())
+                        {
+                            try { handler?.Invoke(log); }
+                            catch { }
+                        }
                     }
+                    OnLogAdded = null;
+                    OnLogRemoved = null;
+                    OnLogRepeated = null;
                 }
-                OnLogAdded = null;
-                OnLogRemoved = null;
-                OnLogRepeated = null;
+                catch { }
             }
-            catch { }
         }
     }
 }

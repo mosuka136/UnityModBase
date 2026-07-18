@@ -5,7 +5,7 @@ namespace UnityModBase.Test.HLogSpace
     public class LogDatabaseTests
     {
         [Fact]
-        public void AddLog_WhenLogIsNull_DoesNotChangeDatabaseOrRaiseEvent()
+        public void AddLog_WhenLogIsNull_ThrowsAndDoesNotChangeDatabaseOrRaiseEvent()
         {
             // Arrange
             using var database = new LogDatabase(null);
@@ -13,9 +13,10 @@ namespace UnityModBase.Test.HLogSpace
             database.OnLogAdded += _ => addedCount++;
 
             // Act
-            database.AddLog((LogEntry)null);
+            var exception = Assert.Throws<ArgumentNullException>(() => database.AddLog((LogEntry)null));
 
             // Assert
+            Assert.Equal("log", exception.ParamName);
             Assert.Empty(database.Logs);
             Assert.Equal(0, addedCount);
         }
@@ -137,6 +138,28 @@ namespace UnityModBase.Test.HLogSpace
             Assert.Equal(logCount, logs.Count);
             Assert.Equal(logCount, ids.Distinct().Count());
             Assert.Equal(Enumerable.Range(1, logCount), ids);
+        }
+
+        [Fact]
+        public void AddLog_WhenEquivalentLogsAreAddedConcurrently_MergesEveryOccurrence()
+        {
+            // Arrange
+            using var database = new LogDatabase(null);
+            const int logCount = 200;
+            var addedCount = 0;
+            var repeatedCount = 0;
+            database.OnLogAdded += _ => addedCount++;
+            database.OnLogRepeated += _ => repeatedCount++;
+
+            // Act
+            Parallel.For(0, logCount, index =>
+                database.AddLog(CreateLog(index + 1, "repeated")));
+
+            // Assert
+            var log = Assert.Single(database.Logs);
+            Assert.Equal(logCount, log.RepeatCount);
+            Assert.Equal(1, addedCount);
+            Assert.Equal(logCount - 1, repeatedCount);
         }
 
         [Theory]
