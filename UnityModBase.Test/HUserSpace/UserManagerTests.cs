@@ -1,5 +1,5 @@
 using System.Reflection;
-using UnityModBase.HLogSpace;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HUserSpace
@@ -10,33 +10,27 @@ namespace UnityModBase.Test.HUserSpace
             .GetField("_userContexts", BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly FieldInfo OnUserRegisteredField = typeof(UserManager)
             .GetField(nameof(UserManager.OnUserRegistered), BindingFlags.NonPublic | BindingFlags.Static);
-        private static readonly FieldInfo OnLogWriterRegisteredField = typeof(UserManager)
-            .GetField(nameof(UserManager.OnLogWriterRegistered), BindingFlags.NonPublic | BindingFlags.Static);
-        private static readonly FieldInfo OnConfigRegisteredField = typeof(UserManager)
-            .GetField(nameof(UserManager.OnConfigRegistered), BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly FieldInfo OnConfigChangedField = typeof(UserManager)
+            .GetField(nameof(UserManager.OnConfigChanged), BindingFlags.NonPublic | BindingFlags.Static);
 
         private readonly Dictionary<string, UserContext> _originalContexts;
         private readonly Action<UserContext> _originalUserRegisteredHandlers;
-        private readonly Action<UserContext> _originalLogWriterRegisteredHandlers;
-        private readonly Action<UserContext> _originalConfigRegisteredHandlers;
+        private readonly Action<UserContext> _originalConfigChangedHandlers;
         private readonly List<string> _tempDirectories = new List<string>();
 
         public UserManagerTests()
         {
             Assert.NotNull(UserContextsField);
             Assert.NotNull(OnUserRegisteredField);
-            Assert.NotNull(OnLogWriterRegisteredField);
-            Assert.NotNull(OnConfigRegisteredField);
+            Assert.NotNull(OnConfigChangedField);
 
             var contexts = GetContexts();
             _originalContexts = contexts.ToDictionary(pair => pair.Key, pair => pair.Value);
             _originalUserRegisteredHandlers = (Action<UserContext>)OnUserRegisteredField.GetValue(null);
-            _originalLogWriterRegisteredHandlers = (Action<UserContext>)OnLogWriterRegisteredField.GetValue(null);
-            _originalConfigRegisteredHandlers = (Action<UserContext>)OnConfigRegisteredField.GetValue(null);
+            _originalConfigChangedHandlers = (Action<UserContext>)OnConfigChangedField.GetValue(null);
             contexts.Clear();
             OnUserRegisteredField.SetValue(null, null);
-            OnLogWriterRegisteredField.SetValue(null, null);
-            OnConfigRegisteredField.SetValue(null, null);
+            OnConfigChangedField.SetValue(null, null);
         }
 
         public void Dispose()
@@ -52,8 +46,7 @@ namespace UnityModBase.Test.HUserSpace
             foreach (var pair in _originalContexts)
                 contexts.Add(pair.Key, pair.Value);
             OnUserRegisteredField.SetValue(null, _originalUserRegisteredHandlers);
-            OnLogWriterRegisteredField.SetValue(null, _originalLogWriterRegisteredHandlers);
-            OnConfigRegisteredField.SetValue(null, _originalConfigRegisteredHandlers);
+            OnConfigChangedField.SetValue(null, _originalConfigChangedHandlers);
 
             foreach (var directory in _tempDirectories)
             {
@@ -167,53 +160,30 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void Register_WhenConfigRegistered_ForwardsCorrectContextAndInvokesRemainingHandlersAfterFailure()
+        public void Register_WhenConfigChanges_ForwardsCorrectContextAndInvokesRemainingHandlersAfterFailure()
         {
             // Arrange
             UserManager.Register("other", "Other");
             var expected = UserManager.Register("user", "Name");
-            var failingHandlerCalled = false;
-            UserContext received = null;
-            UserManager.OnConfigRegistered += _ =>
-            {
-                failingHandlerCalled = true;
-                throw new InvalidOperationException("handler failure");
-            };
-            UserManager.OnConfigRegistered += context => received = context;
             var configPath = Path.Combine(CreateTempDirectory(), "settings.cfg");
-
-            // Act
             expected.Service.RegisterConfig(typeof(TestConfigManager), configPath);
-
-            // Assert
-            Assert.True(failingHandlerCalled);
-            Assert.Same(expected, received);
-            Assert.Equal(configPath, expected.Service.Config.FilePath);
-        }
-
-        [Fact]
-        public void Register_WhenLogWriterRegistered_ForwardsCorrectContextAndInvokesRemainingHandlersAfterFailure()
-        {
-            // Arrange
-            UserManager.Register("other", "Other");
-            var expected = UserManager.Register("user", "Name");
             var failingHandlerCalled = false;
             UserContext received = null;
-            UserManager.OnLogWriterRegistered += _ =>
+            UserManager.OnConfigChanged += _ =>
             {
                 failingHandlerCalled = true;
                 throw new InvalidOperationException("handler failure");
             };
-            UserManager.OnLogWriterRegistered += context => received = context;
-            var logDirectory = CreateTempDirectory();
+            UserManager.OnConfigChanged += context => received = context;
 
             // Act
-            expected.Service.RegisterLog(logDirectory, "service.log", LogLevel.Debug);
+            expected.Service.Config.CreateTable("TestTable", new Translator("测试表", "Test Table"));
 
             // Assert
             Assert.True(failingHandlerCalled);
             Assert.Same(expected, received);
-            Assert.NotNull(expected.Service.LogWriter);
+            Assert.True(expected.Service.Config.Sheet.Contains("TestTable"));
+            Assert.Equal(configPath, expected.Service.Config.FilePath);
         }
 
         [Fact]
@@ -258,8 +228,7 @@ namespace UnityModBase.Test.HUserSpace
             var child = new TrackingContext();
             context.AddChildContext("child", child);
             UserManager.OnUserRegistered += _ => { };
-            UserManager.OnLogWriterRegistered += _ => { };
-            UserManager.OnConfigRegistered += _ => { };
+            UserManager.OnConfigChanged += _ => { };
 
             // Act
             UserManager.Dispose();
@@ -268,8 +237,7 @@ namespace UnityModBase.Test.HUserSpace
             Assert.True(child.IsDisposed);
             Assert.Empty(UserManager.UserContexts);
             Assert.Null(OnUserRegisteredField.GetValue(null));
-            Assert.Null(OnLogWriterRegisteredField.GetValue(null));
-            Assert.Null(OnConfigRegisteredField.GetValue(null));
+            Assert.Null(OnConfigChangedField.GetValue(null));
         }
 
         private string CreateTempDirectory()

@@ -62,6 +62,75 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void CreateTableAndBind_WhenStructureChanges_RaisesEventsWithCommittedSnapshots()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            using var manager = new ConfigService(tempPath);
+            var observedEntryCounts = new List<int>();
+            manager.OnConfigChanged += () =>
+                observedEntryCounts.Add(manager.Sheet["TestTable"].Table.Count);
+
+            // Act
+            manager.CreateTable("TestTable", new Translator("测试表", "Test Table"));
+            manager.Bind(
+                "TestTable",
+                "TestKey",
+                42,
+                new Translator("测试项", "Test Entry"),
+                new Translator("描述", "Description"));
+
+            // Assert
+            Assert.Equal(new[] { 0, 1 }, observedEntryCounts);
+        }
+
+        [Fact]
+        public void CreateTable_WhenConfigChangedHandlerThrows_InvokesRemainingHandlers()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            using var manager = new ConfigService(tempPath);
+            var remainingHandlerCalled = false;
+            manager.OnConfigChanged += () => throw new InvalidOperationException("handler failure");
+            manager.OnConfigChanged += () =>
+                remainingHandlerCalled = manager.Sheet.Contains("TestTable");
+
+            // Act
+            var exception = Record.Exception(() =>
+                manager.CreateTable("TestTable", new Translator("测试表", "Test Table")));
+
+            // Assert
+            Assert.Null(exception);
+            Assert.True(remainingHandlerCalled);
+        }
+
+        [Fact]
+        public void Reload_WhenSuccessful_RaisesEventAfterUpdatedSnapshotIsCommitted()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 1\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "Test Table"));
+            var entry = manager.Bind(
+                "TestTable",
+                "TestKey",
+                0,
+                new Translator("测试项", "Test Entry"),
+                new Translator("描述", "Description"));
+            var observedValues = new List<int>();
+            manager.OnConfigChanged += () => observedValues.Add(entry.Value);
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 10\n");
+
+            // Act
+            var result = manager.Reload();
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal(new[] { 10 }, observedValues);
+        }
+
+        [Fact]
         public void Read_WhenFileHasDecodeErrors_ReturnsTrueAndKeepsDecodedSheet()
         {
             var tempPath = CreateTempConfigPath();
@@ -80,7 +149,7 @@ namespace UnityModBase.Test.HConfigSpace
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[Table]\nKey=Value");
             var manager = new ConfigService(tempPath);
-            
+
             using (var stream = File.Open(tempPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
             {
                 var result = manager.Read();
@@ -135,7 +204,7 @@ namespace UnityModBase.Test.HConfigSpace
         {
             var tempPath = CreateTempConfigPath();
             var manager = new ConfigService(tempPath);
-            
+
             using (var stream = File.Open(tempPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
             {
                 var result = manager.Write();
@@ -191,7 +260,7 @@ namespace UnityModBase.Test.HConfigSpace
             var tableName = new Translator("表名", "TableName");
             var invalidTableKey = "Invalid-Table!";
 
-            var exception = Assert.Throws<InvalidOperationException>(() => 
+            var exception = Assert.Throws<InvalidOperationException>(() =>
                 manager.CreateTable(invalidTableKey, tableName));
 
             Assert.Contains("Failed to create config table", exception.Message);

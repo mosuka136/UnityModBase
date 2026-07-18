@@ -1,6 +1,7 @@
 using System.Reflection;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HUserSpace
@@ -172,55 +173,41 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void RegisterLog_WhenHandlerThrows_InvokesRemainingHandlersAndRecordsFailure()
+        public void OnConfigChanged_SubscribedBeforeConfigRegistration_ForwardsLaterChanges()
         {
-            var directory = CreateTempDirectory();
             using var service = new UserService("user");
-            var database = new LogDatabase(null);
-            SetLogDatabase(service, database);
-            var failingHandlerCalled = false;
-            LogWriter received = null;
-            service.OnLogWriterRegister += _ =>
-            {
-                failingHandlerCalled = true;
-                throw new InvalidOperationException("handler failure");
-            };
-            service.OnLogWriterRegister += writer => received = writer;
+            var path = Path.Combine(CreateTempDirectory(), "settings.cfg");
+            var invocationCount = 0;
+            service.OnConfigChanged += () => invocationCount++;
 
-            service.RegisterLog(directory, "service.log", LogLevel.Debug);
+            service.RegisterConfig(typeof(TestConfigManager), path);
+            service.Config.CreateTable("TestTable", new Translator("测试表", "Test Table"));
 
-            Assert.True(failingHandlerCalled);
-            Assert.Same(service.LogWriter, received);
-            var error = Assert.Single(database.Logs);
-            Assert.Equal(LogLevel.Error, error.Level);
-            Assert.Contains(nameof(service.OnLogWriterRegister), error.Message, StringComparison.Ordinal);
-            Assert.IsType<InvalidOperationException>(error.Exception);
+            Assert.Equal(1, invocationCount);
         }
 
         [Fact]
-        public void RegisterConfig_WhenHandlerThrows_InvokesRemainingHandlersAndRecordsFailure()
+        public void OnConfigChanged_WhenHandlerThrows_InvokesRemainingHandlersWithUpdatedConfig()
         {
             using var service = new UserService("user");
-            var database = new LogDatabase(null);
-            SetLogDatabase(service, database);
             var path = Path.Combine(CreateTempDirectory(), "settings.cfg");
+            service.RegisterConfig(typeof(TestConfigManager), path);
             var failingHandlerCalled = false;
-            ConfigService received = null;
-            service.OnConfigRegister += _ =>
+            var remainingHandlerCalled = false;
+            service.OnConfigChanged += () =>
             {
                 failingHandlerCalled = true;
                 throw new InvalidOperationException("handler failure");
             };
-            service.OnConfigRegister += config => received = config;
+            service.OnConfigChanged += () =>
+                remainingHandlerCalled = service.Config.Sheet.Contains("TestTable");
 
-            service.RegisterConfig(typeof(TestConfigManager), path);
+            var exception = Record.Exception(() =>
+                service.Config.CreateTable("TestTable", new Translator("测试表", "Test Table")));
 
+            Assert.Null(exception);
             Assert.True(failingHandlerCalled);
-            Assert.Same(service.Config, received);
-            var error = Assert.Single(database.Logs);
-            Assert.Equal(LogLevel.Error, error.Level);
-            Assert.Contains(nameof(service.OnConfigRegister), error.Message, StringComparison.Ordinal);
-            Assert.IsType<InvalidOperationException>(error.Exception);
+            Assert.True(remainingHandlerCalled);
         }
 
         private string CreateTempDirectory()

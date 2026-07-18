@@ -10,11 +10,25 @@ namespace UnityModBase.HConfigSpace
     /// 管理单个配置文件与运行时配置表之间的绑定关系。
     /// 该类型负责读取/写入文件、创建表项、把磁盘上的 <see cref="ConfigFileEntry"/> 重新绑定到运行时 <see cref="ConfigEntry{T}"/>。
     /// 它不负责 UI 展示和具体配置项声明；这些职责分别由配置 GUI 与 <c>ConfigManager</c> 承担。
-    /// 重载的回滚边界止于事件发布前；事件副作用和最终磁盘写入不属于可回滚范围。
+    /// 重载的回滚边界止于事件发布前；配置项变化事件、配置模型变化事件及最终磁盘写入不属于可回滚范围。
     /// 文件模型、运行时模型和磁盘 IO 均不提供并发保护；创建、绑定、重载、保存及释放必须由调用方串行化。
     /// </summary>
     public class ConfigService : IDisposable
     {
+        /// <summary>
+        /// 文件模型成功读取、事务重载完成内存提交，以及运行时表或配置项声明成功后同步触发。
+        /// 该事件表示配置模型可能需要重新投影，不表示每次 <see cref="ConfigEntry{T}.Value"/> 赋值；
+        /// 需要监听单项值变化时应订阅对应配置项的变化事件。
+        /// </summary>
+        /// <remarks>
+        /// <see cref="Read"/> 在替换 <see cref="FileSheet"/> 后触发，但不会自动重绑定现有 <see cref="Sheet"/>；
+        /// <see cref="Reload"/> 在全部计划提交和单项事件发布后、最终写盘前触发。
+        /// <see cref="CreateTable"/> 成功返回时始终触发，包括运行时表已经存在且未新增结构的情况。
+        /// 构造函数中的首次 <see cref="Read"/> 在实例可供外部订阅前完成，不能用作服务创建通知。
+        /// 订阅者在发起操作的线程上按登记顺序同步执行；单个订阅者异常只记录日志，不影响调用操作的成功状态。
+        /// </remarks>
+        public event Action OnConfigChanged;
+
         /// <summary>
         /// 控制配置项赋值后是否立即写回文件。
         /// 启用后，绑定项的值变化会在赋值线程上同步执行完整文件写入；批量初始化或重载期间应临时关闭，避免重复 IO。
@@ -55,6 +69,7 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 从 <see cref="FilePath"/> 读取并解析配置文件；只有结果携带有效模型时才替换 <see cref="FileSheet"/>。
         /// 文件不存在时使用空模型；可恢复的解析诊断会记录，解析器返回的部分模型仍会生效。
+        /// 模型替换完成后会同步触发 <see cref="OnConfigChanged"/>。
         /// </summary>
         /// <returns>
         /// 获得有效文件模型时返回 <c>true</c>；文件 IO、解析入口或结果处理失败时记录诊断并返回 <c>false</c>。
@@ -74,6 +89,7 @@ namespace UnityModBase.HConfigSpace
                 if (sheetResult.Success)
                 {
                     FileSheet = sheetResult.Value;
+                    InvokeOnConfigChanged();
                     return true;
                 }
                 else
@@ -183,8 +199,10 @@ namespace UnityModBase.HConfigSpace
         /// 但会保留在新文件模型中并随最终写入输出。
         /// 准备失败不会改变活动绑定；提交失败会按逆序尝试回滚，若回滚本身抛出异常则记录后继续处理其余计划。
         /// 因此回滚是尽力而为：发生回滚异常时，<see cref="FileSheet"/> 仍保留旧实例，但个别运行时表或配置项可能停留在部分提交状态。
-        /// 事件发布或最终写入失败时，已经完整提交的内存状态不会回滚。
+        /// 单项事件发布或最终写入失败时，已经完整提交的内存状态不会回滚。
         /// 事件处理器在发布阶段产生的配置赋值会更新新文件模型，并包含在本次最终写入中。
+        /// <see cref="OnConfigChanged"/> 在单项事件发布完成后、最终写入前触发；其订阅者异常会被隔离，
+        /// 但订阅者对配置的修改会包含在本次最终写入中。
         /// 与允许采用可恢复部分模型的 <see cref="Read"/> 不同，整表解析返回任何诊断都会在候选模型生效前拒绝本次重载，
         /// 包括“成功且含诊断”的结果。
         /// <see cref="ConfigEntry{T}"/> 会隔离并记录单个订阅者异常，因此这类异常不影响本方法的返回值。
@@ -311,6 +329,8 @@ namespace UnityModBase.HConfigSpace
                     }
                 }
 
+                InvokeOnConfigChanged();
+
                 return Save() && publishSucceeded;
             }
             catch (Exception ex)
@@ -328,6 +348,7 @@ namespace UnityModBase.HConfigSpace
         /// 绑定一个强类型配置项；如果文件中不存在该项，则使用默认值创建。
         /// 每次调用都会在运行时表中追加一个新绑定并订阅自动保存，调用方应确保同一表键和配置项键只绑定一次。
         /// 调用前必须先通过 <see cref="CreateTable"/> 建立对应的运行时表。
+        /// 新绑定加入运行时表后会同步触发 <see cref="OnConfigChanged"/>。
         /// </summary>
         /// <typeparam name="T">配置值类型，必须能被 <see cref="ConfigFileEntry"/> 编码和解码。</typeparam>
         /// <param name="tableKey">已有配置表键名。</param>
@@ -385,12 +406,14 @@ namespace UnityModBase.HConfigSpace
             result.OnValueChangedBase += OnConfigEntryChanged;
 
             Sheet[tableKey].Add(result);
+            InvokeOnConfigChanged();
             return result;
         }
 
         /// <summary>
         /// 声明一个配置表；文件中不存在时会创建对应表结构。
         /// 已存在于运行时模型的表会直接保留原元数据；只存在于文件模型的表会在首次声明时建立运行时绑定并同步本次元数据。
+        /// 成功路径均会同步触发 <see cref="OnConfigChanged"/>，因此调用方不能把该事件次数等同于新增表数量。
         /// </summary>
         /// <param name="tableKey">表键名，只允许 Unicode 字母、数字和下划线。</param>
         /// <param name="tableName">运行时展示名称。</param>
@@ -403,6 +426,7 @@ namespace UnityModBase.HConfigSpace
             {
                 if (!Sheet.Contains(tableKey))
                     Sheet.Add(tableKey, new ConfigTable(tableKey, tableResult.Value, tableName, description));
+                InvokeOnConfigChanged();
                 return;
             }
 
@@ -423,6 +447,7 @@ namespace UnityModBase.HConfigSpace
             }
 
             Sheet.Add(tableKey, new ConfigTable(tableKey, newTableResult.Value, tableName, description));
+            InvokeOnConfigChanged();
         }
 
         /// <summary>
@@ -435,7 +460,7 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 取消所有自动保存事件订阅并释放对文件模型和运行时模型的引用。
+        /// 取消所有自动保存和配置模型变化事件订阅，并释放对文件模型和运行时模型的引用。
         /// 该操作不会隐式保存；可重复调用，但释放后的服务不应继续用于读取、绑定或写入。
         /// </summary>
         public void Dispose()
@@ -448,6 +473,7 @@ namespace UnityModBase.HConfigSpace
 
             FileSheet = null;
             Sheet = null;
+            OnConfigChanged = null;
         }
 
         private void OnConfigEntryChanged(object sender, EventArgs args)
@@ -455,6 +481,22 @@ namespace UnityModBase.HConfigSpace
             // 赋值和事件在到达此处前已经完成；自动保存失败只由 Write 记录，不回滚内存值，也不向事件调用方抛出。
             if (SaveOnConfigSet)
                 Write();
+        }
+
+        private void InvokeOnConfigChanged()
+        {
+            // 配置维护操作不能因界面投影等单个观察者失败而中断，因此逐个隔离订阅者异常。
+            foreach (var handler in OnConfigChanged.GetInvocationListOrEmpty())
+            {
+                try
+                {
+                    handler.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    BLog.Error($"Error invoking {nameof(OnConfigChanged)} handler.", ex);
+                }
+            }
         }
     }
 }

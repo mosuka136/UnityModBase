@@ -8,7 +8,7 @@ using UnityModBase.HLogSpace;
 namespace UnityModBase.HUserSpace
 {
     /// <summary>
-    /// 维护进程级用户上下文注册表，并把各用户服务的配置和日志注册事件转换为带用户身份的全局事件。
+    /// 维护进程级用户上下文注册表，并把用户注册及配置模型变化转换为带用户身份的全局事件。
     /// 它不负责持久化用户信息；<see cref="Dispose"/> 会释放并移除当前进程中的全部注册项。
     /// </summary>
     /// <remarks>
@@ -24,14 +24,16 @@ namespace UnityModBase.HUserSpace
         public static event Action<UserContext> OnUserRegistered;
 
         /// <summary>
-        /// 任一经 <see cref="Register"/> 创建的用户替换日志写入器后触发，参数为对应用户上下文。
+        /// 已接线用户的当前配置服务触发 <see cref="ConfigService.OnConfigChanged"/> 时同步转发，
+        /// 参数为拥有该服务的用户上下文；单个订阅者异常只记录日志。
         /// </summary>
-        public static event Action<UserContext> OnLogWriterRegistered;
-
-        /// <summary>
-        /// 任一经 <see cref="Register"/> 创建的用户注册配置服务后触发，参数为对应用户上下文。
-        /// </summary>
-        public static event Action<UserContext> OnConfigRegistered;
+        /// <remarks>
+        /// 转发接线仅由 <see cref="Register"/> 建立；<see cref="CreateUser"/> 创建的上下文不参与转发。
+        /// <see cref="Register"/> 会在配置服务创建前登记转发处理器，因此后续首次注册及替换配置服务时均会挂接；
+        /// 但配置服务构造期间的首次文件读取早于实际挂接，不会产生全局通知。
+        /// <see cref="Dispose"/> 会清空本事件的全局订阅者。
+        /// </remarks>
+        public static event Action<UserContext> OnConfigChanged;
 
         /// <summary>
         /// 当前注册表键的实时视图；注册表变化期间枚举可能失效，不是快照。
@@ -65,11 +67,15 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 创建用户并接入全局服务事件。标识为空时自动生成，冲突时追加随机后缀而不复用已有上下文。
+        /// 创建用户并预先接入配置模型变化转发。标识为空时自动生成，冲突时追加随机后缀而不复用已有上下文。
         /// </summary>
         /// <param name="userId">期望的用户标识；<c>null</c> 或空字符串表示自动生成。仅空白字符串不会被视为空。</param>
         /// <param name="name">显示名称；<c>null</c> 最终规范化为空字符串。</param>
-        /// <returns>新建并完成事件接线的用户上下文。</returns>
+        /// <returns>新建并登记到进程级注册表的用户上下文。</returns>
+        /// <remarks>
+        /// 新建上下文最初不包含配置服务；转发处理器由 <see cref="UserService.OnConfigChanged"/> 暂存，
+        /// 并在随后调用 <see cref="UserService.RegisterConfig(Type, string)"/> 时挂到新服务。
+        /// </remarks>
         public static UserContext Register(string userId, string name)
         {
             if (string.IsNullOrEmpty(userId))
@@ -81,8 +87,7 @@ namespace UnityModBase.HUserSpace
             var context = CreateUser(userId, name);
 
             var h = new ServiceEventHandler(context);
-            context.Service.OnLogWriterRegister += h.OnLogWriterRegisteredHandler;
-            context.Service.OnConfigRegister += h.OnConfigRegisteredHandler;
+            context.Service.OnConfigChanged += h.OnConfigChangedHandler;
 
             foreach (var handler in OnUserRegistered.GetInvocationListOrEmpty())
             {
@@ -99,6 +104,10 @@ namespace UnityModBase.HUserSpace
             return context;
         }
 
+        /// <summary>
+        /// 将配置服务不携带来源的模型变化事件转换为包含所属用户上下文的全局事件。
+        /// 实例由用户服务的事件订阅持有，生命周期与该订阅一致。
+        /// </summary>
         private sealed class ServiceEventHandler
         {
             private readonly UserContext _context;
@@ -108,9 +117,9 @@ namespace UnityModBase.HUserSpace
                 _context = context;
             }
 
-            internal void OnLogWriterRegisteredHandler(LogWriter writer)
+            internal void OnConfigChangedHandler()
             {
-                foreach (var handler in OnLogWriterRegistered.GetInvocationListOrEmpty())
+                foreach (var handler in OnConfigChanged.GetInvocationListOrEmpty())
                 {
                     try
                     {
@@ -118,29 +127,14 @@ namespace UnityModBase.HUserSpace
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("Error invoking OnLogWriterRegistered handler!", ex);
-                    }
-                }
-            }
-
-            internal void OnConfigRegisteredHandler(ConfigService config)
-            {
-                foreach (var handler in OnConfigRegistered.GetInvocationListOrEmpty())
-                {
-                    try
-                    {
-                        handler.Invoke(_context);
-                    }
-                    catch (Exception ex)
-                    {
-                        BLog.Error("Error invoking OnConfigRegistered handler!", ex);
+                        BLog.Error("Error invoking OnConfigChanged handler!", ex);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// 创建并登记用户上下文，但不接入 <see cref="OnLogWriterRegistered"/> 或 <see cref="OnConfigRegistered"/> 的转发。
+        /// 创建并登记用户上下文，但不接入 <see cref="OnUserRegistered"/> 通知或 <see cref="OnConfigChanged"/> 转发。
         /// 标识已存在时直接返回原上下文，忽略新的名称。
         /// </summary>
         /// <param name="userId">非 <c>null</c> 且非空字符串的用户标识；仅空白值会继续交由 <see cref="UserContext"/> 拒绝。</param>
@@ -195,7 +189,7 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 尽力释放全部用户上下文，清空注册表以及所有全局事件订阅者。
+        /// 尽力释放全部用户上下文，并清空注册表及两个全局事件的订阅者。
         /// 单个上下文释放失败不会阻止其余上下文的清理。
         /// </summary>
         public static void Dispose()
@@ -209,8 +203,7 @@ namespace UnityModBase.HUserSpace
                 }
                 _userContexts.Clear();
                 OnUserRegistered = null;
-                OnLogWriterRegistered = null;
-                OnConfigRegistered = null;
+                OnConfigChanged = null;
             }
             catch { }
         }

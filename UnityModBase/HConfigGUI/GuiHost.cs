@@ -16,8 +16,8 @@ namespace UnityModBase.HConfigGUI
 {
     /// <summary>
     /// 配置界面的 Unity 宿主组件。
-    /// 该组件在游戏启动后由 <see cref="GameBootRegistery"/> 创建，为每个已注册配置的用户挂载独立 GUI 上下文，
-    /// 并负责热键显隐、普通窗口与模态热键录制窗口的绘制，以及销毁时解除全局事件订阅。
+    /// 该组件在游戏启动后由 <see cref="GameBootRegistery"/> 创建，为用户挂载由其当前配置模型投影出的独立 GUI 上下文，
+    /// 并负责在配置模型变化后重建绑定树，以及处理热键显隐、普通窗口与模态热键录制窗口的绘制。
     /// 底层配置注册和持久化仍由用户服务与配置管理器负责。
     /// </summary>
     [RegisterOnGameBoot]
@@ -31,7 +31,8 @@ namespace UnityModBase.HConfigGUI
         public PopupEditor PopupEditor { get; private set; }
 
         /// <summary>
-        /// 初始化配置 GUI 依赖和窗口尺寸，为现有用户注册上下文，并订阅后续配置注册、语言及热键变更事件。
+        /// 初始化配置 GUI 依赖和窗口尺寸，为已有配置服务的用户注册上下文，并订阅后续配置模型、语言及热键变更事件。
+        /// 尚无配置服务的用户会在其配置模型首次发出变化通知时创建 GUI 上下文。
         /// 初始化失败时记录错误并销毁组件；<see cref="OnDestroy"/> 负责释放已完成的订阅。
         /// </summary>
         public override void Awake()
@@ -49,7 +50,7 @@ namespace UnityModBase.HConfigGUI
                 Users = UserManager.UserContexts;
                 foreach (var context in Users)
                     RegisterContext(context);
-                UserManager.OnConfigRegistered += RegisterContext;
+                UserManager.OnConfigChanged += OnConfigChanged;
                 CurrentContext = GetContext(_selectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
@@ -77,10 +78,14 @@ namespace UnityModBase.HConfigGUI
         }
 
         /// <summary>
-        /// 为用户当前配置结构创建绑定树和提示订阅，并以模块键挂载到该用户上下文。
-        /// 调用方应避免对同一用户重复注册同一模块键。
+        /// 为用户当前配置结构创建绑定树和提示订阅，并尝试以模块键挂载到该用户上下文。
+        /// 该方法不替换已有同键上下文；重复调用会保留原绑定树，因此不会刷新已经挂载的配置结构。
         /// </summary>
-        /// <param name="context">配置已注册的用户上下文。</param>
+        /// <param name="context">要投影当前配置结构的用户上下文；尚无配置服务时会创建空根节点。</param>
+        /// <remarks>
+        /// <see cref="UserContext.AddChildContext(string, IUserContext)"/> 拒绝同键项时，新建上下文不会取得生命周期所有权；
+        /// 调用方应避免在同一用户上重复调用，或在调用前显式处理旧上下文。
+        /// </remarks>
         public void RegisterContext(UserContext context)
         {
             if (context == null)
@@ -110,7 +115,7 @@ namespace UnityModBase.HConfigGUI
                 return;
 
             var context = CurrentContext as GuiContext;
-            if (context.Popup.IsOpen == true)
+            if (context?.Popup.IsOpen == true)
             {
                 PopupEditor.DrawPopup(context);
                 return;
@@ -119,10 +124,10 @@ namespace UnityModBase.HConfigGUI
             base.OnGUI();
         }
 
-        // Unity 销毁组件时解除全局订阅和用户子上下文，并通过编辑器释放热键录制会话。
+        // Unity 销毁组件时解除配置模型、语言及热键订阅，移除用户子上下文，并通过编辑器释放热键录制会话。
         private void OnDestroy()
         {
-            UserManager.OnConfigRegistered -= RegisterContext;
+            UserManager.OnConfigChanged -= OnConfigChanged;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
 
             if (_uiHotkeyEntry != null)
@@ -151,6 +156,34 @@ namespace UnityModBase.HConfigGUI
         private void OnConfigUIHotkeyChanged(object sender, Hotkey hotkey)
         {
             UIHotkey = hotkey;
+        }
+
+        /// <summary>
+        /// 响应用户配置模型变化：首次变化时挂载 GUI 上下文，后续变化仅替换根绑定并标记布局失效。
+        /// 复用原上下文会保留该用户的提交器、弹窗和选择状态；绑定树按当前完整运行时模型重新创建。
+        /// </summary>
+        /// <param name="userContext">配置模型发生变化的用户；<c>null</c> 按空操作处理。</param>
+        /// <remarks>
+        /// 模型事件不会切换到 Unity 主线程，本方法也不提供并发保护；配置声明、重载和 GUI 生命周期必须由调用方串行化。
+        /// 每次通知都会全量重建绑定树，且不会取消旧绑定上的延迟提交或弹窗回调；批量声明配置时可能连续执行多次。
+        /// </remarks>
+        private void OnConfigChanged(UserContext userContext)
+        {
+            if (userContext == null)
+                return;
+
+            var context = userContext.GetChildContext(GuiContextKey) as GuiContext;
+            if (context == null)
+            {
+                RegisterContext(userContext);
+                if (SelectedUserKey == userContext.UserId)
+                    CurrentContext = GetContext(SelectedUserKey);
+            }
+            else
+            {
+                context.UserData = GroupBinding.CreateRoot(userContext);
+                UserEditor?.SetStatusDirty(context);
+            }
         }
     }
 }

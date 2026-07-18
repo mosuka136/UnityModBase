@@ -30,6 +30,7 @@ namespace UnityModBase.HLogGUI
 
         /// <summary>
         /// 绘制用户选择区域及当前用户的日志表格。
+        /// 上下文类型不匹配时只绘制用户选择区域，不向日志表格编辑器传入空上下文。
         /// </summary>
         /// <param name="users">可选择用户序列。</param>
         /// <param name="selectedKey">当前用户键；选择变化时被更新。</param>
@@ -37,7 +38,8 @@ namespace UnityModBase.HLogGUI
         public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
             base.Draw(users, ref selectedKey, guiContext);
-            GroupEditor.Draw(guiContext as GuiContext);
+            if (guiContext is GuiContext context)
+                GroupEditor.Draw(context);
         }
 
         /// <summary>

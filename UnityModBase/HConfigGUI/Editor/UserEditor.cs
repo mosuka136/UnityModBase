@@ -32,6 +32,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
         /// <summary>
         /// 绘制用户选择区域和当前用户的配置分组。
+        /// 上下文类型不匹配或为共享无效上下文时只保留用户选择区域，避免把哨兵状态传入分组编辑器。
         /// </summary>
         /// <param name="users">可选择用户序列。</param>
         /// <param name="selectedKey">当前用户键；选择变化时被更新。</param>
@@ -39,8 +40,8 @@ namespace UnityModBase.HConfigGUI.Editor
         public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
             base.Draw(users, ref selectedKey, guiContext);
-            var context = guiContext as GuiContext;
-            GroupEditor.Draw(context);
+            if (guiContext is GuiContext context && context.IsValid)
+                GroupEditor.Draw(context);
         }
 
         /// <summary>
@@ -50,6 +51,8 @@ namespace UnityModBase.HConfigGUI.Editor
         /// <param name="unscaledDeltaTime">非缩放帧间隔，单位为秒。</param>
         public void Update(GuiContext context, float unscaledDeltaTime)
         {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
             GroupEditor.Update(context, unscaledDeltaTime);
         }
 
@@ -62,7 +65,7 @@ namespace UnityModBase.HConfigGUI.Editor
         public override void SetStatusDirty(IUserContext context)
         {
             if (context == null)
-                throw new ArgumentNullException(nameof(context), "Context cannot be null.");
+                throw new ArgumentNullException(nameof(context));
 
             var guiContext = context as GuiContext ?? throw new ArgumentException($"The provided context is not of type {nameof(GuiContext)}.", nameof(context));
             if (!guiContext.IsValid)
