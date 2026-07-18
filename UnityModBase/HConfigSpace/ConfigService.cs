@@ -41,11 +41,6 @@ namespace UnityModBase.HConfigSpace
         public string FilePath { get; set; }
 
         /// <summary>
-        /// <see cref="FilePath"/> 的文件名部分；路径为空时也为空。
-        /// </summary>
-        public string FileName => Path.GetFileName(FilePath);
-
-        /// <summary>
         /// 创建配置文件管理器并立即尝试读取指定路径的配置。
         /// </summary>
         /// <param name="filePath">配置文件路径；文件不存在时会创建空的内存模型，实际文件在写入时生成。</param>
@@ -390,53 +385,6 @@ namespace UnityModBase.HConfigSpace
             result.OnValueChangedBase += OnConfigEntryChanged;
 
             Sheet[tableKey].Add(result);
-            return result;
-        }
-
-        /// <summary>
-        /// 在现有文件表中创建只包含键和当前值的文件项。
-        /// 该辅助方法不创建运行时绑定，也不订阅自动保存事件。
-        /// </summary>
-        /// <typeparam name="T">默认值的声明类型。</typeparam>
-        /// <param name="tableKey">已有文件表键名。</param>
-        /// <param name="key">配置项键名。</param>
-        /// <param name="defaultValue">编码后作为文件项当前值的默认值。</param>
-        /// <returns>已加入文件表的文件项。</returns>
-        /// <exception cref="ArgumentException">表不存在或键名非法。</exception>
-        /// <exception cref="InvalidOperationException">默认值无法编码或文件表拒绝新项。</exception>
-        internal ConfigFileEntry CreateFileEntry<T>(string tableKey, string key, T defaultValue)
-        {
-            var tableResult = FileSheet.GetTable(tableKey);
-            if (!tableResult.Success)
-            {
-                foreach (var error in tableResult.Errors)
-                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
-            }
-
-            var result = new ConfigFileEntry();
-
-            if (!ConfigFileEntry.IsValidKeyName(key))
-                throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
-            result.Key = key;
-
-            var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
-            if (!valueResult.Success)
-            {
-                foreach (var error in valueResult.Errors)
-                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new InvalidOperationException($"Failed to encode default value for config entry: {tableKey}.{key}. Errors: {string.Join(", ", valueResult.Errors)}");
-            }
-            result.Value = valueResult.Value;
-
-            var addEntryResult = tableResult.Value.AddEntry(result);
-            if (!addEntryResult.Success)
-            {
-                foreach (var error in addEntryResult.Errors)
-                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new InvalidOperationException($"Failed to add config entry to table: {tableKey}.{key}.");
-            }
-
             return result;
         }
 

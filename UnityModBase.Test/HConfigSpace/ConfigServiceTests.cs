@@ -50,17 +50,6 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void FileName_WhenFilePathSet_ReturnsFileName()
-        {
-            var tempPath = CreateTempConfigPath();
-            var manager = new ConfigService(tempPath);
-
-            var result = manager.FileName;
-
-            Assert.Equal(Path.GetFileName(tempPath), result);
-        }
-
-        [Fact]
         public void Constructor_WhenFileDoesNotExist_CreatesEmptyFileSheet()
         {
             var tempPath = CreateTempConfigPath();
