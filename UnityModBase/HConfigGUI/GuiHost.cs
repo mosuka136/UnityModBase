@@ -16,7 +16,7 @@ namespace UnityModBase.HConfigGUI
 {
     /// <summary>
     /// 配置界面的 Unity 宿主组件。
-    /// 该组件在游戏启动后由 <see cref="GameBootRegistery"/> 创建，为用户挂载由其当前配置模型投影出的独立 GUI 上下文，
+    /// 该组件在游戏启动后由 <see cref="GameBootRegistry"/> 创建，为用户挂载由其当前配置模型投影出的独立 GUI 上下文，
     /// 并负责在配置模型变化后重建绑定树，以及处理热键显隐、普通窗口与模态热键录制窗口的绘制。
     /// 底层配置注册和持久化仍由用户服务与配置管理器负责。
     /// </summary>

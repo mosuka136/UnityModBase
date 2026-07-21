@@ -6,7 +6,7 @@ namespace UnityModBase
 {
     /// <summary>
     /// UnityModBase 的进程级生命周期入口，负责按顺序建立和释放配置、日志、启动注册等基础服务。
-    /// 该类型不决定游戏何时完成启动；宿主需要在合适的时机另行调用 <see cref="GameBootRegistery.Boot"/>。
+    /// 该类型不决定游戏何时完成启动；宿主需要在合适的时机另行调用 <see cref="GameBootRegistry.Boot"/>。
     /// </summary>
     /// <remarks>
     /// 初始化与释放通过同一把锁串行化，但这不表示各子服务的任意操作都可跨线程调用。
@@ -35,7 +35,7 @@ namespace UnityModBase
                 try
                 {
                     BService.Initialize(baseDirectory);
-                    GameBootRegistery.Initialize();
+                    GameBootRegistry.Initialize();
 
                     BLog.Info($"UnityModBase initialized.");
                     _initialized = true;
@@ -59,7 +59,7 @@ namespace UnityModBase
             {
                 // 先派发退出回调，使订阅者执行时其余基础服务仍然可用。
                 GameQuitManager.Dispose();
-                GameBootRegistery.Dispose();
+                GameBootRegistry.Dispose();
                 // 先解除框架自身的配置联动并丢弃静态引用，再统一释放注册表中所有用户的配置和日志资源。
                 BService.Dispose();
                 UserManager.Dispose();

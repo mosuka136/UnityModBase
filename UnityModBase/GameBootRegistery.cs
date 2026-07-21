@@ -17,7 +17,7 @@ namespace UnityModBase
     /// 启动回调可能使用 Unity API，因此 <see cref="Boot"/> 和 <see cref="Dispose"/> 应在 Unity 主线程调用。
     /// <see cref="Dispose"/> 会结束当前登记周期；随后重新初始化会重新扫描程序集，并允许再次派发启动回调。
     /// </remarks>
-    public static class GameBootRegistery
+    public static class GameBootRegistry
     {
         // 只表示程序集扫描及 AssemblyLoad 监听已启用，与当前周期是否已经执行 Boot 相互独立。
         private static bool _initialized = false;
@@ -25,8 +25,13 @@ namespace UnityModBase
         // 当前登记周期的一次性哨兵；Dispose 会复位它，使重新初始化后的下一周期可以再次派发。
         private static bool _gameBootInvoked = false;
 
-        // 串行化初始化、启动派发、回调登记以及已创建 Unity 对象列表的变更。
+        // 保护启动派发、回调登记、扫描去重集合以及已创建 Unity 对象列表的复合更新。
         private static readonly object _lock = new object();
+
+        // 仅记录当前待派发阶段由反射扫描发现的扩展点，避免显式扫描与 AssemblyLoad 回调重复登记。
+        // 直接调用 RegisterComponentOnGameBoot 或 RegisterMethodOnGameBoot 不参与去重；集合会在 Boot 或 Dispose 时清空。
+        private static readonly HashSet<Type> _scannedType = new HashSet<Type>();
+        private static readonly HashSet<MethodInfo> _scannedMethod = new HashSet<MethodInfo>();
 
         // 仅记录由本注册器成功创建的常驻对象，用于插件卸载时集中销毁。
         private static readonly List<GameObject> _createdGameBootObjects = new List<GameObject>();
@@ -87,6 +92,9 @@ namespace UnityModBase
                 }
 
                 OnGameBoot = null;
+                // 启动后不再接受扫描所得扩展点，及时释放反射对象引用；下一周期会在重新初始化时建立新记录。
+                _scannedType.Clear();
+                _scannedMethod.Clear();
                 BLog.Debug("Game boot initialization completed.");
             }
         }
@@ -136,6 +144,11 @@ namespace UnityModBase
         /// 结束当前周期并重新初始化后，程序集会在全量扫描中重新参与登记。
         /// </summary>
         /// <param name="assembly">要扫描的程序集，不可为 <c>null</c>。</param>
+        /// <remarks>
+        /// 同一扩展点在当前待派发阶段被重复发现时只登记一次。该去重仅适用于反射扫描路径，
+        /// 不影响调用方通过 <see cref="RegisterComponentOnGameBoot(Type)"/> 或
+        /// <see cref="RegisterMethodOnGameBoot(MethodInfo)"/> 显式登记多个回调。
+        /// </remarks>
         public static void RegisterAssembly(Assembly assembly)
         {
             var types = ClassHelper.GetRegisterOnGameBootClasses(assembly);
@@ -150,6 +163,9 @@ namespace UnityModBase
             int registeredComponentCount = 0;
             foreach (var type in types)
             {
+                if (ContainsAndAddScannedType(type))
+                    continue;
+
                 if (RegisterComponentOnGameBoot(type))
                     registeredComponentCount++;
             }
@@ -157,11 +173,15 @@ namespace UnityModBase
             int registeredMethodCount = 0;
             foreach (var method in methods)
             {
+                if (ContainsAndAddScannedMethod(method))
+                    continue;
+
                 if (RegisterMethodOnGameBoot(method))
                     registeredMethodCount++;
             }
 
-            BLog.Debug($"Registered {registeredComponentCount} game boot components and {registeredMethodCount} game boot methods from assembly: {assembly.FullName}.");
+            if (registeredComponentCount > 0 || registeredMethodCount > 0)
+                BLog.Debug($"Registered {registeredComponentCount} game boot components and {registeredMethodCount} game boot methods from assembly: {assembly.FullName}.");
         }
 
         /// <summary>
@@ -231,6 +251,29 @@ namespace UnityModBase
             if (IsShouldSkipAssembly(assembly))
                 return;
             RegisterAssembly(assembly);
+        }
+
+        // 将重复检查与标记合并到同一临界区；返回 true 表示调用方应跳过该扩展点。
+        private static bool ContainsAndAddScannedType(Type type)
+        {
+            lock (_lock)
+            {
+                if (_scannedType.Contains(type))
+                    return true;
+                _scannedType.Add(type);
+                return false;
+            }
+        }
+
+        private static bool ContainsAndAddScannedMethod(MethodInfo method)
+        {
+            lock (_lock)
+            {
+                if (_scannedMethod.Contains(method))
+                    return true;
+                _scannedMethod.Add(method);
+                return false;
+            }
         }
 
         private static void RegisterCreatedGameBootObject(GameObject gameObject)
@@ -345,7 +388,7 @@ namespace UnityModBase
 
         /// <summary>
         /// 结束当前登记周期：停止监听程序集加载、丢弃尚未执行的启动回调，
-        /// 销毁本注册器创建的常驻对象，并允许重新初始化后的下一周期再次执行 <see cref="Boot"/>。
+        /// 清除反射扫描记录，销毁本注册器创建的常驻对象，并允许重新初始化后的下一周期再次执行 <see cref="Boot"/>。
         /// </summary>
         /// <remarks>
         /// Unity 对象在锁外销毁，避免销毁过程中的 Unity 回调进入注册器时形成锁内副作用。
@@ -362,6 +405,8 @@ namespace UnityModBase
 
                 OnGameBoot = null;
                 gameObjects = _createdGameBootObjects.ToArray();
+                _scannedType.Clear();
+                _scannedMethod.Clear();
                 _createdGameBootObjects.Clear();
 
                 _gameBootInvoked = false;

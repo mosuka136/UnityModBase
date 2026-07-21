@@ -13,11 +13,11 @@ namespace UnityModBase.Test
             using var scope = GameBootRegisteryStateScope.Create();
             Action handler = () => invocationCount++;
 
-            GameBootRegistery.OnGameBoot += handler;
-            GameBootRegistery.RegisterComponentOnGameBoot(typeof(string));
+            GameBootRegistry.OnGameBoot += handler;
+            GameBootRegistry.RegisterComponentOnGameBoot(typeof(string));
 
             // Act
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(1, invocationCount);
@@ -31,11 +31,11 @@ namespace UnityModBase.Test
             using var scope = GameBootRegisteryStateScope.Create();
             Action handler = () => invocationCount++;
 
-            GameBootRegistery.OnGameBoot += handler;
-            GameBootRegistery.RegisterComponentOnGameBoot(typeof(AbstractTestComponent));
+            GameBootRegistry.OnGameBoot += handler;
+            GameBootRegistry.RegisterComponentOnGameBoot(typeof(AbstractTestComponent));
 
             // Act
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(1, invocationCount);
@@ -48,7 +48,7 @@ namespace UnityModBase.Test
             bool? wasRegistered = null;
 
             var exception = Record.Exception(() =>
-                wasRegistered = GameBootRegistery.RegisterComponentOnGameBoot(null));
+                wasRegistered = GameBootRegistry.RegisterComponentOnGameBoot(null));
 
             Assert.Null(exception);
             Assert.Equal(false, wasRegistered);
@@ -63,11 +63,11 @@ namespace UnityModBase.Test
             using var scope = GameBootRegisteryStateScope.Create();
             Action handler = () => invocationCount++;
 
-            GameBootRegistery.OnGameBoot += handler;
+            GameBootRegistry.OnGameBoot += handler;
 
             // Act
-            GameBootRegistery.Boot();
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(1, invocationCount);
@@ -78,14 +78,14 @@ namespace UnityModBase.Test
         {
             var invocationCount = 0;
             using var scope = GameBootRegisteryStateScope.Create();
-            GameBootRegistery.OnGameBoot += () =>
+            GameBootRegistry.OnGameBoot += () =>
             {
                 invocationCount++;
                 if (invocationCount == 1)
-                    GameBootRegistery.Boot();
+                    GameBootRegistry.Boot();
             };
 
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
 
             Assert.Equal(1, invocationCount);
             Assert.Null(scope.GetOnGameBoot());
@@ -102,8 +102,8 @@ namespace UnityModBase.Test
             var method = GetRequiredTestMethod(nameof(ValidGameBootMethod));
 
             // Act
-            var wasRegistered = GameBootRegistery.RegisterMethodOnGameBoot(method);
-            GameBootRegistery.Boot();
+            var wasRegistered = GameBootRegistry.RegisterMethodOnGameBoot(method);
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.True(wasRegistered);
@@ -121,9 +121,9 @@ namespace UnityModBase.Test
             var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
 
             // Act
-            var wasRegistered = GameBootRegistery.RegisterMethodOnGameBoot(null);
-            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
-            GameBootRegistery.Boot();
+            var wasRegistered = GameBootRegistry.RegisterMethodOnGameBoot(null);
+            GameBootRegistry.RegisterMethodOnGameBoot(validMethod);
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.False(wasRegistered);
@@ -147,11 +147,11 @@ namespace UnityModBase.Test
             var invalidMethod = GetRequiredTestMethod(invalidMethodName);
             var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
 
-            GameBootRegistery.RegisterMethodOnGameBoot(invalidMethod);
-            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
+            GameBootRegistry.RegisterMethodOnGameBoot(invalidMethod);
+            GameBootRegistry.RegisterMethodOnGameBoot(validMethod);
 
             // Act
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(0, invalidInvocationCount);
@@ -171,11 +171,11 @@ namespace UnityModBase.Test
             var throwingMethod = GetRequiredTestMethod(nameof(ThrowingGameBootMethod));
             var validMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
 
-            GameBootRegistery.RegisterMethodOnGameBoot(throwingMethod);
-            GameBootRegistery.RegisterMethodOnGameBoot(validMethod);
+            GameBootRegistry.RegisterMethodOnGameBoot(throwingMethod);
+            GameBootRegistry.RegisterMethodOnGameBoot(validMethod);
 
             // Act
-            GameBootRegistery.Boot();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(1, throwingInvocationCount);
@@ -189,16 +189,42 @@ namespace UnityModBase.Test
             var invocationCount = 0;
             using var scope = GameBootRegisteryStateScope.Create();
             scope.SetInitialized(true);
-            GameBootRegistery.OnGameBoot += () => invocationCount++;
+            GameBootRegistry.OnGameBoot += () => invocationCount++;
 
             // Act
-            GameBootRegistery.Dispose();
-            GameBootRegistery.Boot();
+            GameBootRegistry.Dispose();
+            GameBootRegistry.Boot();
 
             // Assert
             Assert.Equal(0, invocationCount);
             Assert.False(scope.IsInitialized());
             Assert.Null(scope.GetOnGameBoot());
+        }
+
+        [Fact]
+        public void StateScope_NestedScope_ClearsAndRestoresScannedEntries()
+        {
+            using var outerScope = GameBootRegisteryStateScope.Create();
+            var originalType = typeof(AbstractTestComponent);
+            var temporaryType = typeof(string);
+            var originalMethod = GetRequiredTestMethod(nameof(ValidGameBootMethod));
+            var temporaryMethod = GetRequiredTestMethod(nameof(ThrowingGameBootMethod));
+
+            Assert.True(outerScope.AddScannedType(originalType));
+            Assert.True(outerScope.AddScannedMethod(originalMethod));
+
+            using (GameBootRegisteryStateScope.Create())
+            {
+                Assert.False(outerScope.ContainsScannedType(originalType));
+                Assert.False(outerScope.ContainsScannedMethod(originalMethod));
+                Assert.True(outerScope.AddScannedType(temporaryType));
+                Assert.True(outerScope.AddScannedMethod(temporaryMethod));
+            }
+
+            Assert.True(outerScope.ContainsScannedType(originalType));
+            Assert.True(outerScope.ContainsScannedMethod(originalMethod));
+            Assert.False(outerScope.ContainsScannedType(temporaryType));
+            Assert.False(outerScope.ContainsScannedMethod(temporaryMethod));
         }
 
         private abstract class AbstractTestComponent : MonoBehaviour
@@ -293,37 +319,51 @@ namespace UnityModBase.Test
             private static readonly FieldInfo GameBootInvokedField = GetRequiredField("_gameBootInvoked");
             private static readonly FieldInfo OnGameBootField = GetRequiredField("OnGameBoot");
             private static readonly FieldInfo CreatedGameBootObjectsField = GetRequiredField("_createdGameBootObjects");
+            private static readonly FieldInfo ScannedTypeField = GetRequiredField("_scannedType");
+            private static readonly FieldInfo ScannedMethodField = GetRequiredField("_scannedMethod");
 
             private readonly bool _originalInitialized;
             private readonly bool _originalGameBootInvoked;
             private readonly Action _originalOnGameBoot;
             private readonly GameObject[] _originalCreatedGameBootObjects;
+            private readonly Type[] _originalScannedTypes;
+            private readonly MethodInfo[] _originalScannedMethods;
 
             private GameBootRegisteryStateScope(
                 bool originalInitialized,
                 bool originalGameBootInvoked,
                 Action originalOnGameBoot,
-                GameObject[] originalCreatedGameBootObjects)
+                GameObject[] originalCreatedGameBootObjects,
+                Type[] originalScannedTypes,
+                MethodInfo[] originalScannedMethods)
             {
                 _originalInitialized = originalInitialized;
                 _originalGameBootInvoked = originalGameBootInvoked;
                 _originalOnGameBoot = originalOnGameBoot;
                 _originalCreatedGameBootObjects = originalCreatedGameBootObjects;
+                _originalScannedTypes = originalScannedTypes;
+                _originalScannedMethods = originalScannedMethods;
             }
 
             public static GameBootRegisteryStateScope Create()
             {
                 var createdGameBootObjects = GetCreatedGameBootObjectList();
+                var scannedTypes = GetScannedTypeSet();
+                var scannedMethods = GetScannedMethodSet();
                 var scope = new GameBootRegisteryStateScope(
                     (bool)InitializedField.GetValue(null),
                     (bool)GameBootInvokedField.GetValue(null),
                     (Action)OnGameBootField.GetValue(null),
-                    createdGameBootObjects.ToArray());
+                    createdGameBootObjects.ToArray(),
+                    scannedTypes.ToArray(),
+                    scannedMethods.ToArray());
 
                 InitializedField.SetValue(null, false);
                 GameBootInvokedField.SetValue(null, false);
                 OnGameBootField.SetValue(null, null);
                 createdGameBootObjects.Clear();
+                scannedTypes.Clear();
+                scannedMethods.Clear();
 
                 return scope;
             }
@@ -331,8 +371,14 @@ namespace UnityModBase.Test
             public void Dispose()
             {
                 var createdGameBootObjects = GetCreatedGameBootObjectList();
+                var scannedTypes = GetScannedTypeSet();
+                var scannedMethods = GetScannedMethodSet();
                 createdGameBootObjects.Clear();
                 createdGameBootObjects.AddRange(_originalCreatedGameBootObjects);
+                scannedTypes.Clear();
+                scannedTypes.UnionWith(_originalScannedTypes);
+                scannedMethods.Clear();
+                scannedMethods.UnionWith(_originalScannedMethods);
                 OnGameBootField.SetValue(null, _originalOnGameBoot);
                 GameBootInvokedField.SetValue(null, _originalGameBootInvoked);
                 InitializedField.SetValue(null, _originalInitialized);
@@ -353,12 +399,32 @@ namespace UnityModBase.Test
                 InitializedField.SetValue(null, initialized);
             }
 
+            public bool AddScannedType(Type type)
+            {
+                return GetScannedTypeSet().Add(type);
+            }
+
+            public bool AddScannedMethod(MethodInfo method)
+            {
+                return GetScannedMethodSet().Add(method);
+            }
+
+            public bool ContainsScannedType(Type type)
+            {
+                return GetScannedTypeSet().Contains(type);
+            }
+
+            public bool ContainsScannedMethod(MethodInfo method)
+            {
+                return GetScannedMethodSet().Contains(method);
+            }
+
             private static FieldInfo GetRequiredField(string fieldName)
             {
-                var field = typeof(GameBootRegistery).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static);
+                var field = typeof(GameBootRegistry).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static);
                 if (field == null)
                 {
-                    throw new InvalidOperationException($"Field '{fieldName}' was not found on {typeof(GameBootRegistery).FullName}.");
+                    throw new InvalidOperationException($"Field '{fieldName}' was not found on {typeof(GameBootRegistry).FullName}.");
                 }
 
                 return field;
@@ -367,6 +433,16 @@ namespace UnityModBase.Test
             private static List<GameObject> GetCreatedGameBootObjectList()
             {
                 return (List<GameObject>)CreatedGameBootObjectsField.GetValue(null);
+            }
+
+            private static HashSet<Type> GetScannedTypeSet()
+            {
+                return (HashSet<Type>)ScannedTypeField.GetValue(null);
+            }
+
+            private static HashSet<MethodInfo> GetScannedMethodSet()
+            {
+                return (HashSet<MethodInfo>)ScannedMethodField.GetValue(null);
             }
         }
     }

@@ -22,7 +22,7 @@ namespace UnityModBase
         public static event Action OnFrameUpdate;
 
         /// <summary>
-        /// 由 <see cref="GameBootRegistery"/> 创建并跨场景保留的帧更新桥接组件。
+        /// 由 <see cref="GameBootRegistry"/> 创建并跨场景保留的帧更新桥接组件。
         /// 该组件只负责事件分发，其对象生命周期由启动注册器管理。
         /// </summary>
         [RegisterOnGameBoot]
@@ -63,7 +63,7 @@ namespace UnityModBase
 
         /// <summary>
         /// 清空所有帧更新订阅。
-        /// 桥接组件及其 GameObject 由 <see cref="GameBootRegistery.Dispose"/> 负责销毁。
+        /// 桥接组件及其 GameObject 由 <see cref="GameBootRegistry.Dispose"/> 负责销毁。
         /// </summary>
         public static void Dispose()
         {

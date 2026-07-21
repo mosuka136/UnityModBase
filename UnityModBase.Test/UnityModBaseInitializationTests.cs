@@ -26,7 +26,7 @@ namespace UnityModBase.Test
             private static readonly Type UserManagerType = typeof(UserManager);
             private static readonly FieldInfo UnityModBaseInitializedField = GetRequiredField(UnityModBaseType, "_initialized");
             private static readonly FieldInfo BServiceInitializedField = GetRequiredField(BServiceType, "_initialized");
-            private static readonly FieldInfo GameBootRegisteryInitializedField = GetRequiredField(typeof(GameBootRegistery), "_initialized");
+            private static readonly FieldInfo GameBootRegisteryInitializedField = GetRequiredField(typeof(GameBootRegistry), "_initialized");
             private static readonly FieldInfo UserContextsField = GetRequiredField(UserManagerType, "_userContexts");
             private static readonly FieldInfo OnUserRegisteredField = GetRequiredField(UserManagerType, nameof(UserManager.OnUserRegistered));
             private static readonly PropertyInfo BServiceContextProperty = GetRequiredProperty(BServiceType, "Context");

@@ -83,7 +83,7 @@ namespace UnityModBase.BepInExLauncher
 
             try
             {
-                GameBootRegistery.Boot();
+                GameBootRegistry.Boot();
                 _gameBootInvoked = true;
             }
             catch (Exception ex)
