@@ -274,19 +274,20 @@ namespace UnityModBase.HLogGUI
             _scrollPosition = UnityGui.BeginScrollView(_scrollPosition);
             UnityGui.BeginHorizontal(UnityGui.BoxStyle);
 
-            var group = context.UserData;
+            var groupBinding = context.UserData;
+            var sortedGroup = groupBinding.SortedGroup;
             foreach (var columnEditor in ColumnEditorList.Values)
             {
                 UnityGui.BeginVertical();
-                columnEditor.DrawHeader(group);
-                foreach (var entry in group.SortedGroup)
+                columnEditor.DrawHeader(groupBinding);
+                foreach (var entry in sortedGroup)
                     columnEditor.DrawCell(entry, EntryEditor, Level);
                 UnityGui.EndVertical();
             }
 
             UnityGui.BeginVertical();
             DrawMiscMenuHeader();
-            foreach (var entry in group.SortedGroup)
+            foreach (var entry in sortedGroup)
                 DrawMiscMenu(entry);
             UnityGui.EndVertical();
 
@@ -349,10 +350,12 @@ namespace UnityModBase.HLogGUI
 
             if (context.IsColumnWidthDirty)
             {
+                // 只确认测量开始时的版本；测量期间到达的新日志会递增版本，并在下一次绘制时再次触发测量。
+                int columnWidthVersion = context.CaptureColumnWidthVersion();
                 foreach (var columnEditor in ColumnEditorList.Values)
                     columnEditor.UpdateWidth(group, Level);
                 UpdateTotalColumnWidth(context);
-                context.IsColumnWidthDirty = false;
+                context.CompleteColumnWidthMeasurement(columnWidthVersion);
             }
         }
 

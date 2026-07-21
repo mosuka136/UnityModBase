@@ -88,12 +88,15 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 替换当前文件日志写入器，先回放数据库快照，再订阅后续新增和重复日志。
+        /// 替换当前文件日志写入器，在数据库变更暂停期间回放一致快照并订阅后续新增和重复日志。
         /// 旧写入器会先解除订阅并释放；底层文件创建失败由 <see cref="LogWriter"/> 容错，不向此方法传播。
         /// </summary>
         /// <param name="directory">日志目录，不可为空白。</param>
         /// <param name="fileName">日志文件基础名，不可为空白；写入器会追加小时级时间后缀并使用 <c>.log</c> 扩展名。</param>
         /// <param name="level">最低写入等级，低于该等级的条目只保留在内存数据库中。</param>
+        /// <remarks>
+        /// 快照与新订阅之间不存在遗漏窗口；但本类型不串行化整个替换过程，调用方仍不应让本方法与释放或另一次注册并发执行。
+        /// </remarks>
         /// <exception cref="ArgumentException"><paramref name="directory"/> 或 <paramref name="fileName"/> 为空白时抛出。</exception>
         public void RegisterLog(string directory, string fileName, LogLevel level)
         {
@@ -107,11 +110,7 @@ namespace UnityModBase.HUserSpace
             LogWriter?.Dispose();
 
             LogWriter = new LogWriter(directory, fileName, level);
-
-            foreach (var log in LogDatabase.Logs)
-                LogWriter.Log(log);
-            LogDatabase.OnLogAdded += OnLogAdded;
-            LogDatabase.OnLogRepeated += OnLogRepeated;
+            LogDatabase.SubscribeWithSnapshot(InitializeLogWriter, OnLogAdded, null, OnLogRepeated);
 
             _logWriterSubscribed = true;
         }
@@ -178,10 +177,16 @@ namespace UnityModBase.HUserSpace
             if (!_logWriterSubscribed || LogDatabase == null)
                 return;
 
-            LogDatabase.OnLogAdded -= OnLogAdded;
-            LogDatabase.OnLogRepeated -= OnLogRepeated;
+            LogDatabase.Unsubscribe(OnLogAdded, null, OnLogRepeated);
 
             _logWriterSubscribed = false;
+        }
+
+        private void InitializeLogWriter(IReadOnlyList<LogEntry> logs)
+        {
+            // 数据库在整批回放结束前阻止后续提交，确保文件先接收快照，再接收实时新增和重复通知。
+            foreach (var log in logs)
+                LogWriter.Log(log);
         }
 
         private void OnLogAdded(LogEntry log)

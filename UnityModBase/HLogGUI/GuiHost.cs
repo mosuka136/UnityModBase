@@ -81,9 +81,6 @@ namespace UnityModBase.HLogGUI
 
             guiContext.UserData = userData;
 
-            foreach (var log in context.Service.LogDatabase.Logs)
-                userData.AddEntry(new EntryBinding(log));
-
             guiContext.RegisterLogHandlers(context.Service.LogDatabase, userEditor);
             guiContext.SubscribeToastNotifications(ToastEditor);
 

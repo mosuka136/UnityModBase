@@ -2,11 +2,11 @@ namespace UnityModBase.HLogGUI
 {
     /// <summary>
     /// 标识日志表格的字段列，同时作为 <see cref="GroupBinding.SortOrder"/> 的排序键。
-    /// <see cref="None"/> 表示保留日志条目的原始插入顺序。
+    /// <see cref="None"/> 表示未选择具体字段，排序时与 <see cref="Id"/> 一样回退为日志 ID 顺序。
     /// </summary>
     public enum EntryContentType
     {
-        /// <summary>不按字段排序，使用原始插入顺序。</summary>
+        /// <summary>未选择具体字段；排序视图按日志 ID 排列。</summary>
         None,
         /// <summary>日志 ID。</summary>
         Id,

@@ -16,15 +16,13 @@ namespace UnityModBase.Test.HLogGUI
 
             // Assert
             Assert.Equal("entry", exception.ParamName);
-            Assert.Empty(list.OriginalGroup);
             Assert.Empty(list.SortedGroup);
-            Assert.All(list.SortedGroups.Values, Assert.Empty);
             Assert.False(list.HasExceptionEntry);
             Assert.False(list.HasRepeatedEntry);
         }
 
         [Fact]
-        public void AddEntry_WhenEntryIsNew_AddsItToDefaultAndSortedCollections()
+        public void AddEntry_WhenEntryIsNew_MakesItVisibleInSortedGroup()
         {
             // Arrange
             var list = new GroupBinding();
@@ -34,9 +32,7 @@ namespace UnityModBase.Test.HLogGUI
             list.AddEntry(entry);
 
             // Assert
-            Assert.Same(entry, Assert.Single(list.OriginalGroup));
             Assert.Same(entry, Assert.Single(list.SortedGroup));
-            Assert.All(list.SortedGroups.Values, sortedSet => Assert.Same(entry, Assert.Single(sortedSet)));
         }
 
         [Fact]
@@ -56,25 +52,30 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void AddEntry_WhenEquivalentEntryAlreadyExists_KeepsOriginalEntryAndSingleItem()
+        public void AddEntry_WhenEquivalentUpdatedEntryAlreadyExists_KeepsOriginalBindingAndRefreshesSort()
         {
             // Arrange
             var list = new GroupBinding();
-            var original = CreateEntry(id: 1, timestamp: new DateTime(2026, 6, 13, 1, 0, 0), message: "same");
-            var repeated = CreateEntry(id: 2, timestamp: new DateTime(2026, 6, 13, 1, 0, 1), message: "same");
-            repeated.UpdateRepeat(new DateTime(2026, 6, 13, 1, 0, 2));
+            var original = CreateEntry(id: 1, message: "repeated");
+            var other = CreateEntry(id: 2, message: "other");
+            var originalBinding = new EntryBinding(original);
+            var otherBinding = new EntryBinding(other);
+            list.SortOrder = EntryContentType.RepeatCount;
+            list.AddEntry(originalBinding);
+            list.AddEntry(otherBinding);
+            Assert.Equal(new[] { 1, 2 }, list.SortedGroup.Select(entry => entry.Entry.Id));
 
             // Act
+            original.UpdateRepeat(new DateTime(2026, 6, 13, 1, 0, 2));
             list.AddEntry(new EntryBinding(original));
-            list.AddEntry(new EntryBinding(repeated));
 
             // Assert
-            var merged = Assert.Single(list.OriginalGroup);
-            Assert.Equal("1", merged.RepeatCount);
-            Assert.Equal("01:00:00.000", merged.LastRepeatTime);
-            Assert.False(merged.IsRepeated);
+            Assert.Collection(
+                list.SortedGroup,
+                entry => Assert.Same(otherBinding, entry),
+                entry => Assert.Same(originalBinding, entry));
+            Assert.Equal("2", originalBinding.RepeatCount);
             Assert.True(list.HasRepeatedEntry);
-            Assert.All(list.SortedGroups.Values, sortedSet => Assert.Same(merged, Assert.Single(sortedSet)));
         }
 
         [Fact]
@@ -101,17 +102,23 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void CompareByIdFallback_WhenPrimaryComparisonIsEqual_UsesEntryId()
+        public void Entries_WhenSortValuesMatch_UsesEntryIdAsTieBreaker()
         {
             // Arrange
-            var lowerId = new EntryBinding(CreateEntry(id: 1));
-            var higherId = new EntryBinding(CreateEntry(id: 2));
+            var lowerId = new EntryBinding(CreateEntry(id: 1, file: "Lower.cs"));
+            var higherId = new EntryBinding(CreateEntry(id: 2, file: "Higher.cs"));
+            var list = new GroupBinding
+            {
+                SortOrder = EntryContentType.Message,
+            };
+            list.AddEntry(higherId);
+            list.AddEntry(lowerId);
 
             // Act
-            var result = GroupBinding.CompareByIdFallback(higherId, lowerId, 0);
+            var result = list.SortedGroup.Select(entry => entry.Entry.Id).ToArray();
 
             // Assert
-            Assert.True(result > 0);
+            Assert.Equal(new[] { 1, 2 }, result);
         }
 
         private static LogEntry CreateEntry(

@@ -162,6 +162,97 @@ namespace UnityModBase.Test.HLogSpace
             Assert.Equal(logCount - 1, repeatedCount);
         }
 
+        [Fact]
+        public async Task AddLog_WhenEarlierNotificationIsBlocked_DoesNotCommitLaterLogOutOfOrder()
+        {
+            using var database = new LogDatabase(null);
+            using var firstHandlerEntered = new ManualResetEventSlim(false);
+            using var releaseFirstHandler = new ManualResetEventSlim(false);
+            using var secondAddStarted = new ManualResetEventSlim(false);
+            var notificationIds = new List<int>();
+            database.OnLogAdded += log =>
+            {
+                notificationIds.Add(log.Id);
+                if (log.Id == 1)
+                {
+                    firstHandlerEntered.Set();
+                    releaseFirstHandler.Wait(TimeSpan.FromSeconds(5));
+                }
+            };
+
+            var firstAdd = Task.Run(() => database.AddLog(CreateLog(1, "first")));
+            Assert.True(firstHandlerEntered.Wait(TimeSpan.FromSeconds(5)));
+            var secondAdd = Task.Run(() =>
+            {
+                secondAddStarted.Set();
+                database.AddLog(CreateLog(2, "second"));
+            });
+            Assert.True(secondAddStarted.Wait(TimeSpan.FromSeconds(5)));
+
+            await Task.Delay(100);
+            var countWhileFirstNotificationBlocked = database.Logs.Count;
+            releaseFirstHandler.Set();
+            await Task.WhenAll(firstAdd, secondAdd);
+
+            Assert.Equal(1, countWhileFirstNotificationBlocked);
+            Assert.Equal(new[] { 1, 2 }, notificationIds);
+            Assert.Equal(new[] { 1, 2 }, database.Logs.Select(log => log.Id));
+        }
+
+        [Fact]
+        public async Task SubscribeWithSnapshot_WhenInitializationIsBlocked_DeliversLaterLogAfterSnapshot()
+        {
+            using var database = new LogDatabase(null);
+            using var initializerEntered = new ManualResetEventSlim(false);
+            using var releaseInitializer = new ManualResetEventSlim(false);
+            database.AddLog(CreateLog(1, "existing"));
+            IReadOnlyList<LogEntry> snapshot = null;
+            var addedIds = new List<int>();
+
+            var subscribe = Task.Run(() => database.SubscribeWithSnapshot(
+                logs =>
+                {
+                    snapshot = logs;
+                    initializerEntered.Set();
+                    releaseInitializer.Wait(TimeSpan.FromSeconds(5));
+                },
+                log => addedIds.Add(log.Id),
+                null,
+                null));
+            Assert.True(initializerEntered.Wait(TimeSpan.FromSeconds(5)));
+
+            var add = Task.Run(() => database.AddLog(CreateLog(2, "future")));
+            await Task.Delay(100);
+            var countWhileInitializing = database.Logs.Count;
+            releaseInitializer.Set();
+            await Task.WhenAll(subscribe, add);
+
+            Assert.Equal(1, countWhileInitializing);
+            Assert.Equal(new[] { 1 }, snapshot.Select(log => log.Id));
+            Assert.Equal(new[] { 2 }, addedIds);
+            Assert.Equal(new[] { 1, 2 }, database.Logs.Select(log => log.Id));
+        }
+
+        [Fact]
+        public void AddLog_WhenHandlerReentersDatabase_PreservesOrderForEverySubscriber()
+        {
+            using var database = new LogDatabase(null);
+            var notifications = new List<string>();
+            database.OnLogAdded += log =>
+            {
+                notifications.Add($"first:{log.Id}");
+                if (log.Id == 1)
+                    database.AddLog(CreateLog(2, "nested"));
+            };
+            database.OnLogAdded += log => notifications.Add($"second:{log.Id}");
+
+            database.AddLog(CreateLog(1, "outer"));
+
+            Assert.Equal(
+                new[] { "first:1", "second:1", "first:2", "second:2" },
+                notifications);
+        }
+
         [Theory]
         [InlineData(LogLevel.Debug)]
         [InlineData(LogLevel.Info)]

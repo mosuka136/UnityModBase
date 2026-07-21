@@ -40,7 +40,10 @@ namespace UnityModBase.Test.HLogGUI
                     unityServiceMock.Object,
                     unityGuiMock.Object,
                     new StyleResource(unityGuiMock.Object));
-                var guiContext = new GuiContext();
+                var guiContext = new GuiContext
+                {
+                    UserData = new GroupBinding(),
+                };
                 var toastEditor = new ToastEditor(
                     unityServiceMock.Object,
                     unityGuiMock.Object,
@@ -93,7 +96,10 @@ namespace UnityModBase.Test.HLogGUI
                 unityServiceMock.Object,
                 unityGuiMock.Object,
                 new StyleResource(unityGuiMock.Object));
-            var guiContext = new GuiContext();
+            var guiContext = new GuiContext
+            {
+                UserData = new GroupBinding(),
+            };
             var toastEditor = new ToastEditor(
                 unityServiceMock.Object,
                 unityGuiMock.Object,
