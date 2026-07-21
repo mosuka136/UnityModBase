@@ -16,6 +16,9 @@ namespace UnityModBase
     /// <see cref="InitializeOnGameBootAttribute"/> 的扩展点，不负责判断具体游戏是否已进入可操作状态。
     /// 启动回调可能使用 Unity API，因此 <see cref="Boot"/> 和 <see cref="Dispose"/> 应在 Unity 主线程调用。
     /// <see cref="Dispose"/> 会结束当前登记周期；随后重新初始化会重新扫描程序集，并允许再次派发启动回调。
+    /// 注册器会在修改共享回调、去重集合和对象列表时取得内部锁，但程序集反射发现并非始终处于一个完整临界区内；
+    /// 生命周期控制方仍应串行安排初始化、显式登记、启动派发和释放。调用方直接增删 <see cref="OnGameBoot"/> 处理器不经过该锁，
+    /// 必须在启动派发前完成，且不得与 <see cref="Boot"/> 或 <see cref="Dispose"/> 并发。
     /// </remarks>
     public static class GameBootRegistry
     {
@@ -25,7 +28,8 @@ namespace UnityModBase
         // 当前登记周期的一次性哨兵；Dispose 会复位它，使重新初始化后的下一周期可以再次派发。
         private static bool _gameBootInvoked = false;
 
-        // 保护启动派发、回调登记、扫描去重集合以及已创建 Unity 对象列表的复合更新。
+        // 保护启动派发、回调登记、扫描去重和已创建 Unity 对象列表的共享状态修改。
+        // 反射发现阶段及公开字段式事件的外部 add/remove 不自动取得本锁，因此不属于这里的原子边界。
         private static readonly object _lock = new object();
 
         // 仅记录当前待派发阶段由反射扫描发现的扩展点，避免显式扫描与 AssemblyLoad 回调重复登记。
@@ -40,11 +44,12 @@ namespace UnityModBase
         /// 当前登记周期的游戏启动回调。首次 <see cref="Boot"/> 后会清空；
         /// 同一周期内此后新增的订阅不会执行，并会在 <see cref="Dispose"/> 时丢弃。
         /// </summary>
+        /// <remarks>调用方应在启动派发前完成订阅；不要让直接订阅或退订与 <see cref="Boot"/>、<see cref="Dispose"/> 并发。</remarks>
         public static event Action OnGameBoot;
 
         /// <summary>
         /// 扫描当前已加载程序集中的启动特性，并监听后续程序集加载事件。
-        /// 该方法只完成登记，不会执行启动回调；重复调用不会重复扫描或订阅。
+        /// 该方法只完成登记，不会执行启动回调；成功初始化后的重复调用不会重复扫描或订阅。
         /// </summary>
         public static void Initialize()
         {
@@ -53,10 +58,11 @@ namespace UnityModBase
                 if (_initialized)
                     return;
 
+                // 先建立监听再获取快照，避免程序集恰好在二者之间加载而永远漏扫；重叠发现由扫描集合去重。
+                AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
+
                 var assemblies = AppDomain.CurrentDomain.GetAssemblies();
                 RegisterAssemblies(assemblies);
-
-                AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
 
                 _initialized = true;
             }
@@ -68,7 +74,8 @@ namespace UnityModBase
         /// </summary>
         /// <remarks>
         /// 执行前即设置一次性哨兵，以避免回调重入造成重复初始化。回调按订阅顺序同步执行，
-        /// 调用期间其他线程上的登记或启动请求会等待当前派发结束。
+        /// 调用期间其他线程通过注册器方法发起的登记或启动请求会等待当前派发结束；
+        /// 直接对 <see cref="OnGameBoot"/> 增删处理器不受该锁保护。
         /// </remarks>
         public static void Boot()
         {
@@ -103,6 +110,7 @@ namespace UnityModBase
         /// 扫描一组程序集并登记其中的游戏启动扩展点。
         /// </summary>
         /// <param name="assemblies">要扫描的程序集集合；数组及其中的元素不可为 <c>null</c>。框架程序集会按名称前缀跳过。</param>
+        /// <exception cref="NullReferenceException"><paramref name="assemblies"/> 或其中任一元素为 <c>null</c>。</exception>
         public static void RegisterAssemblies(params Assembly[] assemblies)
         {
             foreach (var assembly in assemblies)
@@ -119,6 +127,7 @@ namespace UnityModBase
         /// <param name="assembly">要检查的程序集，不可为 <c>null</c>。</param>
         /// <returns>程序集简单名称为空或命中排除前缀时为 <c>true</c>。</returns>
         /// <remarks>筛选仅依据程序集简单名称；自定义程序集若使用相同前缀，也会被排除。</remarks>
+        /// <exception cref="NullReferenceException"><paramref name="assembly"/> 为 <c>null</c>。</exception>
         public static bool IsShouldSkipAssembly(Assembly assembly)
         {
             var assemblyName = assembly.GetName().Name;

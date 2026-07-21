@@ -31,7 +31,7 @@ namespace UnityModBase.BepInExLauncher
         // Awake 可能在初始化中途失败，单独记录订阅状态以便失败路径和 OnDestroy 安全取消。
         private bool _sceneLoadedHandlerRegistered = false;
 
-        // 启动扩展点只应在首个场景加载后触发，后续场景切换不再进入注册器。
+        // 启动扩展点成功派发后不再进入注册器；若 Boot 抛出，保留 false 以允许后续场景加载重试。
         private bool _gameBootInvoked = false;
 
         /// <summary>
@@ -56,10 +56,16 @@ namespace UnityModBase.BepInExLauncher
             }
         }
 
+        /// <summary>
+        /// 当前不执行额外的启动阶段逻辑；游戏启动边界由 <see cref="OnSceneLoaded(Scene, LoadSceneMode)"/> 统一处理。
+        /// </summary>
         private void Start()
         {
         }
 
+        /// <summary>
+        /// 当前适配层不执行逐帧工作；框架级帧分发由 <see cref="FrameUpdateManager"/> 的启动组件负责。
+        /// </summary>
         private void Update()
         {
         }
@@ -74,7 +80,8 @@ namespace UnityModBase.BepInExLauncher
         }
 
         /// <summary>
-        /// 将首次场景加载作为游戏启动边界；场景本身及加载模式不参与扩展点筛选。
+        /// 将首次成功处理的场景加载作为游戏启动边界；场景本身及加载模式不参与扩展点筛选。
+        /// 若注册器向外抛出异常，本次不置位完成标记，后续场景加载会再次尝试。
         /// </summary>
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
@@ -92,6 +99,9 @@ namespace UnityModBase.BepInExLauncher
             }
         }
 
+        /// <summary>
+        /// 仅撤销当前实例已经完成的场景订阅，使 Awake 失败清理与 OnDestroy 重复进入时保持幂等。
+        /// </summary>
         private void UnregisterSceneLoadedHandler()
         {
             if (_sceneLoadedHandlerRegistered)

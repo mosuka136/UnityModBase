@@ -16,6 +16,8 @@ namespace UnityModBase.HLogSpace
     /// 所有队列变更先取得通知锁，再在队列锁内提交，并在释放队列锁后按提交顺序同步发布事件。
     /// 处理器重入写入时，新的通知会排到当前通知之后，避免不同订阅者观察到相反顺序。
     /// 详细参数重载使用原子递增分配序号，但序号复位不与该递增互斥，因此不应与 <see cref="Dispose"/> 并发调用。
+    /// 需要让初始快照与后续事件无缝衔接时必须使用 <see cref="SubscribeWithSnapshot"/> 和 <see cref="Unsubscribe"/>；
+    /// 直接通过公开事件增删处理器不参与通知锁串行化，只适合由调用方自行保证生命周期顺序的场景。
     /// </remarks>
     public class LogDatabase : IDisposable
     {
@@ -271,7 +273,7 @@ namespace UnityModBase.HLogSpace
         public void Error(string msg, Exception ex, string member, string file, int line) => AddLog(LogLevel.Error, msg, ex, member, file, line);
 
         /// <summary>
-        /// 在写入临界区内清空队列、把序号复位为 <c>0</c> 并移除全部事件订阅者。
+        /// 在数据库通知边界内清空队列、把序号复位为 <c>0</c> 并移除全部事件订阅者。
         /// 每个已存条目均会在出队后通知移除事件，订阅者异常不会中断后续清理。
         /// </summary>
         /// <remarks>

@@ -143,7 +143,6 @@ namespace UnityModBase.Test.HotkeyManager
         [Theory]
         [InlineData("GamepadLB", GamepadButton.LeftShoulder, "GamepadLB")]
         [InlineData("south", GamepadButton.South, "GamepadA")]
-        [InlineData("  gAmEpAd123  ", (GamepadButton)123, "Gamepad123")]
         public void GamepadTrigger_TryParse_WhenTokenIsSupported_ReturnsParsedButton(string token, GamepadButton expectedButton, string expectedText)
         {
             var result = GamepadTrigger.TryParse(token, UnityProvider.Instance);
@@ -165,6 +164,16 @@ namespace UnityModBase.Test.HotkeyManager
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
         }
+
+        [Fact]
+        public void GamepadTrigger_TryParse_WhenNumericValueIsUndefined_ReturnsFailure()
+        {
+            var result = GamepadTrigger.TryParse("  gAmEpAd123  ", UnityProvider.Instance);
+
+            Assert.False(result.Success);
+            Assert.Contains("Parsed button '123' is not defined in GamepadButton enum.", result.Errors);
+        }
+
         [Fact]
         public void KeyboardTrigger_ToString_WhenKeyIsNone_ReturnsEmptyString()
         {
