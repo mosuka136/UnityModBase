@@ -341,7 +341,7 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 释放值编辑器注册表；这也会清理热键录制状态，并将全局热键标记强制设为有效。
+        /// 释放值编辑器注册表；这也会清理热键录制状态，并按录制开始时的快照恢复相关有效开关。
         /// </summary>
         public void Dispose()
         {

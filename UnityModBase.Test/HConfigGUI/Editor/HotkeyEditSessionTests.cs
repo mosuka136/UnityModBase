@@ -9,8 +9,20 @@ using UnityEngine.InputSystem.LowLevel;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
-    public class HotkeyEditSessionTests
+    /// <summary>
+    /// 验证热键编辑状态机及有效开关的恢复语义。
+    /// <see cref="Hotkey.GlobalValid"/> 是跨实例共享状态，因此每个测试前后都重置该开关以隔离用例。
+    /// </summary>
+    public class HotkeyEditSessionTests : IDisposable
     {
+        /// <summary>
+        /// 在当前测试建立会话前恢复全局热键的默认有效状态。
+        /// </summary>
+        public HotkeyEditSessionTests()
+        {
+            Hotkey.GlobalValid = true;
+        }
+
         [Theory]
         [InlineData(false, HotkeyEditState.Expanded)]
         [InlineData(true, HotkeyEditState.Idle)]
@@ -70,31 +82,6 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var result = session.IsRecording;
 
             Assert.True(result);
-        }
-
-        [Fact]
-        public void CancelEdit_WhenEditing_ClearsEditingState()
-        {
-            var session = new HotkeyEditSession
-            {
-                Entry = CreateEntryBinding(new Hotkey()).Object,
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = new Hotkey(),
-                WorkingValue = new Hotkey(),
-                WorkingChord = new HotkeyChord(UnityProvider.Instance),
-                PreviewGamepadChord = new GamepadChord(UnityProvider.Instance, new GamepadTrigger(GamepadButton.DpadUp, UnityProvider.Instance)),
-                PreviewKeyboardChord = new KeyboardChord(UnityProvider.Instance, new KeyboardTrigger(Key.A, UnityProvider.Instance))
-            };
-
-            session.CancelEdit();
-
-            Assert.Null(session.Entry);
-            Assert.Equal(HotkeyEditState.Idle, session.State);
-            Assert.Null(session.OriginalValue);
-            Assert.Null(session.WorkingValue);
-            Assert.Null(session.WorkingChord);
-            Assert.Null(session.PreviewGamepadChord);
-            Assert.Null(session.PreviewKeyboardChord);
         }
 
         [Theory]
@@ -167,57 +154,40 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.False(session.PreviewKeyboardChord.IsValid);
         }
 
-        [Fact]
-        public void Clear_WhenEntryContainsHotkey_ResetsHotkeyValidityAndSessionState()
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void Clear_WhenRecording_RestoresCapturedValidityAndResetsSessionState(
+            bool globalValidBeforeEdit,
+            bool originalValidBeforeEdit)
         {
             var unityProvider = UnityProvider.Instance;
             var hotkey = new Hotkey(unityProvider)
             {
-                Valid = false
+                Valid = originalValidBeforeEdit
             };
-            Hotkey.GlobalValid = false;
-            var session = new HotkeyEditSession
-            {
-                Entry = CreateEntryBinding(hotkey).Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = new Hotkey(unityProvider),
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider)),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider))
-            };
+            var entry = CreateEntryBinding(hotkey);
+            var session = new HotkeyEditSession();
+            Hotkey.GlobalValid = globalValidBeforeEdit;
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(unityProvider));
+            session.PreviewGamepadChord = new GamepadChord(
+                unityProvider,
+                new GamepadTrigger(GamepadButton.DpadUp, unityProvider));
+            session.PreviewKeyboardChord = new KeyboardChord(
+                unityProvider,
+                new KeyboardTrigger(Key.A, unityProvider));
+
+            Assert.False(hotkey.Valid);
+            Assert.False(Hotkey.GlobalValid);
 
             session.Clear();
 
-            Assert.True(hotkey.Valid);
-            Assert.True(Hotkey.GlobalValid);
-            Assert.Null(session.Entry);
-            Assert.Equal(HotkeyEditState.Idle, session.State);
-            Assert.Null(session.OriginalValue);
-            Assert.Null(session.WorkingValue);
-            Assert.Null(session.WorkingChord);
-            Assert.Null(session.PreviewGamepadChord);
-            Assert.Null(session.PreviewKeyboardChord);
-        }
-
-        [Fact]
-        public void Clear_WhenEntryIsNull_ResetsSessionStateAndGlobalValidity()
-        {
-            var unityProvider = UnityProvider.Instance;
-            Hotkey.GlobalValid = false;
-            var session = new HotkeyEditSession
-            {
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = new Hotkey(unityProvider),
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider)),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider))
-            };
-
-            session.Clear();
-
-            Assert.True(Hotkey.GlobalValid);
+            Assert.Equal(originalValidBeforeEdit, hotkey.Valid);
+            Assert.Equal(globalValidBeforeEdit, Hotkey.GlobalValid);
             Assert.Null(session.Entry);
             Assert.Equal(HotkeyEditState.Idle, session.State);
             Assert.Null(session.OriginalValue);
@@ -374,7 +344,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void CancelRecord_WhenRecording_RestoresEditingState()
+        public void CancelRecord_WhenRecording_RestoresCapturedValidityAndEditingState()
         {
             var unityProvider = UnityProvider.Instance;
             var originalValue = new Hotkey(unityProvider)
@@ -382,24 +352,19 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 Valid = false
             };
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
-            var workingValue = new Hotkey(unityProvider);
             var workingChord = new HotkeyChord(unityProvider);
             var entry = CreateEntryBinding(originalValue);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = originalValue,
-                WorkingValue = workingValue,
-                WorkingChord = workingChord
-            };
+            var session = new HotkeyEditSession();
             Hotkey.GlobalValid = false;
 
+            session.BeginEdit(entry.Object);
+            var workingValueBeforeRecord = session.WorkingValue;
+            session.BeginRecord(workingChord);
             session.CancelRecord();
 
-            Assert.True(Hotkey.GlobalValid);
-            Assert.True(originalValue.Valid);
-            Assert.NotSame(workingValue, session.WorkingValue);
+            Assert.False(Hotkey.GlobalValid);
+            Assert.False(originalValue.Valid);
+            Assert.NotSame(workingValueBeforeRecord, session.WorkingValue);
             Assert.NotSame(originalValue, session.WorkingValue);
             Assert.Equal(originalValue.Count, session.WorkingValue.Count);
             Assert.False(session.WorkingValue.Valid);
@@ -408,29 +373,24 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void CancelEdit_WhenCalled_ClearsSession()
+        public void CancelEdit_WhenRecording_RestoresCapturedValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
             var hotkey = new Hotkey(unityProvider)
             {
                 Valid = false
             };
+            var entry = CreateEntryBinding(hotkey);
             Hotkey.GlobalValid = false;
-            var session = new HotkeyEditSession
-            {
-                Entry = CreateEntryBinding(hotkey).Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = new Hotkey(unityProvider),
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider)),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider))
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(unityProvider));
 
             session.CancelEdit();
 
-            Assert.True(hotkey.Valid);
-            Assert.True(Hotkey.GlobalValid);
+            Assert.False(hotkey.Valid);
+            Assert.False(Hotkey.GlobalValid);
             Assert.Null(session.Entry);
             Assert.Equal(HotkeyEditState.Idle, session.State);
             Assert.Null(session.OriginalValue);
@@ -441,27 +401,52 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void ConfirmEdit_WhenStateIsNotWaitingConfirm_ClearsSession()
+        public void Dispose_WhenRecording_RestoresCapturedValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
             var hotkey = new Hotkey(unityProvider)
             {
                 Valid = false
             };
+            var entry = CreateEntryBinding(hotkey);
             Hotkey.GlobalValid = false;
-            var session = new HotkeyEditSession
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(unityProvider));
+
+            session.Dispose();
+
+            Assert.False(hotkey.Valid);
+            Assert.False(Hotkey.GlobalValid);
+            Assert.Null(session.Entry);
+            Assert.Equal(HotkeyEditState.Idle, session.State);
+            Assert.Null(session.OriginalValue);
+            Assert.Null(session.WorkingValue);
+            Assert.Null(session.WorkingChord);
+            Assert.Null(session.PreviewGamepadChord);
+            Assert.Null(session.PreviewKeyboardChord);
+        }
+
+        [Fact]
+        public void ConfirmEdit_WhenSessionIsExpanded_PreservesValidityAndClearsSession()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var hotkey = new Hotkey(unityProvider)
             {
-                Entry = CreateEntryBinding(hotkey).Object,
-                State = HotkeyEditState.Expanded,
-                OriginalValue = hotkey,
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(unityProvider)
+                Valid = false
             };
+            var entry = CreateEntryBinding(hotkey);
+            Hotkey.GlobalValid = false;
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
 
             session.ConfirmEdit(new EntryChangeSink());
 
-            Assert.True(hotkey.Valid);
-            Assert.True(Hotkey.GlobalValid);
+            Assert.Same(hotkey, entry.Object.Value);
+            Assert.False(hotkey.Valid);
+            Assert.False(Hotkey.GlobalValid);
             Assert.Null(session.Entry);
             Assert.Equal(HotkeyEditState.Idle, session.State);
             Assert.Null(session.OriginalValue);
@@ -470,7 +455,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void ConfirmEdit_WhenStateIsWaitingConfirm_ConfirmsChangeAndClearsSession()
+        public void ConfirmEdit_WhenStateIsWaitingConfirm_ConfirmsChangeRestoresValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
             var originalValue = new Hotkey(unityProvider)
@@ -478,23 +463,23 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 Valid = false
             };
             var entry = CreateEntryBinding(originalValue);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider)
-            };
+            var session = new HotkeyEditSession();
+            var workingChord = new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
+                unityProvider);
             Hotkey.GlobalValid = false;
 
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(workingChord);
+            session.State = HotkeyEditState.WaitingConfirm;
             session.ConfirmEdit(new EntryChangeSink());
 
             var updatedValue = Assert.IsType<Hotkey>(entry.Object.Value);
             Assert.NotSame(originalValue, updatedValue);
             Assert.Equal(1, updatedValue.Count);
             Assert.True(updatedValue.Valid);
-            Assert.True(Hotkey.GlobalValid);
+            Assert.False(originalValue.Valid);
+            Assert.False(Hotkey.GlobalValid);
             Assert.Null(session.Entry);
             Assert.Equal(HotkeyEditState.Idle, session.State);
             Assert.Null(session.OriginalValue);
@@ -513,18 +498,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var entry = CreateEntryBinding(originalValue);
             var workingChord = new HotkeyChord(unityProvider);
             var previewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider));
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = originalValue.Clone(),
-                WorkingChord = workingChord,
-                PreviewGamepadChord = previewGamepadChord,
-                PreviewKeyboardChord = new KeyboardChord(unityProvider)
-            };
-            Hotkey.GlobalValid = false;
-            originalValue.Valid = false;
+            var session = new HotkeyEditSession();
+            Hotkey.GlobalValid = true;
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(workingChord);
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = previewGamepadChord;
+            session.PreviewKeyboardChord = new KeyboardChord(unityProvider);
 
             session.ConfirmRecord(new EntryChangeSink());
 
@@ -552,22 +533,17 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 Valid = false
             };
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
-            var previousWorkingValue = new Hotkey(unityProvider);
             var entry = CreateEntryBinding(originalValue);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = originalValue,
-                WorkingValue = previousWorkingValue,
-                WorkingChord = new HotkeyChord(unityProvider)
-            };
+            var session = new HotkeyEditSession();
             Hotkey.GlobalValid = false;
 
+            session.BeginEdit(entry.Object);
+            var previousWorkingValue = session.WorkingValue;
+            session.BeginRecord(new HotkeyChord(unityProvider));
             session.ConfirmRecord(new EntryChangeSink());
 
-            Assert.True(Hotkey.GlobalValid);
-            Assert.True(originalValue.Valid);
+            Assert.False(Hotkey.GlobalValid);
+            Assert.False(originalValue.Valid);
             Assert.NotSame(previousWorkingValue, session.WorkingValue);
             Assert.Equal(originalValue.Count, session.WorkingValue.Count);
             Assert.False(session.WorkingValue.Valid);
@@ -579,26 +555,29 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenKeyboardPreviewIsValid_UsesKeyboardChord()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey(unityProvider)
+            {
+                Valid = false
+            };
             var entry = CreateEntryBinding(originalValue);
             var workingChord = new HotkeyChord(unityProvider);
             var previewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider));
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = originalValue.Clone(),
-                WorkingChord = workingChord,
-                PreviewGamepadChord = new GamepadChord(unityProvider),
-                PreviewKeyboardChord = previewKeyboardChord
-            };
+            var session = new HotkeyEditSession();
+            Hotkey.GlobalValid = false;
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(workingChord);
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = new GamepadChord(unityProvider);
+            session.PreviewKeyboardChord = previewKeyboardChord;
 
             session.ConfirmRecord(new EntryChangeSink());
 
             var updatedValue = Assert.IsType<Hotkey>(entry.Object.Value);
             var updatedChord = Assert.Single(updatedValue.Hotkeys);
             Assert.Same(previewKeyboardChord, updatedChord.Chord);
+            Assert.False(originalValue.Valid);
+            Assert.False(Hotkey.GlobalValid);
             Assert.Equal(HotkeyEditState.Expanded, session.State);
         }
 
@@ -610,18 +589,18 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var originalChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)), unityProvider);
             originalValue.Add(originalChord);
             var entry = CreateEntryBinding(originalValue);
-            var workingValue = originalValue.Clone();
             var workingChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)), unityProvider);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = workingValue,
-                WorkingChord = workingChord,
-                PreviewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider)),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.V, unityProvider))
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(workingChord);
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = new GamepadChord(
+                unityProvider,
+                new GamepadTrigger(GamepadButton.DpadUp, unityProvider));
+            session.PreviewKeyboardChord = new KeyboardChord(
+                unityProvider,
+                new KeyboardTrigger(Key.V, unityProvider));
 
             session.ConfirmRecord(new EntryChangeSink());
 
@@ -640,16 +619,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var originalValue = new Hotkey(unityProvider);
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.D, unityProvider)), unityProvider));
             var entry = CreateEntryBinding(originalValue);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = new Hotkey(unityProvider),
-                WorkingChord = new HotkeyChord(unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider)
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(unityProvider));
+            session.WorkingValue = new Hotkey(unityProvider);
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = new GamepadChord(unityProvider);
+            session.PreviewKeyboardChord = new KeyboardChord(unityProvider);
 
             session.ConfirmRecord(new EntryChangeSink());
 
@@ -685,16 +662,15 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var entry = CreateEntryBinding(originalValue);
             entry.SetupGet(x => x.Key).Returns(nameof(SetWorkingChord_WhenEditing_ReplacesCurrentChordAndBeginsRecording));
             var newChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)), unityProvider);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = originalValue.Clone(),
-                WorkingChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)), unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider)
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)),
+                unityProvider));
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = new GamepadChord(unityProvider);
+            session.PreviewKeyboardChord = new KeyboardChord(unityProvider);
 
             session.SetWorkingChord(newChord, new EntryChangeSink());
 
@@ -727,16 +703,15 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
             var entry = CreateEntryBinding(originalValue);
             var addedChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.G, unityProvider)), unityProvider);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = originalValue.Clone(),
-                WorkingChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.H, unityProvider)), unityProvider),
-                PreviewGamepadChord = new GamepadChord(unityProvider),
-                PreviewKeyboardChord = new KeyboardChord(unityProvider)
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(
+                new KeyboardChord(unityProvider, new KeyboardTrigger(Key.H, unityProvider)),
+                unityProvider));
+            session.State = HotkeyEditState.WaitingConfirm;
+            session.PreviewGamepadChord = new GamepadChord(unityProvider);
+            session.PreviewKeyboardChord = new KeyboardChord(unityProvider);
 
             session.AddChord(addedChord, new EntryChangeSink());
 
@@ -805,16 +780,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)),
                 unityProvider));
             var entry = CreateEntryBinding(originalValue);
-            var workingValue = originalValue.Clone();
-            var recordingChord = workingValue.Hotkeys[0];
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = originalValue,
-                WorkingValue = workingValue,
-                WorkingChord = recordingChord,
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            var recordingChord = session.WorkingValue.Hotkeys[0];
+            session.BeginRecord(recordingChord);
 
             session.RemoveChord(recordingChord, new EntryChangeSink());
 
@@ -833,19 +803,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
                 unityProvider));
             var entry = CreateEntryBinding(originalValue);
-            var workingValue = originalValue.Clone();
             var addedChord = new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.B, unityProvider)),
                 unityProvider);
-            workingValue.Add(addedChord);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingPress,
-                OriginalValue = originalValue,
-                WorkingValue = workingValue,
-                WorkingChord = addedChord,
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.WorkingValue.Add(addedChord);
+            session.BeginRecord(addedChord);
 
             session.RemoveChord(addedChord, new EntryChangeSink());
 
@@ -893,13 +858,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.D, unityProvider)),
                 unityProvider));
             var entry = CreateEntryBinding(originalValue);
-            var session = new HotkeyEditSession
-            {
-                Entry = entry.Object,
-                State = HotkeyEditState.WaitingConfirm,
-                OriginalValue = originalValue,
-                WorkingValue = originalValue.Clone()
-            };
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(new HotkeyChord(unityProvider));
+            session.State = HotkeyEditState.WaitingConfirm;
 
             session.ConfirmRecord(new EntryChangeSink());
 
@@ -1108,6 +1071,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             entry.SetupProperty(x => x.Value, value);
             return entry;
+        }
+
+        /// <summary>
+        /// 清除当前测试对全局热键开关的修改，避免影响后续测试。
+        /// </summary>
+        public void Dispose()
+        {
+            Hotkey.GlobalValid = true;
         }
     }
 }

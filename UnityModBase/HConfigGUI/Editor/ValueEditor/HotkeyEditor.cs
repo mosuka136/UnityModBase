@@ -161,7 +161,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         }
 
         /// <summary>
-        /// 释放录制会话，并将可能被禁用的热键标记强制设为有效。
+        /// 释放录制会话；若存在未完成的录制，会按该轮开始时的快照恢复原热键对象和全局开关。
         /// </summary>
         public void Dispose()
         {

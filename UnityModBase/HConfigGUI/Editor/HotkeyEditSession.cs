@@ -8,12 +8,19 @@ namespace UnityModBase.HConfigGUI.Editor
 {
     /// <summary>
     /// 管理单个热键配置项从展开、等待按键、录制到等待确认的编辑状态机。
+    /// 该类负责捕获输入和管理工作副本，不负责绘制界面；已确认的变更通过 <see cref="EntryChangeSink"/> 交由配置层写回。
     /// 录制期间会暂时禁用原热键及 <see cref="Hotkey.GlobalValid"/>，避免待录制输入触发游戏中的现有快捷键；
-    /// 调用方必须在切换配置根、关闭编辑器或释放资源时调用 <see cref="CancelEdit"/> 或 <see cref="Dispose"/> 以结束禁用状态。
-    /// 清理过程会把实例和全局有效标记直接设为 <c>true</c>，不会保留进入编辑前的禁用值。
+    /// 会话按轮次保存两个开关的进入值，并在确认、取消或清理时按快照恢复原热键对象和全局开关。
+    /// 快照恢复不提供引用计数或所有权协调；实例应在 Unity GUI 主线程串行推进，同一时刻只能有一个录制会话，
+    /// 且其他模块不应在录制期间改写上述开关，否则结束录制时可能覆盖期间发生的变更。
+    /// 调用方必须在切换配置根、关闭编辑器或释放资源时调用 <see cref="CancelEdit"/> 或 <see cref="Dispose"/>，以结束未完成的录制并恢复外部状态。
     /// </summary>
     public class HotkeyEditSession : IDisposable
     {
+        // 仅在 IsRecording 为 true 时表示本轮录制开始时的快照；恢复时不会合并录制期间的外部修改。
+        private bool _globalValidBeforeEdit = true;
+        private bool _originalValidBeforeEdit = true;
+
         /// <summary>
         /// 获取或设置当前正在编辑的配置项；null 表示没有会话。
         /// </summary>
@@ -23,12 +30,12 @@ namespace UnityModBase.HConfigGUI.Editor
         /// </summary>
         public HotkeyEditState State { get; set; } = HotkeyEditState.Idle;
         /// <summary>
-        /// 获取或设置开始编辑或上次确认后取得的已提交热键引用。
-        /// 录制期间会临时将其 <see cref="Hotkey.Valid"/> 设为 false。
+        /// 获取或设置本轮工作副本的基准热键引用，来源为开始编辑或上次确认后的当前有效值。
+        /// 录制期间会临时将该对象的 <see cref="Hotkey.Valid"/> 设为 false；确认产生的新热键对象不复用此引用。
         /// </summary>
         public Hotkey OriginalValue { get; set; }
         /// <summary>
-        /// 获取或设置供界面修改的热键副本；仅在确认后通过变更提交器写回。
+        /// 获取或设置供界面修改的热键副本；仅在确认得到非空变化时才作为新的热键对象写回。
         /// </summary>
         public Hotkey WorkingValue { get; set; }
         /// <summary>
@@ -77,14 +84,17 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 将当前配置热键和全局热键强制设为有效，并清空所有会话引用与预览状态。
-        /// 该操作假定录制前两者处于启用状态，不会恢复原有的 <c>false</c> 值。
+        /// 结束当前会话，并清空所有编辑副本和输入预览。
+        /// 若仍处于录制阶段，会先将 <see cref="OriginalValue"/> 引用的热键及全局热键开关恢复为 <see cref="BeginRecord"/> 前的值；
+        /// 仅展开但未录制时不会改写这两个外部状态。
         /// </summary>
         public void Clear()
         {
-            if (Entry != null && ValueProvider.GetValidValue(Entry) is Hotkey hotkey)
-                hotkey.Valid = true;
-            Hotkey.GlobalValid = true;
+            if (IsRecording)
+            {
+                OriginalValue.Valid = _originalValidBeforeEdit;
+                Hotkey.GlobalValid = _globalValidBeforeEdit;
+            }
 
             Entry = null;
             State = HotkeyEditState.Idle;
@@ -119,13 +129,17 @@ namespace UnityModBase.HConfigGUI.Editor
 
         /// <summary>
         /// 开始录制指定组合键，禁用原热键和全局热键响应，并等待首次设备按下。
-        /// 仅在会话已展开且尚未录制时生效。
+        /// 仅在会话已展开且尚未录制时生效；禁用前的有效状态会保留到本轮录制结束并按快照恢复。
         /// </summary>
-        /// <param name="chord">要替换或新增的工作组合键对象。</param>
+        /// <param name="chord">要替换或新增的非 null 工作组合键对象；通常应属于 <see cref="WorkingValue"/>。</param>
         public void BeginRecord(HotkeyChord chord)
         {
             if (!IsEditing || State != HotkeyEditState.Expanded)
                 return;
+
+            // 必须在禁用前保存现值；结束录制时应恢复调用方状态，而不是无条件启用热键。
+            _globalValidBeforeEdit = Hotkey.GlobalValid;
+            _originalValidBeforeEdit = OriginalValue.Valid;
 
             Hotkey.GlobalValid = false;
             OriginalValue.Valid = false;
@@ -134,15 +148,16 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 放弃当前组合键录制，将原热键和全局热键强制设为有效，重建工作副本并返回展开状态。
+        /// 放弃当前组合键录制，恢复录制前的原热键与全局热键有效状态，
+        /// 然后从已提交值重建工作副本并返回展开状态。
         /// </summary>
         public void CancelRecord()
         {
             if (!IsEditing || State == HotkeyEditState.Expanded)
                 return;
 
-            Hotkey.GlobalValid = true;
-            OriginalValue.Valid = true;
+            Hotkey.GlobalValid = _globalValidBeforeEdit;
+            OriginalValue.Valid = _originalValidBeforeEdit;
             WorkingValue = OriginalValue.Clone();
             WorkingValue.Valid = false;
             WorkingChord = null;
@@ -150,7 +165,7 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 放弃整个编辑会话，将可能被录制流程禁用的热键标记强制设为有效。
+        /// 放弃整个编辑会话；若录制尚未结束，会恢复录制前的热键有效状态。
         /// </summary>
         public void CancelEdit()
         {
@@ -176,7 +191,9 @@ namespace UnityModBase.HConfigGUI.Editor
 
         /// <summary>
         /// 确认当前组合键，清理无效组合，并仅在结果非空且相对原值发生变化时写回配置。
-        /// 完成后保留展开编辑会话，以便继续增删组合；状态不允许确认时会退回取消录制流程。
+        /// 写回前会将新的工作副本标记为有效；随后只恢复录制前的全局开关及旧 <see cref="OriginalValue"/> 对象，
+        /// 再以写回后的当前值重建工作副本并保留展开编辑会话，以便继续增删组合。
+        /// 状态不允许确认时会退回取消录制流程。
         /// </summary>
         /// <param name="changeSink">接收确认后热键值的配置变更提交器。</param>
         public void ConfirmRecord(EntryChangeSink changeSink)
@@ -214,8 +231,8 @@ namespace UnityModBase.HConfigGUI.Editor
                 changeSink.SetValue(Entry, WorkingValue);
             }
 
-            Hotkey.GlobalValid = true;
-            OriginalValue.Valid = true;
+            Hotkey.GlobalValid = _globalValidBeforeEdit;
+            OriginalValue.Valid = _originalValidBeforeEdit;
 
             WorkingChord = null;
             PreviewGamepadChord = null;
@@ -429,7 +446,7 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 清理会话，并将可能被录制流程禁用的热键标记强制设为有效。
+        /// 清理会话；若录制尚未结束，会恢复录制前的热键有效状态。
         /// </summary>
         public void Dispose()
         {

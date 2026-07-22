@@ -22,6 +22,7 @@ namespace UnityModBase.HotkeyManager
 
         /// <summary>
         /// 全局禁用标记。设置为 <c>false</c> 后所有热键实例都不会触发。
+        /// 该开关不提供嵌套禁用计数或线程同步；临时修改方必须自行协调修改顺序并恢复先前值。
         /// </summary>
         public static bool GlobalValid { get; set; } = true;
 
