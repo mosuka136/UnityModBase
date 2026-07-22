@@ -39,7 +39,7 @@ namespace UnityModBase.HGuiSpace
         /// </summary>
         public IEnumerable<UserContext> Users { get; protected set; }
         /// <summary>
-        /// 获取当前选中用户在本 GUI 模块下的子上下文。
+        /// 获取当前选中用户在本 GUI 模块下的子上下文；用户或模块上下文不存在时可为 <c>null</c>。
         /// </summary>
         public IUserContext CurrentContext { get; protected set; }
         /// <summary>
@@ -147,7 +147,8 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 绘制用户选择器、当前用户内容、提示浮层和可拖动区域。
-        /// 用户选择发生变化时，会切换到对应模块上下文并使其布局状态失效。
+        /// 用户选择发生变化时，会解析对应模块上下文；仅在上下文存在时使其布局状态失效，
+        /// 尚未挂载该模块的用户会把 <see cref="CurrentContext"/> 保持为 <c>null</c>。
         /// </summary>
         /// <param name="id">Unity IMGUI 传入的窗口标识。</param>
         public virtual void DrawWindow(int id)
@@ -165,7 +166,8 @@ namespace UnityModBase.HGuiSpace
             if (selectedUserKey != _selectedUserKey)
             {
                 CurrentContext = GetContext(_selectedUserKey);
-                UserEditor.SetStatusDirty(CurrentContext);
+                if (CurrentContext != null)
+                    UserEditor.SetStatusDirty(CurrentContext);
             }
         }
 
@@ -220,21 +222,18 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 获取指定用户挂载的当前 GUI 模块上下文。
-        /// 用户不存在或尚未挂载该模块子上下文时返回 <see cref="UserContext.InvalidUserContext"/>，不会创建上下文。
+        /// 本方法只查询现有用户及其直接子上下文，不会创建用户或模块上下文。
         /// </summary>
         /// <param name="key">已注册用户的非空标识。</param>
-        /// <returns>模块子上下文；用户或子上下文无效时返回无效上下文哨兵。</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="key"/> 为 null 或空字符串。</exception>
+        /// <returns>模块子上下文；用户不存在或尚未挂载对应子上下文时为 <c>null</c>。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="key"/> 为 <c>null</c> 或空字符串时抛出。</exception>
+        /// <exception cref="ArgumentException">已找到用户，但 <see cref="GuiContextKey"/> 尚未设置为非空白键时抛出。</exception>
         public IUserContext GetContext(string key)
         {
             if (string.IsNullOrEmpty(key))
                 throw new ArgumentNullException(nameof(key));
-
             var user = UserManager.GetUser(key);
-            if (user.IsValid)
-                return user.GetChildContext(GuiContextKey);
-            else
-                return UserContext.InvalidUserContext;
+            return user?.GetChildContext(GuiContextKey);
         }
 
         /// <summary>

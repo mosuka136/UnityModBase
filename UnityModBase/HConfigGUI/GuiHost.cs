@@ -31,8 +31,8 @@ namespace UnityModBase.HConfigGUI
         public PopupEditor PopupEditor { get; private set; }
 
         /// <summary>
-        /// 初始化配置 GUI 依赖和窗口尺寸，为已有配置服务的用户注册上下文，并订阅后续配置模型、语言及热键变更事件。
-        /// 尚无配置服务的用户会在其配置模型首次发出变化通知时创建 GUI 上下文。
+        /// 初始化配置 GUI 依赖和窗口尺寸，为当前已注册用户投影配置上下文，并订阅后续配置模型、语言及热键变更事件。
+        /// 当前用户尚无配置服务时仍会挂载空绑定树；宿主启动后新增的用户会在配置模型首次发出变化通知时创建 GUI 上下文。
         /// 初始化失败时记录错误并销毁组件；<see cref="OnDestroy"/> 负责释放已完成的订阅。
         /// </summary>
         public override void Awake()
@@ -78,13 +78,17 @@ namespace UnityModBase.HConfigGUI
         }
 
         /// <summary>
-        /// 为用户当前配置结构创建绑定树和提示订阅，并尝试以模块键挂载到该用户上下文。
-        /// 该方法不替换已有同键上下文；重复调用会保留原绑定树，因此不会刷新已经挂载的配置结构。
+        /// 为用户当前配置结构创建绑定树，以模块键挂载到用户上下文后再建立提示订阅。
+        /// 该方法不替换已有同键上下文；重复调用会保留原绑定树并抛出异常，因此不会刷新已经挂载的配置结构。
         /// </summary>
         /// <param name="context">要投影当前配置结构的用户上下文；尚无配置服务时会创建空根节点。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 <c>null</c>，或宿主的提示编辑器尚未初始化时抛出。</exception>
+        /// <exception cref="ArgumentException"><see cref="GuiHostBase.GuiContextKey"/> 尚未初始化为非空白键时抛出。</exception>
+        /// <exception cref="InvalidOperationException">该用户已挂载同键 GUI 上下文时抛出。</exception>
         /// <remarks>
-        /// <see cref="UserContext.AddChildContext(string, IUserContext)"/> 拒绝同键项时，新建上下文不会取得生命周期所有权；
-        /// 调用方应避免在同一用户上重复调用，或在调用前显式处理旧上下文。
+        /// 只能在通用宿主初始化完成且 <see cref="GuiHostBase.GuiContextKey"/> 已设置后调用。
+        /// 先挂载再订阅可确保同键冲突时不会让未被用户上下文接管的临时对象持有提示订阅。
+        /// 如果提示编辑器不可用，异常发生前新上下文已经挂载，但不会建立提示订阅；调用方不应在宿主初始化完成前调用。
         /// </remarks>
         public void RegisterContext(UserContext context)
         {
@@ -92,18 +96,19 @@ namespace UnityModBase.HConfigGUI
                 throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
 
             var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
-            guiContext.SubscribeToastNotifications(ToastEditor);
-
             context.AddChildContext(GuiContextKey, guiContext);
+            guiContext.SubscribeToastNotifications(ToastEditor);
         }
 
         /// <summary>
         /// 除处理界面热键外，使用非缩放帧增量推进当前用户的延迟配置提交。
+        /// 当前用户尚未挂载配置 GUI 上下文时只处理通用热键，不读取帧增量或推进提交器。
         /// </summary>
         public override void Update()
         {
             base.Update();
-            (UserEditor as UserEditor)?.Update(CurrentContext as GuiContext, UnityService.UnscaledDeltaTime);
+            if (CurrentContext is GuiContext context)
+                (UserEditor as UserEditor)?.Update(context, UnityService.UnscaledDeltaTime);
         }
 
         /// <summary>

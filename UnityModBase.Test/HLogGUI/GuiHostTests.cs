@@ -63,6 +63,22 @@ namespace UnityModBase.Test.HLogGUI
             Assert.False(sut.HasDraggedWindowSinceOpen);
         }
 
+        [Fact]
+        public void OnGUI_WhenCurrentContextIsMissing_LeavesWindowBoundsUnchanged()
+        {
+            // Arrange
+            var sut = new GuiHost();
+            var originalBounds = sut.WindowRect;
+
+            // Act
+            sut.OnGUI();
+
+            // Assert
+            Assert.Null(sut.CurrentContext);
+            Assert.Equal(originalBounds, sut.WindowRect);
+            Assert.False(sut.IsVisible);
+        }
+
         private static void SetHasDraggedWindowSinceOpen(GuiHost sut, bool value)
         {
             var property = typeof(GuiHost).GetProperty(nameof(GuiHost.HasDraggedWindowSinceOpen));

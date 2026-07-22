@@ -54,37 +54,41 @@ namespace UnityModBase.Test.HUserSpace
 
             // Assert
             Assert.Equal("context", exception.ParamName);
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("child"));
+            Assert.Null(context.GetChildContext("child"));
         }
 
         [Fact]
-        public void AddContext_WhenAddingSelf_ThrowsArgumentException()
+        public void AddChildContext_WhenContextIsValid_StoresSameInstance()
         {
             using var context = new UserContext("user", "User");
+            using var child = new TrackingContext();
 
-            var exception = Assert.Throws<ArgumentException>(() =>
-                context.AddChildContext("self", context));
+            context.AddChildContext("child", child);
 
-            Assert.Equal("context", exception.ParamName);
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("self"));
+            Assert.Same(child, context.GetChildContext("child"));
         }
 
         [Fact]
-        public void AddContext_WhenKeyAlreadyExists_PreservesOriginalContext()
+        public void AddChildContext_WhenKeyAlreadyExists_PreservesOriginalOwnership()
         {
             // Arrange
             using var context = new UserContext("user", "User");
-            using var original = new TrackingContext();
+            var original = new TrackingContext();
             using var replacement = new TrackingContext();
 
             // Act
-            var firstResult = context.AddChildContext("child", original);
-            var secondResult = context.AddChildContext("child", replacement);
+            context.AddChildContext("child", original);
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                context.AddChildContext("child", replacement));
 
             // Assert
-            Assert.True(firstResult);
-            Assert.False(secondResult);
+            Assert.Contains("already exists", exception.Message, StringComparison.Ordinal);
             Assert.Same(original, context.GetChildContext("child"));
+
+            context.Dispose();
+
+            Assert.True(original.IsDisposed);
+            Assert.False(replacement.IsDisposed);
         }
 
         [Theory]
@@ -104,7 +108,7 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void GetContext_WhenKeyIsMissing_ReturnsInvalidContext()
+        public void GetContext_WhenKeyIsMissing_ReturnsNull()
         {
             // Arrange
             using var context = new UserContext("user", "User");
@@ -113,8 +117,7 @@ namespace UnityModBase.Test.HUserSpace
             var result = context.GetChildContext("missing");
 
             // Assert
-            Assert.Same(UserContext.InvalidUserContext, result);
-            Assert.False(((UserContext)result).IsValid);
+            Assert.Null(result);
         }
 
         [Theory]
@@ -141,7 +144,7 @@ namespace UnityModBase.Test.HUserSpace
 
             context.RemoveChildContext("removed");
 
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("removed"));
+            Assert.Null(context.GetChildContext("removed"));
             Assert.Same(retained, context.GetChildContext("retained"));
             Assert.False(removed.IsDisposed);
         }
@@ -166,8 +169,8 @@ namespace UnityModBase.Test.HUserSpace
             Assert.True(first.IsDisposed);
             Assert.True(second.IsDisposed);
             Assert.Null(context.Service.LogDatabase);
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("first"));
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("second"));
+            Assert.Null(context.GetChildContext("first"));
+            Assert.Null(context.GetChildContext("second"));
         }
 
         [Fact]
@@ -182,8 +185,9 @@ namespace UnityModBase.Test.HUserSpace
 
             Assert.Null(exception);
             Assert.True(remaining.IsDisposed);
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("throwing"));
-            Assert.Same(UserContext.InvalidUserContext, context.GetChildContext("remaining"));
+            Assert.Null(context.Service.LogDatabase);
+            Assert.Null(context.GetChildContext("throwing"));
+            Assert.Null(context.GetChildContext("remaining"));
         }
 
         private sealed class TrackingContext : IUserContext

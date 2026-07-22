@@ -86,6 +86,16 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
+        public void GetUser_WhenIdIsUnknown_ReturnsNull()
+        {
+            // Act
+            var result = UserManager.GetUser("missing");
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
         public void CreateUser_WhenIdIsEmpty_ThrowsArgumentNullException()
         {
             // Act
@@ -200,7 +210,7 @@ namespace UnityModBase.Test.HUserSpace
             // Assert
             Assert.True(child.IsDisposed);
             Assert.False(UserManager.ContainsUser("user"));
-            Assert.Same(UserContext.InvalidUserContext, UserManager.GetUser("user"));
+            Assert.Null(UserManager.GetUser("user"));
         }
 
         [Theory]

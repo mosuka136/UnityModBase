@@ -135,7 +135,7 @@ namespace UnityModBase.HUserSpace
 
         /// <summary>
         /// 创建并登记用户上下文，但不接入 <see cref="OnUserRegistered"/> 通知或 <see cref="OnConfigChanged"/> 转发。
-        /// 标识已存在时直接返回原上下文，忽略新的名称。
+        /// 注册表内标识已存在时直接返回原上下文并忽略新的名称。
         /// </summary>
         /// <param name="userId">非 <c>null</c> 且非空字符串的用户标识；仅空白值会继续交由 <see cref="UserContext"/> 拒绝。</param>
         /// <param name="name">显示名称。</param>
@@ -156,10 +156,10 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 按标识获取用户；未注册时返回 <see cref="UserContext.InvalidUserContext"/>。
+        /// 按标识获取当前注册表中的用户；本方法不会创建缺失的上下文。
         /// </summary>
         /// <param name="userId">非 <c>null</c> 且非空字符串的用户标识。</param>
-        /// <returns>已注册上下文或共享的无效上下文哨兵。</returns>
+        /// <returns>已注册上下文；未找到时为 <c>null</c>。</returns>
         /// <exception cref="ArgumentNullException"><paramref name="userId"/> 为 <c>null</c> 或空字符串时抛出。</exception>
         public static UserContext GetUser(string userId)
         {
@@ -168,8 +168,8 @@ namespace UnityModBase.HUserSpace
 
             if (_userContexts.TryGetValue(userId, out var context))
                 return context;
-
-            return UserContext.InvalidUserContext;
+            else
+                return null;
         }
 
         /// <summary>
