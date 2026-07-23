@@ -31,9 +31,11 @@ namespace UnityModBase.HConfigGUI
         public PopupEditor PopupEditor { get; private set; }
 
         /// <summary>
-        /// 初始化配置 GUI 依赖和窗口尺寸，为当前已注册用户投影配置上下文，并订阅后续配置模型、语言及热键变更事件。
+        /// 初始化配置 GUI 依赖和窗口尺寸，为当前已注册用户投影配置上下文，并订阅配置模型、语言及热键变更事件；
+        /// 用户移除由通用宿主订阅并负责切换当前上下文。
         /// 当前用户尚无配置服务时仍会挂载空绑定树；宿主启动后新增的用户会在配置模型首次发出变化通知时创建 GUI 上下文。
-        /// 初始化失败时记录错误并销毁组件；<see cref="OnDestroy"/> 负责释放已完成的订阅。
+        /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
+        /// <see cref="OnDestroy"/> 负责释放初始化期间已经建立的订阅。
         /// </summary>
         public override void Awake()
         {
@@ -51,7 +53,7 @@ namespace UnityModBase.HConfigGUI
                 foreach (var context in Users)
                     RegisterContext(context);
                 UserManager.OnConfigChanged += OnConfigChanged;
-                CurrentContext = GetContext(_selectedUserKey);
+                CurrentContext = GetContext(SelectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
                 UserEditor = userEditor;
@@ -129,9 +131,15 @@ namespace UnityModBase.HConfigGUI
             base.OnGUI();
         }
 
-        // Unity 销毁组件时解除配置模型、语言及热键订阅，移除用户子上下文，并通过编辑器释放热键录制会话。
-        private void OnDestroy()
+        /// <summary>
+        /// 在 Unity 销毁宿主时通过基类解除用户移除订阅，再解除配置模型、语言及热键订阅，移除配置 GUI 子上下文，
+        /// 并通过编辑器结束仍未完成的热键录制会话。
+        /// </summary>
+        /// <remarks>覆盖该生命周期方法时必须调用基类实现，以解除通用宿主建立的进程级用户移除订阅。</remarks>
+        protected override void OnDestroy()
         {
+            base.OnDestroy();
+
             UserManager.OnConfigChanged -= OnConfigChanged;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
 

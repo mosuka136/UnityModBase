@@ -80,6 +80,47 @@ namespace UnityModBase.Test.HConfigGUI
             unityGui.VerifyNoOtherCalls();
         }
 
+        [Fact]
+        public void OnDestroy_WhenBaseRemovalSubscriptionExists_UnsubscribesIt()
+        {
+            // Arrange
+            var selectedUserId = $"config-host-selected-{Guid.NewGuid():N}";
+            var remainingUserId = $"config-host-remaining-{Guid.NewGuid():N}";
+            UserManager.CreateUser(selectedUserId, "Selected");
+            UserManager.CreateUser(remainingUserId, "Remaining");
+            var selectedContext = new TrackingContext();
+            var sut = new TestGuiHost();
+            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var removalHandler = CreateUserRemovalHandler(sut);
+            UserManager.OnUserRemoved += removalHandler;
+
+            try
+            {
+                // Act
+                sut.DestroyForTest();
+                UserManager.RemoveUser(selectedUserId);
+
+                // Assert
+                Assert.Equal(selectedUserId, sut.SelectedUserKey);
+                Assert.Same(selectedContext, sut.CurrentContext);
+            }
+            finally
+            {
+                UserManager.OnUserRemoved -= removalHandler;
+                UserManager.RemoveUser(selectedUserId);
+                UserManager.RemoveUser(remainingUserId);
+            }
+        }
+
+        private static Action<string> CreateUserRemovalHandler(GuiHostBase target)
+        {
+            var method = typeof(GuiHostBase).GetMethod(
+                "OnUserRemoved",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            return (Action<string>)Delegate.CreateDelegate(typeof(Action<string>), target, method);
+        }
+
         private sealed class TestGuiHost : GuiHost
         {
             public const string ContextKey = "HConfigGUI";
@@ -96,6 +137,18 @@ namespace UnityModBase.Test.HConfigGUI
                 UnityService = unityService;
                 UserEditor = userEditor;
                 GuiContextKey = ContextKey;
+            }
+
+            public void ConfigureSelection(string userId, IUserContext context)
+            {
+                GuiContextKey = ContextKey;
+                _selectedUserKey = userId;
+                CurrentContext = context;
+            }
+
+            public void DestroyForTest()
+            {
+                OnDestroy();
             }
         }
 

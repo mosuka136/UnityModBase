@@ -8,20 +8,36 @@ using UnityModBase.HLogSpace;
 namespace UnityModBase.HUserSpace
 {
     /// <summary>
-    /// 维护进程级用户上下文注册表，并把用户注册及配置模型变化转换为带用户身份的全局事件。
+    /// 维护进程级用户上下文注册表，并发布用户注册、用户移除及带用户身份的配置模型变化事件。
     /// 它不负责持久化用户信息；<see cref="Dispose"/> 会释放并移除当前进程中的全部注册项。
     /// </summary>
     /// <remarks>
     /// 内部注册表不是并发集合。注册、查询、移除和释放应由调用方在同一受控线程或外部锁下串行执行。
+    /// 三类事件均在引发变更的线程同步调用，不负责切换到 Unity 主线程。
+    /// <see cref="Dispose"/> 会清空用户注册和配置变化订阅，但保留用户移除订阅；订阅者必须自行管理退订时机。
     /// </remarks>
     public static class UserManager
     {
+        // 进程级可变注册表；所有访问依赖外部串行化，
+        // UserIds 和 UserContexts 暴露的也是该对象的实时视图。
         private static readonly Dictionary<string, UserContext> _userContexts = new Dictionary<string, UserContext>();
 
         /// <summary>
-        /// <see cref="Register"/> 完成上下文及服务事件接线后触发；单个订阅者失败只记录日志。
+        /// <see cref="Register"/> 完成上下文登记及配置变化转发接线后，在调用线程同步触发。
+        /// 触发时上下文已经可以从注册表查询；单个订阅者失败只记录日志，不影响后续订阅者。
         /// </summary>
         public static event Action<UserContext> OnUserRegistered;
+
+        /// <summary>
+        /// <see cref="RemoveUser"/> 完成上下文释放并从注册表移除用户后，在调用线程同步触发。
+        /// 事件参数为已移除的用户标识，原上下文此时已不可再从注册表查询。
+        /// 单个订阅者失败只记录日志，不影响后续订阅者；批量 <see cref="Dispose"/> 不触发该事件。
+        /// </summary>
+        /// <remarks>
+        /// <see cref="Dispose"/> 不会触发本事件，也不会清空订阅列表。组件或其他短生命周期对象必须在自身销毁阶段退订，
+        /// 避免静态委托延长其实例生命周期。
+        /// </remarks>
+        public static event Action<string> OnUserRemoved;
 
         /// <summary>
         /// 已接线用户的当前配置服务触发 <see cref="ConfigService.OnConfigChanged"/> 时同步转发，
@@ -173,9 +189,14 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 释放并移除指定用户。空标识或未知标识按空操作处理。
+        /// 尽力释放并移除指定用户，并在注册表更新完成后同步发布 <see cref="OnUserRemoved"/>。
+        /// 空标识或未知标识按空操作处理，也不会发布移除通知。
         /// </summary>
-        /// <param name="userId">要移除的用户标识。</param>
+        /// <param name="userId">要移除的用户标识；同一标识会作为移除事件参数。</param>
+        /// <remarks>
+        /// 通知发生前会先释放上下文并将其移出注册表，因此订阅者不能再通过标识取得原上下文。
+        /// 单个事件处理器异常会被记录并隔离，不能回滚已经完成的释放和移除。
+        /// </remarks>
         public static void RemoveUser(string userId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -185,11 +206,24 @@ namespace UnityModBase.HUserSpace
             {
                 context.Dispose();
                 _userContexts.Remove(userId);
+
+                foreach (var handler in OnUserRemoved.GetInvocationListOrEmpty())
+                {
+                    try
+                    {
+                        handler.Invoke(userId);
+                    }
+                    catch (Exception ex)
+                    {
+                        BLog.Error("Error invoking OnUserRemoved handler!", ex);
+                    }
+                }
             }
         }
 
         /// <summary>
-        /// 尽力释放全部用户上下文，并清空注册表及两个全局事件的订阅者。
+        /// 尽力释放全部用户上下文并清空注册表，不逐个发布 <see cref="OnUserRemoved"/>。
+        /// 同时清空用户注册和配置变化事件的订阅者，但保留用户移除事件的订阅者。
         /// 单个上下文释放失败不会阻止其余上下文的清理。
         /// </summary>
         public static void Dispose()

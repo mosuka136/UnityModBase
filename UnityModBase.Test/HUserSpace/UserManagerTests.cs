@@ -6,15 +6,20 @@ namespace UnityModBase.Test.HUserSpace
 {
     public class UserManagerTests : IDisposable
     {
+        // UserManager 的注册表和事件均为进程级静态状态；
+        // 测试通过反射建立独立快照，并在释放夹具时完整恢复。
         private static readonly FieldInfo UserContextsField = typeof(UserManager)
             .GetField("_userContexts", BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly FieldInfo OnUserRegisteredField = typeof(UserManager)
             .GetField(nameof(UserManager.OnUserRegistered), BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly FieldInfo OnUserRemovedField = typeof(UserManager)
+            .GetField(nameof(UserManager.OnUserRemoved), BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly FieldInfo OnConfigChangedField = typeof(UserManager)
             .GetField(nameof(UserManager.OnConfigChanged), BindingFlags.NonPublic | BindingFlags.Static);
 
         private readonly Dictionary<string, UserContext> _originalContexts;
         private readonly Action<UserContext> _originalUserRegisteredHandlers;
+        private readonly Action<string> _originalUserRemovedHandlers;
         private readonly Action<UserContext> _originalConfigChangedHandlers;
         private readonly List<string> _tempDirectories = new List<string>();
 
@@ -22,14 +27,17 @@ namespace UnityModBase.Test.HUserSpace
         {
             Assert.NotNull(UserContextsField);
             Assert.NotNull(OnUserRegisteredField);
+            Assert.NotNull(OnUserRemovedField);
             Assert.NotNull(OnConfigChangedField);
 
             var contexts = GetContexts();
             _originalContexts = contexts.ToDictionary(pair => pair.Key, pair => pair.Value);
             _originalUserRegisteredHandlers = (Action<UserContext>)OnUserRegisteredField.GetValue(null);
+            _originalUserRemovedHandlers = (Action<string>)OnUserRemovedField.GetValue(null);
             _originalConfigChangedHandlers = (Action<UserContext>)OnConfigChangedField.GetValue(null);
             contexts.Clear();
             OnUserRegisteredField.SetValue(null, null);
+            OnUserRemovedField.SetValue(null, null);
             OnConfigChangedField.SetValue(null, null);
         }
 
@@ -46,6 +54,7 @@ namespace UnityModBase.Test.HUserSpace
             foreach (var pair in _originalContexts)
                 contexts.Add(pair.Key, pair.Value);
             OnUserRegisteredField.SetValue(null, _originalUserRegisteredHandlers);
+            OnUserRemovedField.SetValue(null, _originalUserRemovedHandlers);
             OnConfigChangedField.SetValue(null, _originalConfigChangedHandlers);
 
             foreach (var directory in _tempDirectories)
@@ -197,30 +206,67 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void RemoveUser_WhenUserExists_DisposesContextAndRemovesRegistration()
+        public void RemoveUser_WhenUserExists_PublishesAfterDisposalAndRegistrationRemoval()
         {
             // Arrange
             var context = UserManager.CreateUser("user", "Name");
             var child = new TrackingContext();
             context.AddChildContext("child", child);
+            string removedUserId = null;
+            var contextDisposedBeforeNotification = false;
+            var registrationRemovedBeforeNotification = false;
+            UserManager.OnUserRemoved += userId =>
+            {
+                removedUserId = userId;
+                contextDisposedBeforeNotification = child.IsDisposed;
+                registrationRemovedBeforeNotification = !UserManager.ContainsUser(userId);
+            };
 
             // Act
             UserManager.RemoveUser("user");
 
             // Assert
+            Assert.Equal("user", removedUserId);
+            Assert.True(contextDisposedBeforeNotification);
+            Assert.True(registrationRemovedBeforeNotification);
             Assert.True(child.IsDisposed);
             Assert.False(UserManager.ContainsUser("user"));
             Assert.Null(UserManager.GetUser("user"));
+        }
+
+        [Fact]
+        public void RemoveUser_WhenRemovalHandlerThrows_InvokesRemainingHandlers()
+        {
+            // Arrange
+            UserManager.CreateUser("user", "Name");
+            var failingHandlerCalled = false;
+            string receivedUserId = null;
+            UserManager.OnUserRemoved += _ =>
+            {
+                failingHandlerCalled = true;
+                throw new InvalidOperationException("handler failure");
+            };
+            UserManager.OnUserRemoved += userId => receivedUserId = userId;
+
+            // Act
+            UserManager.RemoveUser("user");
+
+            // Assert
+            Assert.True(failingHandlerCalled);
+            Assert.Equal("user", receivedUserId);
+            Assert.False(UserManager.ContainsUser("user"));
         }
 
         [Theory]
         [InlineData(null)]
         [InlineData("")]
         [InlineData("missing")]
-        public void RemoveUser_WhenIdIsEmptyOrUnknown_DoesNotChangeRegistrations(string userId)
+        public void RemoveUser_WhenIdIsEmptyOrUnknown_DoesNotChangeRegistrationsOrPublish(string userId)
         {
             // Arrange
             var existing = UserManager.CreateUser("existing", "Name");
+            var notificationCount = 0;
+            UserManager.OnUserRemoved += _ => notificationCount++;
 
             // Act
             UserManager.RemoveUser(userId);
@@ -228,10 +274,11 @@ namespace UnityModBase.Test.HUserSpace
             // Assert
             Assert.Same(existing, UserManager.GetUser("existing"));
             Assert.Single(UserManager.UserContexts);
+            Assert.Equal(0, notificationCount);
         }
 
         [Fact]
-        public void Dispose_DisposesContextsAndClearsRegistrationsAndHandlers()
+        public void Dispose_DisposesContextsAndClearsRegistrationsAndNonRemovalHandlers()
         {
             // Arrange
             var context = UserManager.CreateUser("user", "Name");
@@ -248,6 +295,23 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Empty(UserManager.UserContexts);
             Assert.Null(OnUserRegisteredField.GetValue(null));
             Assert.Null(OnConfigChangedField.GetValue(null));
+        }
+
+        [Fact]
+        public void Dispose_WhenRemovalHandlerIsSubscribed_PreservesHandlerWithoutPublishing()
+        {
+            // Arrange
+            UserManager.CreateUser("user", "Name");
+            var removalNotificationCount = 0;
+            Action<string> removalHandler = _ => removalNotificationCount++;
+            UserManager.OnUserRemoved += removalHandler;
+
+            // Act
+            UserManager.Dispose();
+
+            // Assert
+            Assert.Equal(0, removalNotificationCount);
+            Assert.Same(removalHandler, OnUserRemovedField.GetValue(null));
         }
 
         private string CreateTempDirectory()

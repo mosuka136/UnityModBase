@@ -5,9 +5,10 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HConfigGUI.Editor.ValueEditor
 {
     /// <summary>
-    /// 为带 <see cref="UiSliderMetadata"/> 的数值配置组合滑条与文本框输入。
-    /// 拖动值按最小值起点和正步长吸附；未拖动时保留当前文本和夹取前的有效值，不会因浮点格式化改写配置。
-    /// 文本输入的实际写回仍遵循数值编辑器的延迟转换规则。
+    /// 为带 <see cref="UiSliderMetadata"/> 的基础数值配置组合滑条与文本框输入。
+    /// 滑条路径负责显示夹取和可选步长吸附，文本路径仍沿用数值编辑器的转换与延迟提交流程，
+    /// 不受滑条范围或步长约束。
+    /// 仅重绘时会保留暂存文本、原数值格式和已有越界配置，避免把显示转换误当作用户编辑。
     /// </summary>
     public class SliderEditor : NumberEditor, IValueEditor
     {
@@ -39,7 +40,18 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             return base.CanEdit(entry) && entry.Metadata is UiSliderMetadata;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 绘制滑条和文本框，并在控件值发生变化时把新文本交给当前用户上下文的变更提交器。
+        /// 滑条未产生值变化时沿用编辑缓冲区中的原文本和夹取前的有效值。
+        /// </summary>
+        /// <param name="entry">要绘制的数值配置项绑定。</param>
+        /// <param name="context">提供变更提交器的用户 GUI 上下文。</param>
+        /// <remarks>
+        /// 正常调用路径应先通过 <see cref="CanEdit"/> 选择本编辑器；直接传入不支持的类型时不绘制，
+        /// 缺少滑条元数据时显示错误标签。只有滑条返回的新值会执行范围夹取和步长吸附；
+        /// 文本框返回值由提交器转换，有效值按 <see cref="NumberEditor.DelayApplyDuration"/> 延迟或立即写回，
+        /// 无效文本则仅保留在编辑缓冲区中。
+        /// </remarks>
         public override void DrawValue(IEntryBinding entry, GuiContext context)
         {
             if (!entry.ValueType.IsPrimitive || entry.ValueType == typeof(bool) || entry.ValueType == typeof(char))
@@ -62,11 +74,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 StyleProvider.SliderThumbStyle,
                 UnityGui.ExpandWidth(true));
 
-            // 当前提供器只返回滑条值，需与本帧传入的显示值作近似比较来识别用户是否拖动。
+            // IMGUI 抽象没有暴露独立的滑条变更标记，只能比较返回值与传入值；
+            // 在 Unity 浮点容差内相等时，视为本帧没有产生可观察的滑条值变化。
             var sliderChanged = true;
             if (UnityService.Approximately(displayValue, newSliderValue))
             {
-                // 未拖动时恢复夹取前的有效值，避免界面重绘自动修正已有的越界配置。
+                // 恢复夹取前的有效值，避免单纯重绘自动修正已有的越界配置。
                 newSliderValue = value;
                 sliderChanged = false;
             }

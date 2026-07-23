@@ -23,8 +23,9 @@ namespace UnityModBase.HLogGUI
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
 
         /// <summary>
-        /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，并订阅后续用户、语言和热键变更。
-        /// 初始化失败时记录错误并销毁组件。
+        /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，并订阅后续用户注册、语言和热键变更；
+        /// 用户移除由通用宿主订阅并负责切换当前上下文。
+        /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
         /// </summary>
         public override void Awake()
         {
@@ -43,7 +44,7 @@ namespace UnityModBase.HLogGUI
                 foreach (var user in Users)
                     RegisterContext(user);
                 UserManager.OnUserRegistered += RegisterContext;
-                CurrentContext = GetContext(_selectedUserKey);
+                CurrentContext = GetContext(SelectedUserKey);
                 Translator.OnDefaultLanguageChanged += OnDefaultLanguageChanged;
 
                 _uiHotkeyEntry = BConfigManager.LogUIHotkey;
@@ -97,9 +98,15 @@ namespace UnityModBase.HLogGUI
             context.AddChildContext(GuiContextKey, guiContext);
         }
 
-        // Unity 销毁组件时解除全局事件和每个用户的日志订阅，避免数据库继续回调已失效的编辑器。
-        private void OnDestroy()
+        /// <summary>
+        /// 在 Unity 销毁宿主时通过基类解除用户移除订阅，再解除用户注册、语言及热键订阅，
+        /// 并释放每个用户的日志 GUI 上下文，避免日志数据库继续回调已经失效的编辑器。
+        /// </summary>
+        /// <remarks>覆盖该生命周期方法时必须调用基类实现，以解除通用宿主建立的进程级用户移除订阅。</remarks>
+        protected override void OnDestroy()
         {
+            base.OnDestroy();
+
             UserManager.OnUserRegistered -= RegisterContext;
             Translator.OnDefaultLanguageChanged -= OnDefaultLanguageChanged;
 

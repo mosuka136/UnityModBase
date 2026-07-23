@@ -11,9 +11,17 @@ namespace UnityModBase.HGuiSpace
 {
     /// <summary>
     /// 为基于 Unity IMGUI 的用户级工具窗口提供宿主生命周期、用户上下文切换、热键显隐和浮层绘制能力。
+    /// 当前选中用户被移除时，本类会回退到剩余用户中的默认项；没有剩余用户时清空选择和模块上下文。
     /// 派生类负责提供具体样式、窗口尺寸、用户数据编辑器及上下文注册；本类不创建或持久化业务数据。
-    /// 所有生命周期方法和窗口状态均按 Unity 主线程调用模型使用。
     /// </summary>
+    /// <remarks>
+    /// <see cref="Awake"/> 会订阅进程级用户移除事件，<see cref="OnDestroy"/> 负责退订。
+    /// 派生类覆盖销毁回调时必须调用基类实现，否则静态事件会继续持有已经销毁的宿主。
+    /// 用户移除通知在调用 <see cref="UserManager.RemoveUser(string)"/> 的线程同步执行；宿主存活期间，
+    /// 调用方必须将用户移除与 Unity 生命周期及 IMGUI 绘制串行化。
+    /// 普通窗口绘制要求 <see cref="SelectedUserKey"/> 对应已注册用户；最后一个用户被移除后，
+    /// 派生类必须先建立新的选择和模块上下文，才能再次绘制窗口。
+    /// </remarks>
     public abstract class GuiHostBase : MonoBehaviour
     {
         /// <summary>
@@ -22,11 +30,13 @@ namespace UnityModBase.HGuiSpace
         public readonly int WindowID = Guid.NewGuid().GetHashCode();
 
         /// <summary>
-        /// 当前选中用户标识的可变存储；派生宿主应通过用户选择流程更新，并同步刷新 <see cref="CurrentContext"/>。
+        /// 当前选中用户标识的可变存储；用户选择流程会在窗口绘制结束时刷新 <see cref="CurrentContext"/>，
+        /// 用户移除通知则会立即同步更新选择和上下文。
         /// </summary>
         protected string _selectedUserKey = string.Empty;
         /// <summary>
-        /// 当前选中用户的标识。切换用户后，<see cref="CurrentContext"/> 会在本帧窗口绘制结束时同步更新。
+        /// 当前选中用户的标识。界面切换用户后，<see cref="CurrentContext"/> 会在本帧窗口绘制结束时同步更新；
+        /// 当前用户被移除时会同步回退到剩余用户中的默认项，没有剩余用户时为空字符串。
         /// </summary>
         public string SelectedUserKey => _selectedUserKey;
         /// <summary>
@@ -39,7 +49,8 @@ namespace UnityModBase.HGuiSpace
         /// </summary>
         public IEnumerable<UserContext> Users { get; protected set; }
         /// <summary>
-        /// 获取当前选中用户在本 GUI 模块下的子上下文；用户或模块上下文不存在时可为 <c>null</c>。
+        /// 获取当前选中用户在本 GUI 模块下的子上下文；用户、模块上下文或有效选择不存在时为 <c>null</c>。
+        /// 当前用户被移除后，本属性会切换到替代用户的模块上下文；没有替代用户时会被清空。
         /// </summary>
         public IUserContext CurrentContext { get; protected set; }
         /// <summary>
@@ -92,8 +103,10 @@ namespace UnityModBase.HGuiSpace
         public Hotkey UIHotkey { get; protected set; }
 
         /// <summary>
-        /// 获取运行时依赖、创建通用浮层编辑器，并选择默认用户。
-        /// 派生类必须先设置 <see cref="StyleProvider"/>；初始化失败时会销毁当前组件。
+        /// 获取运行时依赖、创建通用浮层编辑器、选择默认用户，并订阅用户移除通知。
+        /// 本方法不初始化 <see cref="Users"/>、<see cref="GuiContextKey"/>、<see cref="UserEditor"/> 或
+        /// <see cref="CurrentContext"/>，这些模块级状态由派生类在调用后完成。
+        /// 派生类必须先设置 <see cref="StyleProvider"/>；初始化失败时会记录错误并销毁当前组件。
         /// </summary>
         public virtual void Awake()
         {
@@ -106,6 +119,7 @@ namespace UnityModBase.HGuiSpace
                 TooltipEditor = new TooltipEditor(UnityService, UnityGui, StyleProvider);
 
                 _selectedUserKey = GetDefaultUserKey();
+                UserManager.OnUserRemoved += OnUserRemoved;
 
                 BLog.Debug($"[{WindowID}] GUI host created.");
             }
@@ -151,6 +165,10 @@ namespace UnityModBase.HGuiSpace
         /// 尚未挂载该模块的用户会把 <see cref="CurrentContext"/> 保持为 <c>null</c>。
         /// </summary>
         /// <param name="id">Unity IMGUI 传入的窗口标识。</param>
+        /// <exception cref="ArgumentNullException"><see cref="Users"/> 尚未初始化时由用户编辑器抛出。</exception>
+        /// <exception cref="ArgumentException">
+        /// <see cref="SelectedUserKey"/> 不是当前已注册用户时由用户编辑器抛出；注册表为空也属于此情况。
+        /// </exception>
         public virtual void DrawWindow(int id)
         {
             var selectedUserKey = _selectedUserKey;
@@ -239,10 +257,45 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 获取用户管理器当前定义的默认用户标识。
         /// </summary>
-        /// <returns>默认用户标识。</returns>
+        /// <returns>当前注册表枚举顺序中的首个用户标识；没有注册用户时为空字符串。</returns>
         public string GetDefaultUserKey()
         {
             return UserManager.GetDefaultUserId();
+        }
+
+        /// <summary>
+        /// 在 Unity 销毁宿主时解除用户移除订阅，避免进程级事件保留失效组件。
+        /// </summary>
+        /// <remarks>派生类覆盖此生命周期方法时必须调用基类实现。</remarks>
+        protected virtual void OnDestroy()
+        {
+            UserManager.OnUserRemoved -= OnUserRemoved;
+        }
+
+        /// <summary>
+        /// 响应用户移除通知。非当前用户的移除不会改变界面状态；当前用户被移除后，
+        /// 有替代用户时切换到注册表中的默认项并重新解析模块上下文。
+        /// </summary>
+        /// <param name="userId">已经完成释放并从用户注册表移除的用户标识。</param>
+        /// <remarks>
+        /// 该回调由 <see cref="UserManager.RemoveUser(string)"/> 在调用线程同步执行。
+        /// 通知发生时原用户上下文已经释放并移出注册表。若没有替代用户，会同时清空选择和
+        /// <see cref="CurrentContext"/>；替代用户尚未挂载当前模块时，上下文同样为 <c>null</c>。
+        /// </remarks>
+        private void OnUserRemoved(string userId)
+        {
+            if (_selectedUserKey == userId)
+            {
+                _selectedUserKey = GetDefaultUserKey();
+                if (!string.IsNullOrEmpty(_selectedUserKey))
+                {
+                    CurrentContext = GetContext(_selectedUserKey);
+                    if (CurrentContext != null)
+                        UserEditor?.SetStatusDirty(CurrentContext);
+                }
+                else
+                    CurrentContext = null;
+            }
         }
     }
 }

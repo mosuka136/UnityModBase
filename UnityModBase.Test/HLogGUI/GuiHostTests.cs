@@ -1,4 +1,6 @@
+using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HLogGUI
 {
@@ -79,11 +81,74 @@ namespace UnityModBase.Test.HLogGUI
             Assert.False(sut.IsVisible);
         }
 
+        [Fact]
+        public void OnDestroy_WhenBaseRemovalSubscriptionExists_UnsubscribesIt()
+        {
+            // Arrange
+            var selectedUserId = $"log-host-selected-{Guid.NewGuid():N}";
+            var remainingUserId = $"log-host-remaining-{Guid.NewGuid():N}";
+            UserManager.CreateUser(selectedUserId, "Selected");
+            UserManager.CreateUser(remainingUserId, "Remaining");
+            var selectedContext = new TrackingContext();
+            var sut = new TestGuiHost();
+            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var removalHandler = CreateUserRemovalHandler(sut);
+            UserManager.OnUserRemoved += removalHandler;
+
+            try
+            {
+                // Act
+                sut.DestroyForTest();
+                UserManager.RemoveUser(selectedUserId);
+
+                // Assert
+                Assert.Equal(selectedUserId, sut.SelectedUserKey);
+                Assert.Same(selectedContext, sut.CurrentContext);
+            }
+            finally
+            {
+                UserManager.OnUserRemoved -= removalHandler;
+                UserManager.RemoveUser(selectedUserId);
+                UserManager.RemoveUser(remainingUserId);
+            }
+        }
+
+        private static Action<string> CreateUserRemovalHandler(GuiHostBase target)
+        {
+            var method = typeof(GuiHostBase).GetMethod(
+                "OnUserRemoved",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            return (Action<string>)Delegate.CreateDelegate(typeof(Action<string>), target, method);
+        }
+
         private static void SetHasDraggedWindowSinceOpen(GuiHost sut, bool value)
         {
             var property = typeof(GuiHost).GetProperty(nameof(GuiHost.HasDraggedWindowSinceOpen));
             Assert.NotNull(property);
             property.SetValue(sut, value);
+        }
+
+        private sealed class TestGuiHost : GuiHost
+        {
+            public void ConfigureSelection(string userId, IUserContext context)
+            {
+                GuiContextKey = nameof(HLogGUI);
+                _selectedUserKey = userId;
+                CurrentContext = context;
+            }
+
+            public void DestroyForTest()
+            {
+                OnDestroy();
+            }
+        }
+
+        private sealed class TrackingContext : IUserContext
+        {
+            public void Dispose()
+            {
+            }
         }
     }
 }
