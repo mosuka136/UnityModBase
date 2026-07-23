@@ -32,7 +32,7 @@ namespace UnityModBase.HConfigGUI
         /// </summary>
         public float Max { get; }
         /// <summary>
-        /// 滑条步进；小于等于 0 时不吸附。
+        /// 滑条吸附步长；正值时以 <see cref="Min"/> 为吸附起点，小于等于 0 时不吸附。
         /// </summary>
         public float Step { get; }
         /// <summary>
@@ -40,7 +40,7 @@ namespace UnityModBase.HConfigGUI
         /// </summary>
         /// <param name="min">最小显示值。</param>
         /// <param name="max">最大显示值。</param>
-        /// <param name="step">吸附步进；小于等于 0 表示连续值。</param>
+        /// <param name="step">以 <paramref name="min"/> 为起点的吸附步长；小于等于 0 表示连续值。</param>
         public UiSliderMetadata(float min, float max, float step)
         {
             Min = min;

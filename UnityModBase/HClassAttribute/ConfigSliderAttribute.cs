@@ -18,7 +18,7 @@ namespace UnityModBase.HClassAttribute
         /// </summary>
         public float Max { get; set; }
         /// <summary>
-        /// 滑条步进；小于等于 0 时表示不做步进吸附。
+        /// 滑条吸附步长；正值时以 <see cref="Min"/> 为吸附起点，小于等于 0 时不吸附。
         /// </summary>
         public float Step { get; set; }
 
@@ -27,7 +27,7 @@ namespace UnityModBase.HClassAttribute
         /// </summary>
         /// <param name="min">滑条最小显示值。</param>
         /// <param name="max">滑条最大显示值。</param>
-        /// <param name="step">步进吸附间隔；默认 <c>-1</c> 表示连续取值。</param>
+        /// <param name="step">以 <paramref name="min"/> 为起点的吸附步长；默认 <c>-1</c> 表示连续取值。</param>
         public ConfigSliderAttribute(float min, float max, float step = -1f)
         {
             Min = min;
