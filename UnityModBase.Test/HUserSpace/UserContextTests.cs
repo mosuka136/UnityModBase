@@ -1,3 +1,4 @@
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HUserSpace
@@ -10,20 +11,28 @@ namespace UnityModBase.Test.HUserSpace
         [InlineData("   ")]
         public void Constructor_WhenUserIdIsNullOrWhitespace_ThrowsArgumentException(string userId)
         {
-            var exception = Assert.Throws<ArgumentException>(() => new UserContext(userId, "User"));
+            var exception = Assert.Throws<ArgumentException>(() => new UserContext(userId, CreateName()));
 
             Assert.Equal("userId", exception.ParamName);
         }
 
         [Fact]
-        public void Constructor_WhenNameIsNull_UsesEmptyName()
+        public void Constructor_WhenNameIsNull_ThrowsArgumentNullException()
         {
-            // Act
-            using var context = new UserContext("user", null);
+            var exception = Assert.Throws<ArgumentNullException>(() => new UserContext("user", null));
 
-            // Assert
+            Assert.Equal("name", exception.ParamName);
+        }
+
+        [Fact]
+        public void Constructor_WhenNameIsProvided_PreservesTranslatorInstance()
+        {
+            var name = new Translator("用户", "User");
+
+            using var context = new UserContext("user", name);
+
             Assert.Equal("user", context.UserId);
-            Assert.Equal(string.Empty, context.Name);
+            Assert.Same(name, context.Name);
         }
 
         [Theory]
@@ -33,7 +42,7 @@ namespace UnityModBase.Test.HUserSpace
         public void AddContext_WhenKeyIsInvalid_ThrowsArgumentException(string key)
         {
             // Arrange
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
             using var child = new TrackingContext();
 
             // Act
@@ -47,7 +56,7 @@ namespace UnityModBase.Test.HUserSpace
         public void AddContext_WhenContextIsNull_ThrowsArgumentNullException()
         {
             // Arrange
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
 
             // Act
             var exception = Assert.Throws<ArgumentNullException>(() => context.AddChildContext("child", null));
@@ -60,7 +69,7 @@ namespace UnityModBase.Test.HUserSpace
         [Fact]
         public void AddChildContext_WhenContextIsValid_StoresSameInstance()
         {
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
             using var child = new TrackingContext();
 
             context.AddChildContext("child", child);
@@ -72,7 +81,7 @@ namespace UnityModBase.Test.HUserSpace
         public void AddChildContext_WhenKeyAlreadyExists_PreservesOriginalOwnership()
         {
             // Arrange
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
             var original = new TrackingContext();
             using var replacement = new TrackingContext();
 
@@ -98,7 +107,7 @@ namespace UnityModBase.Test.HUserSpace
         public void GetContext_WhenKeyIsInvalid_ThrowsArgumentException(string key)
         {
             // Arrange
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
 
             // Act
             var exception = Assert.Throws<ArgumentException>(() => context.GetChildContext(key));
@@ -111,7 +120,7 @@ namespace UnityModBase.Test.HUserSpace
         public void GetContext_WhenKeyIsMissing_ReturnsNull()
         {
             // Arrange
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
 
             // Act
             var result = context.GetChildContext("missing");
@@ -126,7 +135,7 @@ namespace UnityModBase.Test.HUserSpace
         [InlineData("   ")]
         public void RemoveContext_WhenKeyIsNullOrWhitespace_ThrowsArgumentException(string key)
         {
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
 
             var exception = Assert.Throws<ArgumentException>(() => context.RemoveChildContext(key));
 
@@ -136,7 +145,7 @@ namespace UnityModBase.Test.HUserSpace
         [Fact]
         public void RemoveContext_WhenKeyExists_RemovesOnlySelectedContext()
         {
-            using var context = new UserContext("user", "User");
+            using var context = new UserContext("user", CreateName());
             using var removed = new TrackingContext();
             using var retained = new TrackingContext();
             context.AddChildContext("removed", removed);
@@ -153,7 +162,7 @@ namespace UnityModBase.Test.HUserSpace
         public void Dispose_WhenServiceAndChildrenExist_DisposesAndClearsAllResources()
         {
             // Arrange
-            var context = new UserContext("user", "User")
+            var context = new UserContext("user", CreateName())
             {
                 Service = new UserService("user")
             };
@@ -176,7 +185,7 @@ namespace UnityModBase.Test.HUserSpace
         [Fact]
         public void Dispose_WhenChildThrows_ContinuesDisposingRemainingChildren()
         {
-            var context = new UserContext("user", "User");
+            var context = new UserContext("user", CreateName());
             var remaining = new TrackingContext();
             context.AddChildContext("throwing", new ThrowingContext());
             context.AddChildContext("remaining", remaining);
@@ -206,6 +215,11 @@ namespace UnityModBase.Test.HUserSpace
             {
                 throw new InvalidOperationException("dispose failure");
             }
+        }
+
+        private static Translator CreateName()
+        {
+            return new Translator("用户", "User");
         }
     }
 }

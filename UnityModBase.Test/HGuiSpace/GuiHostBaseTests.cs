@@ -3,6 +3,7 @@ using Moq;
 using UnityEngine;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HGuiSpace
@@ -239,7 +240,7 @@ namespace UnityModBase.Test.HGuiSpace
         private UserContext CreateUser()
         {
             var userId = $"gui-host-{Guid.NewGuid():N}";
-            return UserManager.CreateUser(userId, "GUI Host User");
+            return UserManager.CreateUser(userId, new Translator("GUI Host User", "GUI Host User"));
         }
 
         private static Dictionary<string, UserContext> GetContexts()

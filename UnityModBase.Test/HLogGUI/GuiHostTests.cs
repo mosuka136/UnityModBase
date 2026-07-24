@@ -1,5 +1,6 @@
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HLogGUI
@@ -99,8 +100,8 @@ namespace UnityModBase.Test.HLogGUI
             // Arrange
             var selectedUserId = $"log-host-selected-{Guid.NewGuid():N}";
             var remainingUserId = $"log-host-remaining-{Guid.NewGuid():N}";
-            UserManager.CreateUser(selectedUserId, "Selected");
-            UserManager.CreateUser(remainingUserId, "Remaining");
+            UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
+            UserManager.CreateUser(remainingUserId, new Translator("保留", "Remaining"));
             var selectedContext = new TrackingContext();
             var sut = new TestGuiHost();
             sut.ConfigureSelection(selectedUserId, selectedContext);

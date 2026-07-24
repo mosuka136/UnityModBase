@@ -1,13 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace UnityModBase.HTranslatorSpace
 {
     /// <summary>
     /// 简单的双语文本容器。
-    /// 该类型用于配置文件注释和 GUI 文案；它只按当前默认语言返回中文或英文，不负责资源文件加载或运行时本地化回退链。
+    /// 该类型用于配置文件注释、GUI 文案和用户显示名；它只按当前默认语言返回中文或英文，
+    /// 不负责资源文件加载或运行时本地化回退链。
     /// </summary>
     public class Translator : IEnumerable<string>
     {

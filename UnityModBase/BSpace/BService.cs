@@ -7,7 +7,8 @@ using UnityModBase.HUserSpace;
 namespace UnityModBase.BSpace
 {
     /// <summary>
-    /// 组装 UnityModBase 自身的用户上下文、配置服务和文件日志，并维护框架专属的引用与事件联动。
+    /// 使用框架内置的可翻译显示名组装 UnityModBase 自身的用户上下文、配置服务和文件日志，
+    /// 并维护框架专属的引用与事件联动。
     /// 具体配置项由 <see cref="BConfigManager"/> 声明，通用服务资源由 <see cref="UserService"/> 持有；
     /// 用户注册表及其中资源的最终释放由进程级生命周期通过 <see cref="UserManager.Dispose"/> 统一完成。
     /// </summary>
@@ -27,7 +28,7 @@ namespace UnityModBase.BSpace
         internal static ConfigService Config => Service?.Config;
 
         /// <summary>
-        /// 创建框架用户上下文，并在规范化后的基础目录中注册配置文件和按小时命名的日志文件。
+        /// 创建具有可翻译显示名的框架用户上下文，并在规范化后的基础目录中注册配置文件和按小时命名的日志文件。
         /// 重复调用不会重建资源；初始化失败时会清理本类建立的事件联动和静态引用，并重新抛出原始异常。
         /// </summary>
         /// <param name="baseDirectory">
@@ -47,7 +48,7 @@ namespace UnityModBase.BSpace
                 var shouldDispose = false;
                 try
                 {
-                    Context = UserManager.Register(nameof(UnityModBase), nameof(UnityModBase));
+                    Context = UserManager.Register(nameof(UnityModBase), BTranslatorResource.UserName);
 
                     shouldDispose = true;
 

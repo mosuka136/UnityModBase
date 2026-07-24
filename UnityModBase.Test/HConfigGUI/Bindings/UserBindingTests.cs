@@ -98,7 +98,9 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
 
         private UserContext CreateUser()
         {
-            var context = UserManager.Register(Guid.NewGuid().ToString("N"), "Test User");
+            var context = UserManager.Register(
+                Guid.NewGuid().ToString("N"),
+                new Translator("测试用户", "Test User"));
             _registeredUserIds.Add(context.UserId);
             return context;
         }

@@ -2,6 +2,7 @@ using Moq;
 using UnityEngine;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HGuiSpace
@@ -39,22 +40,26 @@ namespace UnityModBase.Test.HGuiSpace
         }
 
         [Fact]
-        public void Draw_WhenSelectionChanges_UsesNonNullUsersAndReturnsNewKey()
+        public void Draw_WhenSelectionChanges_UsesTranslatedNonNullUsersAndReturnsNewKey()
         {
-            using var firstUser = new UserContext("first", "First");
-            using var secondUser = new UserContext("second", "Second");
+            using var firstUser = new UserContext(
+                "first",
+                new Translator("第一位", "First") { LanguageType = LanguageType.Chinese });
+            using var secondUser = new UserContext(
+                "second",
+                new Translator("第二位", "Second") { LanguageType = LanguageType.Chinese });
             GUIStyle boxStyle = null;
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
             unityGui.Setup(x => x.BeginVertical(boxStyle, It.Is<GUILayoutOption[]>(options => options.Length == 0)));
             unityGui.Setup(x => x.Space(4f));
             unityGui
-                .Setup(x => x.Button(firstUser.Name, It.Is<GUILayoutOption[]>(options => options.Length == 0)))
+                .Setup(x => x.Button("第一位", It.Is<GUILayoutOption[]>(options => options.Length == 0)))
                 .Returns(false);
             unityGui
                 .Setup(x => x.SelectionGrid(
                     0,
-                    It.Is<string[]>(names => names.SequenceEqual(new[] { firstUser.Name, secondUser.Name })),
+                    It.Is<string[]>(names => names.SequenceEqual(new[] { "第一位", "第二位" })),
                     1,
                     It.Is<GUILayoutOption[]>(options => options.Length == 0)))
                 .Returns(1);
@@ -76,14 +81,16 @@ namespace UnityModBase.Test.HGuiSpace
         [Fact]
         public void Draw_WhenButtonThrows_StillEndsVerticalAndPreservesException()
         {
-            using var user = new UserContext("user", "User");
+            using var user = new UserContext(
+                "user",
+                new Translator("用户", "User") { LanguageType = LanguageType.English });
             GUIStyle boxStyle = null;
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
             unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
             unityGui.Setup(x => x.Space(4f));
             unityGui
-                .Setup(x => x.Button(user.Name, It.IsAny<GUILayoutOption[]>()))
+                .Setup(x => x.Button("User", It.IsAny<GUILayoutOption[]>()))
                 .Throws(new InvalidOperationException("button failed"));
             unityGui.Setup(x => x.EndVertical());
             var editor = new TestUserEditor(unityGui.Object);

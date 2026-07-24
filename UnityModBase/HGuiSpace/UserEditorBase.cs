@@ -78,12 +78,13 @@ namespace UnityModBase.HGuiSpace
             {
                 UnityGui.Space(4);
 
+                // 每帧解析 Translator，运行时切换语言后无需重建用户上下文或选择器缓存。
                 if (UnityGui.Button(userArray[currentIndex].Name))
                     IsExpanded = !IsExpanded;
 
                 if (IsExpanded)
                 {
-                    var newIndex = UnityGui.SelectionGrid(currentIndex, userArray.Select(user => user.Name).ToArray(), 1);
+                    var newIndex = UnityGui.SelectionGrid(currentIndex, userArray.Select(user => user.Name.ToString()).ToArray(), 1);
 
                     if (currentIndex != newIndex)
                     {

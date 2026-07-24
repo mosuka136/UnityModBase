@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Reflection;
 using UnityModBase.BSpace;
 using UnityModBase.HLogSpace;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test
@@ -16,7 +17,9 @@ namespace UnityModBase.Test
                 .GetProperty(nameof(UserService.LogDatabase), BindingFlags.Instance | BindingFlags.Public)
                 .SetValue(service, new LogDatabase(null));
 
-            var context = new UserContext("UnityModBase.Test", "UnityModBase.Test")
+            var context = new UserContext(
+                "UnityModBase.Test",
+                new Translator("UnityModBase.Test", "UnityModBase.Test"))
             {
                 Service = service
             };

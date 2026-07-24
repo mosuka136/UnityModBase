@@ -24,7 +24,7 @@ namespace UnityModBase.Test.HConfigGUI
             sut.Configure(
                 unityService.Object,
                 new ToastEditor(unityService.Object, unityGui.Object, styleProvider));
-            using var user = new UserContext("user", "User");
+            using var user = new UserContext("user", new Translator("用户", "User"));
 
             // Act
             sut.RegisterContext(user);
@@ -48,7 +48,7 @@ namespace UnityModBase.Test.HConfigGUI
             sut.Configure(
                 unityService.Object,
                 new ToastEditor(unityService.Object, unityGui.Object, styleProvider));
-            using var user = new UserContext("user", "User");
+            using var user = new UserContext("user", new Translator("用户", "User"));
             using var existing = new TrackingContext();
             user.AddChildContext(TestGuiHost.ContextKey, existing);
 
@@ -89,8 +89,8 @@ namespace UnityModBase.Test.HConfigGUI
             // Arrange
             var selectedUserId = $"config-host-selected-{Guid.NewGuid():N}";
             var remainingUserId = $"config-host-remaining-{Guid.NewGuid():N}";
-            UserManager.CreateUser(selectedUserId, "Selected");
-            UserManager.CreateUser(remainingUserId, "Remaining");
+            UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
+            UserManager.CreateUser(remainingUserId, new Translator("保留", "Remaining"));
             var selectedContext = new TrackingContext();
             var sut = new TestGuiHost();
             sut.ConfigureSelection(selectedUserId, selectedContext);

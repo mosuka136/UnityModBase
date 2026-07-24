@@ -247,7 +247,9 @@ namespace UnityModBase.Test.BSpace
                 if (withConfigService)
                     service.RegisterConfig(typeof(BConfigManager), configFilePath);
 
-                var testContext = new UserContext("UnityModBase.Test", "UnityModBase.Test")
+                var testContext = new UserContext(
+                    "UnityModBase.Test",
+                    new Translator("UnityModBase.Test", "UnityModBase.Test"))
                 {
                     Service = service
                 };

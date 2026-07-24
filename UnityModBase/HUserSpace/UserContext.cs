@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using UnityModBase.BSpace;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HUserSpace
 {
@@ -24,9 +25,10 @@ namespace UnityModBase.HUserSpace
         public string UserId { get; }
 
         /// <summary>
-        /// 面向界面显示的名称；构造参数为 <c>null</c> 时规范化为空字符串。
+        /// 面向界面的非空可翻译名称。属性保留构造时传入的 <see cref="Translator"/> 实例，
+        /// 文本在使用时按实例语言或 <see cref="Translator.DefaultLanguage"/> 解析。
         /// </summary>
-        public string Name { get; }
+        public Translator Name { get; }
 
         /// <summary>
         /// 此上下文拥有的配置与日志服务。替换该引用不会自动释放原服务；释放上下文时只释放当前引用。
@@ -37,15 +39,16 @@ namespace UnityModBase.HUserSpace
         /// 创建用户资源作用域并初始化对应的用户服务；不会自动登记到 <see cref="UserManager"/>。
         /// </summary>
         /// <param name="userId">非空白的用户唯一标识。</param>
-        /// <param name="name">显示名称；<c>null</c> 会转换为空字符串。</param>
+        /// <param name="name">非空的可翻译显示名称；实例按引用保存，不会复制其文本或语言状态。</param>
         /// <exception cref="ArgumentException"><paramref name="userId"/> 为 <c>null</c>、空字符串或仅空白时抛出。</exception>
-        public UserContext(string userId, string name)
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> 为 <c>null</c> 时抛出。</exception>
+        public UserContext(string userId, Translator name)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 throw new ArgumentException("User ID cannot be null or whitespace.", nameof(userId));
 
             UserId = userId;
-            Name = name ?? string.Empty;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
             Service = new UserService(userId);
         }
 

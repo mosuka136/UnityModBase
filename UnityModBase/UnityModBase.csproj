@@ -34,6 +34,7 @@
   <ItemGroup>
     <Compile Include="BSpace\BLog.cs" />
     <Compile Include="BSpace\BService.cs" />
+    <Compile Include="BSpace\BTranslatorResource.cs" />
     <Compile Include="DelegateHelper.cs" />
     <Compile Include="FrameUpdateManager.cs" />
     <Compile Include="GameBootRegistery.cs" />

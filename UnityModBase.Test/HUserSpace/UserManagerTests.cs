@@ -108,7 +108,7 @@ namespace UnityModBase.Test.HUserSpace
         public void CreateUser_WhenIdIsEmpty_ThrowsArgumentNullException()
         {
             // Act
-            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.CreateUser(string.Empty, "Name"));
+            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.CreateUser(string.Empty, CreateName("Name")));
 
             // Assert
             Assert.Equal("userId", exception.ParamName);
@@ -120,26 +120,38 @@ namespace UnityModBase.Test.HUserSpace
         public void CreateUser_WhenIdAlreadyExists_ReturnsExistingContext()
         {
             // Arrange
-            var original = UserManager.CreateUser("user", "Original");
+            var originalName = CreateName("Original");
+            var original = UserManager.CreateUser("user", originalName);
 
             // Act
-            var duplicate = UserManager.CreateUser("user", "Replacement");
+            var duplicate = UserManager.CreateUser("user", CreateName("Replacement"));
 
             // Assert
             Assert.Same(original, duplicate);
-            Assert.Equal("Original", duplicate.Name);
+            Assert.Same(originalName, duplicate.Name);
             Assert.Single(UserManager.UserContexts);
+        }
+
+        [Fact]
+        public void CreateUser_WhenNameIsNull_ThrowsArgumentNullExceptionWithoutRegisteringUser()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.CreateUser("user", null));
+
+            Assert.Equal("name", exception.ParamName);
+            Assert.Empty(UserManager.UserContexts);
         }
 
         [Fact]
         public void Register_WhenIdIsEmpty_GeneratesIdAndInitializesService()
         {
+            var name = CreateName("Generated");
+
             // Act
-            var context = UserManager.Register(null, "Generated");
+            var context = UserManager.Register(null, name);
 
             // Assert
             Assert.StartsWith("User_", context.UserId, StringComparison.Ordinal);
-            Assert.Equal("Generated", context.Name);
+            Assert.Same(name, context.Name);
             Assert.NotNull(context.Service);
             Assert.Equal(context.UserId, context.Service.UserId);
             Assert.Same(context, UserManager.GetUser(context.UserId));
@@ -149,10 +161,10 @@ namespace UnityModBase.Test.HUserSpace
         public void Register_WhenIdAlreadyExists_CreatesUniqueUserWithoutReplacingOriginal()
         {
             // Arrange
-            var original = UserManager.Register("user", "Original");
+            var original = UserManager.Register("user", CreateName("Original"));
 
             // Act
-            var duplicate = UserManager.Register("user", "Duplicate");
+            var duplicate = UserManager.Register("user", CreateName("Duplicate"));
 
             // Assert
             Assert.NotEqual(original.UserId, duplicate.UserId);
@@ -160,6 +172,15 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Same(original, UserManager.GetUser("user"));
             Assert.Same(duplicate, UserManager.GetUser(duplicate.UserId));
             Assert.Equal(2, UserManager.UserContexts.Count());
+        }
+
+        [Fact]
+        public void Register_WhenNameIsNull_ThrowsArgumentNullExceptionWithoutGeneratingUser()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.Register(null, null));
+
+            Assert.Equal("name", exception.ParamName);
+            Assert.Empty(UserManager.UserContexts);
         }
 
         [Fact]
@@ -171,7 +192,7 @@ namespace UnityModBase.Test.HUserSpace
             UserManager.OnUserRegistered += context => received = context;
 
             // Act
-            var result = UserManager.Register("user", "Name");
+            var result = UserManager.Register("user", CreateName("Name"));
 
             // Assert
             Assert.Same(result, received);
@@ -182,8 +203,8 @@ namespace UnityModBase.Test.HUserSpace
         public void Register_WhenConfigChanges_ForwardsCorrectContextAndInvokesRemainingHandlersAfterFailure()
         {
             // Arrange
-            UserManager.Register("other", "Other");
-            var expected = UserManager.Register("user", "Name");
+            UserManager.Register("other", CreateName("Other"));
+            var expected = UserManager.Register("user", CreateName("Name"));
             var configPath = Path.Combine(CreateTempDirectory(), "settings.cfg");
             expected.Service.RegisterConfig(typeof(TestConfigManager), configPath);
             var failingHandlerCalled = false;
@@ -209,7 +230,7 @@ namespace UnityModBase.Test.HUserSpace
         public void RemoveUser_WhenUserExists_PublishesAfterDisposalAndRegistrationRemoval()
         {
             // Arrange
-            var context = UserManager.CreateUser("user", "Name");
+            var context = UserManager.CreateUser("user", CreateName("Name"));
             var child = new TrackingContext();
             context.AddChildContext("child", child);
             string removedUserId = null;
@@ -238,7 +259,7 @@ namespace UnityModBase.Test.HUserSpace
         public void RemoveUser_WhenRemovalHandlerThrows_InvokesRemainingHandlers()
         {
             // Arrange
-            UserManager.CreateUser("user", "Name");
+            UserManager.CreateUser("user", CreateName("Name"));
             var failingHandlerCalled = false;
             string receivedUserId = null;
             UserManager.OnUserRemoved += _ =>
@@ -264,7 +285,7 @@ namespace UnityModBase.Test.HUserSpace
         public void RemoveUser_WhenIdIsEmptyOrUnknown_DoesNotChangeRegistrationsOrPublish(string userId)
         {
             // Arrange
-            var existing = UserManager.CreateUser("existing", "Name");
+            var existing = UserManager.CreateUser("existing", CreateName("Name"));
             var notificationCount = 0;
             UserManager.OnUserRemoved += _ => notificationCount++;
 
@@ -281,7 +302,7 @@ namespace UnityModBase.Test.HUserSpace
         public void Dispose_DisposesContextsAndClearsRegistrationsAndNonRemovalHandlers()
         {
             // Arrange
-            var context = UserManager.CreateUser("user", "Name");
+            var context = UserManager.CreateUser("user", CreateName("Name"));
             var child = new TrackingContext();
             context.AddChildContext("child", child);
             UserManager.OnUserRegistered += _ => { };
@@ -301,7 +322,7 @@ namespace UnityModBase.Test.HUserSpace
         public void Dispose_WhenRemovalHandlerIsSubscribed_PreservesHandlerWithoutPublishing()
         {
             // Arrange
-            UserManager.CreateUser("user", "Name");
+            UserManager.CreateUser("user", CreateName("Name"));
             var removalNotificationCount = 0;
             Action<string> removalHandler = _ => removalNotificationCount++;
             UserManager.OnUserRemoved += removalHandler;
@@ -325,6 +346,11 @@ namespace UnityModBase.Test.HUserSpace
         private static Dictionary<string, UserContext> GetContexts()
         {
             return (Dictionary<string, UserContext>)UserContextsField.GetValue(null);
+        }
+
+        private static Translator CreateName(string english)
+        {
+            return new Translator($"测试-{english}", english);
         }
 
         private sealed class TrackingContext : IUserContext
