@@ -37,11 +37,11 @@
     <Compile Include="BSpace\BTranslatorResource.cs" />
     <Compile Include="DelegateHelper.cs" />
     <Compile Include="FrameUpdateManager.cs" />
-    <Compile Include="GameBootRegistery.cs" />
+    <Compile Include="GameBootRegistry.cs" />
     <Compile Include="GameQuitManager.cs" />
     <Compile Include="HClassAttribute\ClassHelper.cs" />
     <Compile Include="HClassAttribute\ConfigSliderAttribute.cs" />
-    <Compile Include="HClassAttribute\InitialzeOnGameBootAttribute.cs" />
+    <Compile Include="HClassAttribute\InitializeOnGameBootAttribute.cs" />
     <Compile Include="HClassAttribute\RegisterOnGameBootAttribute.cs" />
     <Compile Include="HConfigGUI\Bindings\EntryBinding.cs" />
     <Compile Include="HConfigGUI\Bindings\GroupBinding.cs" />
