@@ -83,15 +83,37 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void IsContextValid_AcceptsOnlyLogGuiContext()
+        public void OnSelectedUserRemoved_WhenDefaultUserHasWrongContextType_ClearsSelection()
         {
+            var selectedUserId = $"log-host-invalid-selected-{Guid.NewGuid():N}";
+            var remainingUserId = $"log-host-invalid-remaining-{Guid.NewGuid():N}";
+            UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
+            var remainingUser = UserManager.CreateUser(
+                remainingUserId,
+                new Translator("错误类型", "Wrong Type"));
+            var wrongContext = new TrackingContext();
+            remainingUser.AddChildContext(nameof(HLogGUI), wrongContext);
+            var selectedContext = new TrackingContext();
             var sut = new TestGuiHost();
-            using var validContext = new GuiContext();
-            using var wrongContext = new TrackingContext();
+            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var removalHandler = CreateUserRemovalHandler(sut);
+            UserManager.OnUserRemoved += removalHandler;
 
-            Assert.True(sut.IsContextValidForTest(validContext));
-            Assert.False(sut.IsContextValidForTest(wrongContext));
-            Assert.False(sut.IsContextValidForTest(null));
+            try
+            {
+                UserManager.RemoveUser(selectedUserId);
+
+                Assert.Same(remainingUser, UserManager.GetUser(remainingUserId));
+                Assert.Same(wrongContext, remainingUser.GetChildContext(nameof(HLogGUI)));
+                Assert.Equal(string.Empty, sut.SelectedUserKey);
+                Assert.Null(sut.CurrentContext);
+            }
+            finally
+            {
+                UserManager.OnUserRemoved -= removalHandler;
+                UserManager.RemoveUser(selectedUserId);
+                UserManager.RemoveUser(remainingUserId);
+            }
         }
 
         [Fact]
@@ -154,11 +176,6 @@ namespace UnityModBase.Test.HLogGUI
             public void DestroyForTest()
             {
                 OnDestroy();
-            }
-
-            public bool IsContextValidForTest(IUserContext context)
-            {
-                return IsContextValid(context);
             }
         }
 

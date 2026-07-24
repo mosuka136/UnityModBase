@@ -7,34 +7,45 @@ namespace UnityModBase.HClassAttribute
     /// 该特性经配置 GUI 转换为控件元数据，不参与配置读取、持久化或值域验证。
     /// </summary>
     /// <remarks>
-    /// 参数会原样保存；构造过程不会拒绝反向范围、NaN 或无穷值，声明方应确保这些值可供 Unity 滑条使用。
+    /// 构造函数要求范围和步长均为有限数值，且最小值不得大于最大值；非正步长表示禁用吸附。
+    /// 元数据在构造后不可变，配置 GUI 可直接使用已验证的范围和步长。
     /// 仅滑条交互会应用范围和步长，文本输入以及配置文件中的既有值仍可超出该范围。
     /// </remarks>
     [AttributeUsage(AttributeTargets.Property, Inherited = true, AllowMultiple = false)]
     public class ConfigSliderAttribute : Attribute
     {
         /// <summary>
-        /// 获取或设置滑条最小显示值；不校验其与 <see cref="Max"/> 的关系。
+        /// 获取已验证的滑条最小显示值。
         /// </summary>
-        public float Min { get; set; }
+        public float Min { get; }
         /// <summary>
-        /// 获取或设置滑条最大显示值；不校验其与 <see cref="Min"/> 的关系。
+        /// 获取已验证的滑条最大显示值。
         /// </summary>
-        public float Max { get; set; }
+        public float Max { get; }
         /// <summary>
-        /// 获取或设置滑条吸附步长；仅当值大于 0 时，以 <see cref="Min"/> 为吸附起点。
+        /// 获取滑条吸附步长；仅当值大于 0 时，以 <see cref="Min"/> 为吸附起点。
         /// </summary>
-        public float Step { get; set; }
+        public float Step { get; }
 
         /// <summary>
         /// 创建用于声明数值配置项滑条范围的特性。
         /// </summary>
-        /// <param name="min">滑条最小显示值。</param>
-        /// <param name="max">滑条最大显示值。</param>
-        /// <param name="step">以 <paramref name="min"/> 为起点的吸附步长；默认 <c>-1</c>，仅大于 0 时启用吸附。</param>
-        /// <remarks>构造函数不校验参数的顺序、有限性或步长有效性。</remarks>
+        /// <param name="min">有限的滑条最小显示值，不得大于 <paramref name="max"/>。</param>
+        /// <param name="max">有限的滑条最大显示值。</param>
+        /// <param name="step">有限的吸附步长，以 <paramref name="min"/> 为起点；默认 <c>-1</c>，仅大于 0 时启用吸附。</param>
+        /// <exception cref="ArgumentException">
+        /// 任一参数为 NaN 或无穷值，或 <paramref name="min"/> 大于 <paramref name="max"/> 时抛出。
+        /// </exception>
+        /// <remarks>步长为 0 或负数是受支持的禁用吸附约定，不会被视为无效参数。</remarks>
         public ConfigSliderAttribute(float min, float max, float step = -1f)
         {
+            if (float.IsNaN(min) || float.IsNaN(max) || float.IsNaN(step))
+                throw new ArgumentException("Slider range and step cannot be NaN.");
+            if (float.IsInfinity(min) || float.IsInfinity(max) || float.IsInfinity(step))
+                throw new ArgumentException("Slider range and step cannot be infinite.");
+            if (min > max)
+                throw new ArgumentException("Slider min value cannot be greater than max value.");
+
             Min = min;
             Max = max;
             Step = step;

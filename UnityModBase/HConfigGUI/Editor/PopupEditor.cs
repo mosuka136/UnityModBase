@@ -51,6 +51,8 @@ namespace UnityModBase.HConfigGUI.Editor
         /// </summary>
         /// <param name="context">提供弹窗标题、主体和关闭回调的配置 GUI 上下文。</param>
         /// <remarks>
+        /// 遮罩通过临时改写共享的 <see cref="IUnityGuiProvider.Color"/> 绘制；颜色恢复不在异常保护块内，
+        /// 因此遮罩绘制器抛出时，调用方应视当前帧 GUI 颜色状态为不可继续复用。
         /// 主体和关闭回调中的异常会继续传播，但弹窗内部的垂直布局仍会闭合。
         /// 关闭回调先于 <see cref="GuiContext.PopupState.IsOpen"/> 清除；回调抛出时不会执行后续关闭赋值，
         /// 最终弹窗状态取决于回调在异常前是否已经修改上下文。

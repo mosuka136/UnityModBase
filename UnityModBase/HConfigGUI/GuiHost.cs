@@ -170,11 +170,17 @@ namespace UnityModBase.HConfigGUI
         }
 
         /// <summary>
-        /// 用户上下文切换或移除前立即提交有效延迟输入，并取消当前热键录制和模态弹窗。
+        /// 宿主通过非空目标用户切换上下文，或因目标上下文无效而清空当前上下文前，
+        /// 立即提交有效延迟输入，并取消当前热键录制和模态弹窗。
         /// 提交失败只记录日志，不能阻止界面切换到仍然有效的用户。
         /// </summary>
         /// <param name="currentContext">即将离开的配置 GUI 上下文；类型不匹配时按空操作处理。</param>
         /// <param name="nextContext">即将采用的上下文；仅用于判断是否发生实际切换。</param>
+        /// <remarks>
+        /// 用户移除通知发生在原用户上下文释放之后，因此由移除触发时，延迟输入通常已由
+        /// <see cref="GuiContext.Dispose"/> 提交。注册表为空时基类会直接清空宿主状态而不调用本方法；
+        /// 该路径的资源释放依赖用户上下文的级联释放。
+        /// </remarks>
         protected override void OnCurrentContextChanging(IUserContext currentContext, IUserContext nextContext)
         {
             if (!(currentContext is GuiContext context) || ReferenceEquals(currentContext, nextContext))

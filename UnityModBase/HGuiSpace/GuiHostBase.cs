@@ -21,7 +21,7 @@ namespace UnityModBase.HGuiSpace
     /// 用户移除通知在调用 <see cref="UserManager.RemoveUser(string)"/> 的线程同步执行；宿主存活期间，
     /// 调用方必须将用户移除与 Unity 生命周期及 IMGUI 绘制串行化。
     /// 普通窗口绘制要求 <see cref="SelectedUserKey"/> 对应已注册用户；最后一个用户被移除后，
-    /// 派生类必须先建立新的选择和模块上下文，才能再次绘制窗口。
+    /// 本类会清空选择和当前上下文。派生类必须先注册新用户及其模块上下文，才能再次绘制窗口。
     /// </remarks>
     public abstract class GuiHostBase : MonoBehaviour
     {
@@ -283,10 +283,15 @@ namespace UnityModBase.HGuiSpace
         }
 
         /// <summary>
-        /// 在当前上下文即将切换或清空时通知派生宿主处理待提交值和瞬态编辑状态。
+        /// 在通过非空用户标识切换上下文或因候选无效而清空上下文前，
+        /// 通知派生宿主处理待提交值和瞬态编辑状态。
         /// </summary>
         /// <param name="currentContext">切换前的模块上下文，可能为 null。</param>
         /// <param name="nextContext">即将采用的模块上下文，可能为 null。</param>
+        /// <remarks>
+        /// 用户注册表为空时，<see cref="ChangeCurrentContext"/> 会直接清空宿主状态，不调用本方法；
+        /// 派生模块应通过其子上下文的 <see cref="IDisposable.Dispose"/> 处理随用户释放的资源。
+        /// </remarks>
         protected virtual void OnCurrentContextChanging(IUserContext currentContext, IUserContext nextContext)
         {
         }
@@ -302,13 +307,13 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 响应用户移除通知。非当前用户的移除不会改变界面状态；当前用户被移除后，
-        /// 使用注册表默认用户作为候选项，并按 <see cref="IsContextValid"/> 的结果切换或清空模块上下文。
+        /// 优先切换到注册表默认用户的有效模块上下文，没有可用候选时清空选择和当前上下文。
         /// </summary>
         /// <param name="userId">已经完成释放并从用户注册表移除的用户标识。</param>
         /// <remarks>
         /// 该回调由 <see cref="UserManager.RemoveUser(string)"/> 在调用线程同步执行。
-        /// 通知发生时原用户上下文已经释放并移出注册表。当前实现依赖注册表中仍有默认用户；
-        /// 注册表为空时，空键会使上下文解析抛出异常，由用户管理器隔离并记录。
+        /// 通知发生时原用户上下文已经释放并移出注册表。注册表为空时默认用户键为空，
+        /// 此路径会直接清空宿主状态，不再查询用户管理器，也不会触发上下文切换回调。
         /// </remarks>
         private void OnUserRemoved(string userId)
         {
@@ -322,11 +327,26 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 解析并验证目标用户的模块上下文，在替换字段前通知派生宿主清理旧上下文状态。
         /// 无效候选会把选择键和当前上下文清空；本方法不会继续搜索其他用户。
+        /// 空键表示用户注册表中已无回退项，会直接清空宿主状态。
         /// </summary>
-        /// <param name="userKey">要解析的非空用户标识；未知用户会产生无效候选。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="userKey"/> 为 null 或空字符串。</exception>
+        /// <param name="userKey">要解析的用户标识；null、空字符串或未知用户都会清空当前选择。</param>
+        /// <exception cref="ArgumentException">
+        /// 用户存在，但 <see cref="GuiContextKey"/> 尚未设置为非空白键时抛出。
+        /// </exception>
+        /// <remarks>
+        /// null 或空字符串路径不执行 <see cref="IsContextValid"/>、<see cref="OnCurrentContextChanging"/>，
+        /// 也不会标记用户编辑器状态；该路径仅用于没有默认用户可供切换的注册表状态。
+        /// </remarks>
         private void ChangeCurrentContext(string userKey)
         {
+            if (string.IsNullOrEmpty(userKey))
+            {
+                // 最后一个用户移除后默认键为空；避免把该哨兵值传给要求非空标识的 GetContext。
+                _selectedUserKey = string.Empty;
+                CurrentContext = null;
+                return;
+            }
+
             IUserContext nextContext = null;
             var candidate = GetContext(userKey);
 

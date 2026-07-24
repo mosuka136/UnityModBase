@@ -161,6 +161,25 @@ namespace UnityModBase.Test.HGuiSpace
         }
 
         [Fact]
+        public void Awake_WhenLastSelectedUserIsRemoved_ClearsSelectionAndContext()
+        {
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var sut = new TestGuiHost("module");
+            sut.Awake();
+            sut.Select(selectedUser.UserId, selectedContext);
+
+            UserManager.RemoveUser(selectedUser.UserId);
+
+            Assert.True(selectedContext.IsDisposed);
+            Assert.Equal(string.Empty, sut.SelectedUserKey);
+            Assert.Null(sut.CurrentContext);
+            Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
+            Assert.Null(sut.Editor.LastContext);
+        }
+
+        [Fact]
         public void OnDestroy_WhenSelectedUserIsLaterRemoved_DoesNotChangeHostState()
         {
             // Arrange
@@ -306,8 +325,11 @@ namespace UnityModBase.Test.HGuiSpace
 
         private sealed class TrackingContext : IUserContext
         {
+            public bool IsDisposed { get; private set; }
+
             public void Dispose()
             {
+                IsDisposed = true;
             }
         }
     }

@@ -28,6 +28,32 @@ namespace UnityModBase.Test.HClassAttribute
             Assert.Equal(-1f, attribute.Step);
         }
 
+        [Theory]
+        [MemberData(nameof(GetNonFiniteArguments))]
+        public void Constructor_WhenAnyArgumentIsNotFinite_ThrowsArgumentException(
+            float min,
+            float max,
+            float step)
+        {
+            Assert.Throws<ArgumentException>(() => new ConfigSliderAttribute(min, max, step));
+        }
+
+        [Fact]
+        public void Constructor_WhenMinimumExceedsMaximum_ThrowsArgumentException()
+        {
+            Assert.Throws<ArgumentException>(() => new ConfigSliderAttribute(10f, -1f, 0.5f));
+        }
+
+        [Fact]
+        public void Constructor_WithEqualEndpointsAndZeroStep_StoresValues()
+        {
+            var attribute = new ConfigSliderAttribute(5f, 5f, 0f);
+
+            Assert.Equal(5f, attribute.Min);
+            Assert.Equal(5f, attribute.Max);
+            Assert.Equal(0f, attribute.Step);
+        }
+
         [Fact]
         public void AttributeUsage_TargetsPropertiesAndDoesNotAllowMultiple()
         {
@@ -41,6 +67,21 @@ namespace UnityModBase.Test.HClassAttribute
             Assert.True(usage.ValidOn.HasFlag(AttributeTargets.Property));
             Assert.True(usage.Inherited);
             Assert.False(usage.AllowMultiple);
+        }
+
+        public static IEnumerable<object[]> GetNonFiniteArguments()
+        {
+            foreach (var nonFiniteValue in new[]
+            {
+                float.NaN,
+                float.PositiveInfinity,
+                float.NegativeInfinity
+            })
+            {
+                yield return new object[] { nonFiniteValue, 10f, 1f };
+                yield return new object[] { 0f, nonFiniteValue, 1f };
+                yield return new object[] { 0f, 10f, nonFiniteValue };
+            }
         }
     }
 }

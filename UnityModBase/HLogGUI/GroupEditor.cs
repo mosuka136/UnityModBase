@@ -128,6 +128,10 @@ namespace UnityModBase.HLogGUI
             /// </summary>
             /// <param name="group">接收排序状态变化的日志分组。</param>
             /// <exception cref="ArgumentNullException"><paramref name="group"/> 为 null。</exception>
+            /// <remarks>
+            /// 排序强调会临时改写共享 <see cref="Style"/>。正常返回时会恢复原字体样式；若 IMGUI 提供器抛出异常，
+            /// 恢复语句不会执行，共享样式可能影响同帧后续列，调用方不应在该异常后继续复用当前绘制状态。
+            /// </remarks>
             public void DrawHeader(GroupBinding group)
             {
                 if (group == null)

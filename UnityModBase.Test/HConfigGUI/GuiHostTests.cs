@@ -163,16 +163,39 @@ namespace UnityModBase.Test.HConfigGUI
         }
 
         [Fact]
-        public void IsContextValid_AcceptsOnlyValidConfigGuiContext()
+        public void OnSelectedUserRemoved_WhenDefaultUserHasInvalidContext_ClearsSelection()
         {
+            var selectedUserId = $"config-host-invalid-selected-{Guid.NewGuid():N}";
+            var remainingUserId = $"config-host-invalid-remaining-{Guid.NewGuid():N}";
+            UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
+            var remainingUser = UserManager.CreateUser(
+                remainingUserId,
+                new Translator("无效", "Invalid"));
+            remainingUser.AddChildContext(TestGuiHost.ContextKey, GuiContext.InvalidGuiContext);
+            var selectedContext = new TrackingContext();
             var sut = new TestGuiHost();
-            using var validContext = new GuiContext();
-            using var wrongContext = new TrackingContext();
+            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var removalHandler = CreateUserRemovalHandler(sut);
+            UserManager.OnUserRemoved += removalHandler;
 
-            Assert.True(sut.IsContextValidForTest(validContext));
-            Assert.False(sut.IsContextValidForTest(GuiContext.InvalidGuiContext));
-            Assert.False(sut.IsContextValidForTest(wrongContext));
-            Assert.False(sut.IsContextValidForTest(null));
+            try
+            {
+                UserManager.RemoveUser(selectedUserId);
+
+                Assert.Same(remainingUser, UserManager.GetUser(remainingUserId));
+                Assert.Same(
+                    GuiContext.InvalidGuiContext,
+                    remainingUser.GetChildContext(TestGuiHost.ContextKey));
+                Assert.Equal(string.Empty, sut.SelectedUserKey);
+                Assert.Null(sut.CurrentContext);
+            }
+            finally
+            {
+                UserManager.OnUserRemoved -= removalHandler;
+                remainingUser.RemoveChildContext(TestGuiHost.ContextKey);
+                UserManager.RemoveUser(selectedUserId);
+                UserManager.RemoveUser(remainingUserId);
+            }
         }
 
         private static Action<string> CreateUserRemovalHandler(GuiHostBase target)
@@ -217,11 +240,6 @@ namespace UnityModBase.Test.HConfigGUI
             public void ChangeContextForTest(IUserContext currentContext, IUserContext nextContext)
             {
                 OnCurrentContextChanging(currentContext, nextContext);
-            }
-
-            public bool IsContextValidForTest(IUserContext context)
-            {
-                return IsContextValid(context);
             }
         }
 
