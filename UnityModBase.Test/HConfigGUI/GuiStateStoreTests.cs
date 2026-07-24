@@ -174,6 +174,45 @@ namespace UnityModBase.Test.HConfigGUI
             Assert.Null(toastEditor.Message);
         }
 
+        [Fact]
+        public void Dispose_WhenDelayedEditExists_CommitsBeforeReleasingContext()
+        {
+            var context = new GuiContext();
+            var entry = CreateEntry(new Translator("名称", "Name"), "old", "new");
+            context.ChangeSink.SetValue(entry.Object, "new", delay: 10f);
+
+            context.Dispose();
+            context.ChangeSink.FlushValue(10f);
+
+            entry.VerifySet(x => x.Value = "new", Times.Once);
+            Assert.False(entry.Object.EditBuffer.IsUsing);
+        }
+
+        [Fact]
+        public void Dispose_WhenPendingCommitThrows_StillUnsubscribesToastNotifications()
+        {
+            var context = new GuiContext();
+            var toastEditor = CreateToastEditor();
+            var failingEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var failingBuffer = new EntryEditBuffer();
+            failingEntry.SetupGet(x => x.EditBuffer).Returns(failingBuffer);
+            failingEntry.SetupGet(x => x.Value).Returns("old");
+            failingEntry
+                .SetupSet(x => x.Value = "new")
+                .Throws(new InvalidOperationException("write failed"));
+            var laterEntry = CreateEntry(new Translator("名称", "Name"), "old", "new");
+            context.SubscribeToastNotifications(toastEditor);
+            context.ChangeSink.SetValue(failingEntry.Object, "new", delay: 10f);
+
+            context.Dispose();
+            context.ChangeSink.SetValue(laterEntry.Object, "new");
+
+            Assert.True(failingBuffer.IsUsing);
+            Assert.Null(toastEditor.Message);
+            failingEntry.VerifySet(x => x.Value = "new", Times.Once);
+            laterEntry.VerifySet(x => x.Value = "new", Times.Once);
+        }
+
         private static ToastEditor CreateToastEditor()
         {
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);

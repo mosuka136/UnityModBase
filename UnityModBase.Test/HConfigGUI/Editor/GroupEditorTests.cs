@@ -121,6 +121,41 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
+        public void Draw_WhenEntryRenderingThrows_ClosesEveryOpenedLayout()
+        {
+            var editor = CreateEditor(out _, out var unityGui);
+            var entry = CreateEntryBindingMock(typeof(string), value: "value");
+            entry.SetupGet(x => x.Name).Throws(new InvalidOperationException("name failed"));
+            var root = new GroupBinding("Root", null, null, new[] { entry.Object });
+            var context = new GuiContext
+            {
+                UserData = root,
+                IsEntryLabelWidthDirty = false,
+                IsGroupButtonWidthDirty = false,
+                IsResetButtonWidthDirty = false
+            };
+            SetCurrentRoot(editor, root);
+            var boxStyle = CreateUninitializedGuiStyle();
+            unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
+            unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui
+                .Setup(x => x.BeginScrollView(Vector2.zero, It.IsAny<GUILayoutOption[]>()))
+                .Returns(Vector2.zero);
+            unityGui.Setup(x => x.BeginVertical());
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.EndHorizontal());
+            unityGui.Setup(x => x.EndVertical());
+            unityGui.Setup(x => x.EndScrollView());
+
+            var exception = Assert.Throws<InvalidOperationException>(() => editor.Draw(context));
+
+            Assert.Equal("name failed", exception.Message);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGui.Verify(x => x.EndVertical(), Times.Exactly(2));
+            unityGui.Verify(x => x.EndScrollView(), Times.Once);
+        }
+
+        [Fact]
         public void Update_WhenDifferentContextIsPassed_FlushesOnlyThatContextsPendingValue()
         {
             // Arrange

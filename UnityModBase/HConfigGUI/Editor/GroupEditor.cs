@@ -13,6 +13,10 @@ namespace UnityModBase.HConfigGUI.Editor
     /// 负责配置绑定树的分组导航、递归内容绘制、布局尺寸缓存刷新和延迟值提交。
     /// 编辑器本身保存当前根节点及滚动位置，用户相关选择和尺寸缓存保存在 <see cref="GuiContext"/>；切换根节点会取消热键编辑会话。
     /// </summary>
+    /// <remarks>
+    /// 分组树最终会进入可扩展的值编辑器和配置回调，因此每个已成功开启的 IMGUI 布局与滚动视图都在
+    /// <c>finally</c> 中闭合；异常仍向调用方传播，但不会把未配对的布局状态带入后续窗口或帧。
+    /// </remarks>
     public class GroupEditor : IDisposable
     {
         /// <summary>
@@ -110,10 +114,16 @@ namespace UnityModBase.HConfigGUI.Editor
             var selectedGroup = GetSelectedGroup(groups, context);
 
             UnityGui.BeginHorizontal();
-            DrawSidebar(groups, ref selectedGroup, context);
-            UnityGui.Space(10f);
-            DrawContent(selectedGroup, true, context);
-            UnityGui.EndHorizontal();
+            try
+            {
+                DrawSidebar(groups, ref selectedGroup, context);
+                UnityGui.Space(10f);
+                DrawContent(selectedGroup, true, context);
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
 
             context.SelectedGroupKey = selectedGroup.Key;
         }
@@ -186,71 +196,104 @@ namespace UnityModBase.HConfigGUI.Editor
         private void DrawSidebar(IReadOnlyList<GroupBinding> groups, ref GroupBinding selectedGroup, GuiContext context)
         {
             UnityGui.BeginVertical(UnityGui.BoxStyle, UnityGui.Width(context.GroupButtonWidth));
-            _sidebarScrollPosition = UnityGui.BeginScrollView(_sidebarScrollPosition);
-
-            foreach (var group in groups)
+            try
             {
-                var isSelected = ReferenceEquals(selectedGroup, group);
-                if (!UnityGui.Button(
-                    group.Name,
-                    isSelected ? StyleProvider.SidebarSelectedEntryStyle : StyleProvider.SidebarEntryStyle,
-                    UnityGui.ExpandWidth(true)))
+                _sidebarScrollPosition = UnityGui.BeginScrollView(_sidebarScrollPosition);
+                try
                 {
-                    continue;
-                }
+                    foreach (var group in groups)
+                    {
+                        var isSelected = ReferenceEquals(selectedGroup, group);
+                        if (!UnityGui.Button(
+                            group.Name,
+                            isSelected ? StyleProvider.SidebarSelectedEntryStyle : StyleProvider.SidebarEntryStyle,
+                            UnityGui.ExpandWidth(true)))
+                        {
+                            continue;
+                        }
 
-                if (!isSelected)
+                        if (!isSelected)
+                        {
+                            selectedGroup = group;
+                            _contentScrollPosition = Vector2.zero;
+                            context.SelectedGroupKey = group.Key;
+                        }
+                    }
+                }
+                finally
                 {
-                    selectedGroup = group;
-                    _contentScrollPosition = Vector2.zero;
-                    context.SelectedGroupKey = group.Key;
+                    UnityGui.EndScrollView();
                 }
             }
-
-            UnityGui.EndScrollView();
-            UnityGui.EndVertical();
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         private void DrawContent(GroupBinding group, bool drawTitle, GuiContext context)
         {
             UnityGui.BeginVertical(UnityGui.BoxStyle);
-            _contentScrollPosition = UnityGui.BeginScrollView(_contentScrollPosition);
-            DrawGroup(group, drawTitle, context);
-            UnityGui.EndScrollView();
-            UnityGui.EndVertical();
+            try
+            {
+                _contentScrollPosition = UnityGui.BeginScrollView(_contentScrollPosition);
+                try
+                {
+                    DrawGroup(group, drawTitle, context);
+                }
+                finally
+                {
+                    UnityGui.EndScrollView();
+                }
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         private void DrawGroup(GroupBinding group, bool drawTitle, GuiContext context)
         {
             UnityGui.BeginVertical();
-
-            if (drawTitle)
+            try
             {
-                UnityGui.BeginHorizontal();
-                UnityGui.Label(
-                    UnityGui.GetContent(group.Name, group.Description),
-                    StyleProvider.TableTitleStyle,
-                    UnityGui.ExpandWidth(true));
-                UnityGui.EndHorizontal();
-            }
-
-            foreach (var child in group.Children)
-            {
-                if (child is IEntryBinding entry)
+                if (drawTitle)
                 {
-                    EntryEditor.Draw(entry, context);
-                    continue;
+                    UnityGui.BeginHorizontal();
+                    try
+                    {
+                        UnityGui.Label(
+                            UnityGui.GetContent(group.Name, group.Description),
+                            StyleProvider.TableTitleStyle,
+                            UnityGui.ExpandWidth(true));
+                    }
+                    finally
+                    {
+                        UnityGui.EndHorizontal();
+                    }
                 }
 
-                if (child is GroupBinding childGroup)
+                foreach (var child in group.Children)
                 {
-                    UnityGui.Space(10f);
-                    DrawGroup(childGroup, true, context);
-                }
-            }
+                    if (child is IEntryBinding entry)
+                    {
+                        EntryEditor.Draw(entry, context);
+                        continue;
+                    }
 
-            UnityGui.Space(10f);
-            UnityGui.EndVertical();
+                    if (child is GroupBinding childGroup)
+                    {
+                        UnityGui.Space(10f);
+                        DrawGroup(childGroup, true, context);
+                    }
+                }
+
+                UnityGui.Space(10f);
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         private static GroupBinding GetSelectedGroup(IReadOnlyList<GroupBinding> groups, GuiContext context)

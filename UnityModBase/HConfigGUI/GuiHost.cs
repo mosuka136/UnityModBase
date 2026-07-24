@@ -159,6 +159,32 @@ namespace UnityModBase.HConfigGUI
             }
         }
 
+        /// <summary>
+        /// 仅接受当前配置模块创建的非哨兵上下文，避免宿主切换到错误类型或共享无效实例。
+        /// </summary>
+        /// <param name="context">通用宿主解析到的候选上下文。</param>
+        /// <returns>候选项是独立且有效的配置 GUI 上下文时为 <c>true</c>。</returns>
+        protected override bool IsContextValid(IUserContext context)
+        {
+            return context is GuiContext guiContext && guiContext.IsValid;
+        }
+
+        /// <summary>
+        /// 用户上下文切换或移除前立即提交有效延迟输入，并取消当前热键录制和模态弹窗。
+        /// 提交失败只记录日志，不能阻止界面切换到仍然有效的用户。
+        /// </summary>
+        /// <param name="currentContext">即将离开的配置 GUI 上下文；类型不匹配时按空操作处理。</param>
+        /// <param name="nextContext">即将采用的上下文；仅用于判断是否发生实际切换。</param>
+        protected override void OnCurrentContextChanging(IUserContext currentContext, IUserContext nextContext)
+        {
+            if (!(currentContext is GuiContext context) || ReferenceEquals(currentContext, nextContext))
+                return;
+
+            CommitPendingEdits(context);
+            ClosePopup(context);
+            (UserEditor as UserEditor)?.GroupEditor.HotkeyEditor.Session.CancelEdit();
+        }
+
         private void OnDefaultLanguageChanged(object sender, LanguageType language)
         {
             var context = CurrentContext as GuiContext;
@@ -173,12 +199,13 @@ namespace UnityModBase.HConfigGUI
 
         /// <summary>
         /// 响应用户配置模型变化：首次变化时挂载 GUI 上下文，后续变化仅替换根绑定并标记布局失效。
-        /// 复用原上下文会保留该用户的提交器、弹窗和选择状态；绑定树按当前完整运行时模型重新创建。
+        /// 复用原上下文会保留该用户的提交器和选择状态；替换绑定树前会提交延迟输入，
+        /// 当前用户的热键会话与弹窗则会取消，绑定树随后按当前完整运行时模型重新创建。
         /// </summary>
         /// <param name="userContext">配置模型发生变化的用户；<c>null</c> 按空操作处理。</param>
         /// <remarks>
         /// 模型事件不会切换到 Unity 主线程，本方法也不提供并发保护；配置声明、重载和 GUI 生命周期必须由调用方串行化。
-        /// 每次通知都会全量重建绑定树，且不会取消旧绑定上的延迟提交或弹窗回调；批量声明配置时可能连续执行多次。
+        /// 每次通知都会全量重建绑定树；批量声明配置时可能连续执行多次。
         /// </remarks>
         private void OnConfigChanged(UserContext userContext)
         {
@@ -194,8 +221,49 @@ namespace UnityModBase.HConfigGUI
             }
             else
             {
+                CommitPendingEdits(context);
+                if (ReferenceEquals(CurrentContext, context))
+                {
+                    ClosePopup(context);
+                    (UserEditor as UserEditor)?.GroupEditor.HotkeyEditor.Session.CancelEdit();
+                }
+
                 context.UserData = GroupBinding.CreateRoot(userContext);
                 UserEditor?.SetStatusDirty(context);
+            }
+        }
+
+        private static void CommitPendingEdits(GuiContext context)
+        {
+            try
+            {
+                context.ChangeSink.CommitPending();
+            }
+            catch (Exception ex)
+            {
+                // 配置 setter 或变更订阅者失败不能阻止宿主离开已经失效或即将替换的上下文。
+                BLog.Error("Failed to commit pending config edits while changing GUI context.", ex);
+            }
+        }
+
+        private static void ClosePopup(GuiContext context)
+        {
+            var popup = context.Popup;
+            var closeAction = popup.IsOpen ? popup.CloseAction : null;
+
+            // 先断开弹窗状态再进入外部回调，避免回调重入绘制流程时再次观察到过期的绑定和委托。
+            popup.IsOpen = false;
+            popup.Title = null;
+            popup.DrawAction = null;
+            popup.CloseAction = null;
+
+            try
+            {
+                closeAction?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                BLog.Error("Failed to close config GUI popup while changing context.", ex);
             }
         }
     }

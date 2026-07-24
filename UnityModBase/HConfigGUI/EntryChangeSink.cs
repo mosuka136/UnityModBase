@@ -125,6 +125,25 @@ namespace UnityModBase.HConfigGUI
         }
 
         /// <summary>
+        /// 尝试立即提交调用时快照中的全部待处理配置项；每项提交前会先清除其延迟状态。
+        /// 有效的最新输入会写回配置，无效输入会由编辑缓冲区丢弃；没有待处理项时按空操作处理。
+        /// </summary>
+        /// <remarks>
+        /// 本方法用于用户上下文切换和销毁边界，防止不再推进的延迟项长期滞留。
+        /// 提交前先从待处理集合移除当前项，因此提交期间发生的同项新输入会作为新的待处理项保留。
+        /// 本方法不隔离配置写入或变更订阅者抛出的异常：发生异常的项已经移除，尚未遍历的项仍保持待处理。
+        /// </remarks>
+        public void CommitPending()
+        {
+            var entries = new List<IEntryBinding>(_pendingEntries.Keys);
+            foreach (var entry in entries)
+            {
+                _pendingEntries.Remove(entry);
+                Commit(entry);
+            }
+        }
+
+        /// <summary>
         /// 尝试提交缓冲区中最新的有效值，并清空该配置项的全部暂存输入。
         /// 仅在已提交值确实变化时发送变更通知。
         /// </summary>

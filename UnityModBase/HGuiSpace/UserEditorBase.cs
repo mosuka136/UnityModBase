@@ -10,6 +10,10 @@ namespace UnityModBase.HGuiSpace
     /// 提供各 GUI 模块共用的用户选择器，并将具体用户内容和布局失效处理留给派生编辑器。
     /// 实例保存选择器展开状态，预期由单个 GUI 宿主在 Unity 主线程中复用和释放。
     /// </summary>
+    /// <remarks>
+    /// 本类只依据传入序列和用户标识绘制选项，不检查用户是否挂载了调用模块所需的子上下文。
+    /// IMGUI 垂直布局成功开启后会在异常路径中闭合，避免污染同一帧后续控件的布局栈。
+    /// </remarks>
     public abstract class UserEditorBase : IDisposable
     {
         /// <summary>
@@ -40,41 +44,60 @@ namespace UnityModBase.HGuiSpace
         /// 绘制用户选择区域，并在选择变化时通过引用参数返回新用户标识。
         /// 此方法只切换标识，不负责解析或替换 <paramref name="guiContext"/>。
         /// </summary>
-        /// <param name="users">可选用户序列；不得为 null，且应与用户管理器中的注册状态一致。</param>
-        /// <param name="selectedKey">当前用户标识；选择变化时被更新。</param>
+        /// <param name="users">候选用户序列；不得为 null 或空，其中的 null 元素会被忽略。</param>
+        /// <param name="selectedKey">当前用户标识；必须存在于过滤 null 后的候选序列中，选择变化时被更新。</param>
         /// <param name="guiContext">当前模块上下文，供派生类继续绘制使用。</param>
         /// <exception cref="ArgumentNullException"><paramref name="users"/> 为 null。</exception>
-        /// <exception cref="ArgumentException"><paramref name="selectedKey"/> 未在用户管理器中注册。</exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="users"/> 不包含非 null 用户，或 <paramref name="selectedKey"/> 不在候选序列中。
+        /// </exception>
         public virtual void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
         {
             if (users == null)
                 throw new ArgumentNullException(nameof(users));
 
-            if (!UserManager.ContainsUser(selectedKey))
-                throw new ArgumentException($"The selectedKey '{selectedKey}' does not exist in the user list.", nameof(selectedKey));
+            var userArray = users.Where(user => user != null).ToArray();
+            if (userArray.Length == 0)
+                throw new ArgumentException("The user list does not contain any selectable users.", nameof(users));
 
-            UnityGui.BeginVertical(UnityGui.BoxStyle);
-            UnityGui.Space(4);
-
-            if (UnityGui.Button(UserManager.GetUser(selectedKey).Name))
-                IsExpanded = !IsExpanded;
-
-            if (IsExpanded)
+            var currentIndex = -1;
+            for (var i = 0; i < userArray.Length; i++)
             {
-                var userArray = users.Select(u => u.UserId).ToArray();
-                var currentIndex = Array.IndexOf(userArray, selectedKey);
-                currentIndex = currentIndex < 0 ? 0 : currentIndex;
-                var newIndex = UnityGui.SelectionGrid(currentIndex, users.Select(u => u.Name).ToArray(), 1);
-
-                if (currentIndex != newIndex)
+                if (userArray[i].UserId == selectedKey)
                 {
-                    selectedKey = userArray[newIndex];
-                    IsExpanded = false;
+                    currentIndex = i;
+                    break;
                 }
             }
 
-            UnityGui.Space(4);
-            UnityGui.EndVertical();
+            if (currentIndex < 0)
+                throw new ArgumentException($"The selectedKey '{selectedKey}' does not exist in the selectable user list.", nameof(selectedKey));
+
+            UnityGui.BeginVertical(UnityGui.BoxStyle);
+            try
+            {
+                UnityGui.Space(4);
+
+                if (UnityGui.Button(userArray[currentIndex].Name))
+                    IsExpanded = !IsExpanded;
+
+                if (IsExpanded)
+                {
+                    var newIndex = UnityGui.SelectionGrid(currentIndex, userArray.Select(user => user.Name).ToArray(), 1);
+
+                    if (currentIndex != newIndex)
+                    {
+                        selectedKey = userArray[newIndex].UserId;
+                        IsExpanded = false;
+                    }
+                }
+
+                UnityGui.Space(4);
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         /// <summary>

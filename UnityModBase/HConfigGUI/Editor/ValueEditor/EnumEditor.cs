@@ -10,6 +10,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
     /// 以可展开单选列表编辑枚举配置，并尊重 <see cref="DisplayEnumAttribute"/> 的显示约束。
     /// 可见枚举值、索引映射和说明文本按配置项绑定缓存，适用于这些元数据在绑定生命周期内保持不变的场景。
     /// </summary>
+    /// <remarks>
+    /// 显示约束应至少保留一个枚举值；选择提交依赖可见索引能映射回 <see cref="Enum.GetValues(Type)"/>。
+    /// 选择网格绘制失败时会先闭合嵌套布局，再将异常传播给调用方。
+    /// </remarks>
     public class EnumEditor : IValueEditor
     {
         // 映射列表保存“可见选项索引 -> Enum.GetValues 原始索引”，避免隐藏项破坏 SelectionGrid 的索引对应关系。
@@ -69,15 +73,28 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             // 当前值不在可显示枚举集合中时回退到第一个选项，避免 SelectionGrid 使用非法索引。
             currentIndex = currentIndex >= 0 ? currentIndex : 0;
 
+            int newIndex;
             UnityGui.BeginHorizontal();
-            UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
+            try
+            {
+                UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
 
-            UnityGui.BeginVertical(UnityGui.BoxStyle);
-            int newIndex = UnityGui.SelectionGrid(currentIndex, names, 1, UnityGui.ExpandWidth(true));
-            UnityGui.EndVertical();
+                UnityGui.BeginVertical(UnityGui.BoxStyle);
+                try
+                {
+                    newIndex = UnityGui.SelectionGrid(currentIndex, names, 1, UnityGui.ExpandWidth(true));
+                }
+                finally
+                {
+                    UnityGui.EndVertical();
+                }
 
-            UnityGui.Space(context.ResetButtonWidth);
-            UnityGui.EndHorizontal();
+                UnityGui.Space(context.ResetButtonWidth);
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
 
             if (currentIndex != newIndex)
             {

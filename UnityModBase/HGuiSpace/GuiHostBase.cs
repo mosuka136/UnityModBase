@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HotkeyManager;
@@ -11,7 +12,7 @@ namespace UnityModBase.HGuiSpace
 {
     /// <summary>
     /// 为基于 Unity IMGUI 的用户级工具窗口提供宿主生命周期、用户上下文切换、热键显隐和浮层绘制能力。
-    /// 当前选中用户被移除时，本类会回退到剩余用户中的默认项；没有剩余用户时清空选择和模块上下文。
+    /// 当前选中用户被移除时，本类会尝试切换到用户注册表的默认项；派生类可拒绝不属于本模块的上下文。
     /// 派生类负责提供具体样式、窗口尺寸、用户数据编辑器及上下文注册；本类不创建或持久化业务数据。
     /// </summary>
     /// <remarks>
@@ -45,12 +46,12 @@ namespace UnityModBase.HGuiSpace
         public string GuiContextKey { get; protected set; } = string.Empty;
 
         /// <summary>
-        /// 获取宿主可选择的用户上下文序列。
+        /// 获取传给用户选择器的候选用户序列。本类不按模块上下文过滤该序列。
         /// </summary>
         public IEnumerable<UserContext> Users { get; protected set; }
         /// <summary>
-        /// 获取当前选中用户在本 GUI 模块下的子上下文；用户、模块上下文或有效选择不存在时为 <c>null</c>。
-        /// 当前用户被移除后，本属性会切换到替代用户的模块上下文；没有替代用户时会被清空。
+        /// 获取当前选中用户在本 GUI 模块下的子上下文。
+        /// 派生类初始化以及 <see cref="ChangeCurrentContext"/> 完成选择切换时会更新该引用。
         /// </summary>
         public IUserContext CurrentContext { get; protected set; }
         /// <summary>
@@ -161,32 +162,38 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 绘制用户选择器、当前用户内容、提示浮层和可拖动区域。
-        /// 用户选择发生变化时，会解析对应模块上下文；仅在上下文存在时使其布局状态失效，
-        /// 尚未挂载该模块的用户会把 <see cref="CurrentContext"/> 保持为 <c>null</c>。
+        /// 用户选择器直接使用 <see cref="Users"/>；选择变化后才解析并验证对应模块上下文。
         /// </summary>
         /// <param name="id">Unity IMGUI 传入的窗口标识。</param>
-        /// <exception cref="ArgumentNullException"><see cref="Users"/> 尚未初始化时由用户编辑器抛出。</exception>
-        /// <exception cref="ArgumentException">
-        /// <see cref="SelectedUserKey"/> 不是当前已注册用户时由用户编辑器抛出；注册表为空也属于此情况。
-        /// </exception>
+        /// <remarks>
+        /// 即使用户编辑器抛出异常，也会在传播异常前闭合 Area 布局；若编辑器已经改写选择，
+        /// 清理阶段仍会尝试同步上下文。上下文切换本身再次失败时，后一个异常会替代原绘制异常。
+        /// </remarks>
         public virtual void DrawWindow(int id)
         {
             var selectedUserKey = _selectedUserKey;
 
             UnityGui.BeginArea(new Rect(10f, 30f, WindowRect.width - 20f, WindowRect.height - 40f));
-            UserEditor.Draw(Users, ref _selectedUserKey, CurrentContext);
-            UnityGui.EndArea();
+            try
+            {
+                UserEditor.Draw(Users, ref _selectedUserKey, CurrentContext);
+            }
+            finally
+            {
+                try
+                {
+                    UnityGui.EndArea();
+                }
+                finally
+                {
+                    if (selectedUserKey != _selectedUserKey)
+                        ChangeCurrentContext(_selectedUserKey);
+                }
+            }
 
             ToastEditor.DrawToast(WindowRect);
             TooltipEditor.DrawTooltip(WindowRect);
             GUI.DragWindow();
-
-            if (selectedUserKey != _selectedUserKey)
-            {
-                CurrentContext = GetContext(_selectedUserKey);
-                if (CurrentContext != null)
-                    UserEditor.SetStatusDirty(CurrentContext);
-            }
         }
 
         /// <summary>
@@ -255,12 +262,33 @@ namespace UnityModBase.HGuiSpace
         }
 
         /// <summary>
-        /// 获取用户管理器当前定义的默认用户标识。
+        /// 获取用户管理器当前定义的默认用户标识，不检查该用户是否挂载了当前模块上下文。
         /// </summary>
         /// <returns>当前注册表枚举顺序中的首个用户标识；没有注册用户时为空字符串。</returns>
         public string GetDefaultUserKey()
         {
             return UserManager.GetDefaultUserId();
+        }
+
+        /// <summary>
+        /// 判断挂载在用户下的上下文是否可以由当前模块使用。
+        /// 该检查只在切换上下文时执行，不会从 <see cref="Users"/> 中移除候选用户。
+        /// 派生宿主可以覆盖本方法，补充具体上下文类型或哨兵状态检查。
+        /// </summary>
+        /// <param name="context">候选模块上下文。</param>
+        /// <returns>上下文可以安全用于当前模块时为 <c>true</c>。</returns>
+        protected virtual bool IsContextValid(IUserContext context)
+        {
+            return context != null;
+        }
+
+        /// <summary>
+        /// 在当前上下文即将切换或清空时通知派生宿主处理待提交值和瞬态编辑状态。
+        /// </summary>
+        /// <param name="currentContext">切换前的模块上下文，可能为 null。</param>
+        /// <param name="nextContext">即将采用的模块上下文，可能为 null。</param>
+        protected virtual void OnCurrentContextChanging(IUserContext currentContext, IUserContext nextContext)
+        {
         }
 
         /// <summary>
@@ -274,28 +302,46 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 响应用户移除通知。非当前用户的移除不会改变界面状态；当前用户被移除后，
-        /// 有替代用户时切换到注册表中的默认项并重新解析模块上下文。
+        /// 使用注册表默认用户作为候选项，并按 <see cref="IsContextValid"/> 的结果切换或清空模块上下文。
         /// </summary>
         /// <param name="userId">已经完成释放并从用户注册表移除的用户标识。</param>
         /// <remarks>
         /// 该回调由 <see cref="UserManager.RemoveUser(string)"/> 在调用线程同步执行。
-        /// 通知发生时原用户上下文已经释放并移出注册表。若没有替代用户，会同时清空选择和
-        /// <see cref="CurrentContext"/>；替代用户尚未挂载当前模块时，上下文同样为 <c>null</c>。
+        /// 通知发生时原用户上下文已经释放并移出注册表。当前实现依赖注册表中仍有默认用户；
+        /// 注册表为空时，空键会使上下文解析抛出异常，由用户管理器隔离并记录。
         /// </remarks>
         private void OnUserRemoved(string userId)
         {
             if (_selectedUserKey == userId)
             {
                 _selectedUserKey = GetDefaultUserKey();
-                if (!string.IsNullOrEmpty(_selectedUserKey))
-                {
-                    CurrentContext = GetContext(_selectedUserKey);
-                    if (CurrentContext != null)
-                        UserEditor?.SetStatusDirty(CurrentContext);
-                }
-                else
-                    CurrentContext = null;
+                ChangeCurrentContext(_selectedUserKey);
             }
+        }
+
+        /// <summary>
+        /// 解析并验证目标用户的模块上下文，在替换字段前通知派生宿主清理旧上下文状态。
+        /// 无效候选会把选择键和当前上下文清空；本方法不会继续搜索其他用户。
+        /// </summary>
+        /// <param name="userKey">要解析的非空用户标识；未知用户会产生无效候选。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="userKey"/> 为 null 或空字符串。</exception>
+        private void ChangeCurrentContext(string userKey)
+        {
+            IUserContext nextContext = null;
+            var candidate = GetContext(userKey);
+
+            if (IsContextValid(candidate))
+                nextContext = candidate;
+            else
+                userKey = string.Empty;
+
+            // 派生宿主需要在字段替换前读取旧上下文，以提交缓冲并清理与其绑定的瞬态会话。
+            OnCurrentContextChanging(CurrentContext, nextContext);
+            _selectedUserKey = userKey;
+            CurrentContext = nextContext;
+
+            if (nextContext != null)
+                UserEditor?.SetStatusDirty(nextContext);
         }
     }
 }

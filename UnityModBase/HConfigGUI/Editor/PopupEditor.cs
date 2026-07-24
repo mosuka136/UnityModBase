@@ -50,6 +50,11 @@ namespace UnityModBase.HConfigGUI.Editor
         /// null 或无效上下文会被忽略。
         /// </summary>
         /// <param name="context">提供弹窗标题、主体和关闭回调的配置 GUI 上下文。</param>
+        /// <remarks>
+        /// 主体和关闭回调中的异常会继续传播，但弹窗内部的垂直布局仍会闭合。
+        /// 关闭回调先于 <see cref="GuiContext.PopupState.IsOpen"/> 清除；回调抛出时不会执行后续关闭赋值，
+        /// 最终弹窗状态取决于回调在异常前是否已经修改上下文。
+        /// </remarks>
         public void DrawPopup(GuiContext context)
         {
             if (context == null || !context.IsValid)
@@ -70,17 +75,22 @@ namespace UnityModBase.HConfigGUI.Editor
             var closeAction = context.Popup.CloseAction;
 
             UnityGui.BeginVertical();
-            UnityGui.Label(title, StyleProvider.PopupTitleStyle, UnityGui.ExpandWidth(true));
-
-            drawAction?.Invoke();
-
-            if (UnityGui.Button(TranslatorResource.Close, UnityGui.ExpandWidth(true)))
+            try
             {
-                closeAction?.Invoke();
-                context.Popup.IsOpen = false;
-            }
+                UnityGui.Label(title, StyleProvider.PopupTitleStyle, UnityGui.ExpandWidth(true));
 
-            UnityGui.EndVertical();
+                drawAction?.Invoke();
+
+                if (UnityGui.Button(TranslatorResource.Close, UnityGui.ExpandWidth(true)))
+                {
+                    closeAction?.Invoke();
+                    context.Popup.IsOpen = false;
+                }
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
     }
 }

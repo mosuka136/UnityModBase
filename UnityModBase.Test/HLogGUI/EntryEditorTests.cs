@@ -121,6 +121,28 @@ namespace UnityModBase.Test.HLogGUI
             }
         }
 
+        [Fact]
+        public void Draw_WhenContentCreationThrows_StillEndsHorizontalLayout()
+        {
+            const string text = "value";
+            var style = CreateUninitializedGuiStyle();
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.BeginHorizontal());
+            unityGuiMock.Setup(x => x.GetContent(text)).Throws(new InvalidOperationException("content failed"));
+            unityGuiMock.Setup(x => x.EndHorizontal());
+            var unityServiceMock = new Mock<IUnityProvider>(MockBehavior.Strict);
+            var editor = new EntryEditor(unityGuiMock.Object, unityServiceMock.Object);
+
+            var exception = Assert.Throws<InvalidOperationException>(() => editor.Draw(text, style, 80f));
+
+            Assert.Equal("content failed", exception.Message);
+            unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);
+            unityGuiMock.Verify(x => x.GetContent(text), Times.Once);
+            unityGuiMock.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGuiMock.VerifyNoOtherCalls();
+            unityServiceMock.VerifyNoOtherCalls();
+        }
+
         private static GUIStyle CreateUninitializedGuiStyle()
         {
             var style = (GUIStyle)RuntimeHelpers.GetUninitializedObject(typeof(GUIStyle));

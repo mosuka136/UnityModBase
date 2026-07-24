@@ -45,6 +45,10 @@ namespace UnityModBase.HLogGUI
         /// <param name="style">列样式，不得为 null。</param>
         /// <param name="width">单元格固定宽度，单位为像素。</param>
         /// <exception cref="ArgumentNullException"><paramref name="text"/> 或 <paramref name="style"/> 为 null。</exception>
+        /// <remarks>
+        /// 内容生成、剪贴板写入或通知订阅者抛出的异常会继续传播，但当前水平布局始终闭合。
+        /// 剪贴板写入未正常返回时不会发送复制完成通知。
+        /// </remarks>
         public void Draw(string text, GUIStyle style, float width)
         {
             if (text == null)
@@ -54,19 +58,23 @@ namespace UnityModBase.HLogGUI
                 throw new ArgumentNullException(nameof(style), "Style cannot be null.");
 
             UnityGui.BeginHorizontal();
-
-            var splitText = text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-            splitText = splitText.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-            var showText = splitText.Length > 0 ? splitText[0] : " ";
-
-            var content = splitText.Length > 1 ? UnityGui.GetContent(showText, text) : UnityGui.GetContent(showText);
-            if (UnityGui.Button(content, style, UnityGui.Width(width)))
+            try
             {
-                UnityService.ClipboardCopy(text);
-                OnEntryCopied?.Invoke(TranslatorResource.Copied + showText);
-            }
+                var splitText = text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                splitText = splitText.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+                var showText = splitText.Length > 0 ? splitText[0] : " ";
 
-            UnityGui.EndHorizontal();
+                var content = splitText.Length > 1 ? UnityGui.GetContent(showText, text) : UnityGui.GetContent(showText);
+                if (UnityGui.Button(content, style, UnityGui.Width(width)))
+                {
+                    UnityService.ClipboardCopy(text);
+                    OnEntryCopied?.Invoke(TranslatorResource.Copied + showText);
+                }
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
         }
     }
 }

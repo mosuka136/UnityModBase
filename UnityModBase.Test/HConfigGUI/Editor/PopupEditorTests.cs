@@ -4,6 +4,8 @@ using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using Moq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
@@ -69,6 +71,43 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             unityGuiMock.VerifySet(x => x.Color = originalColor, Times.Once);
             unityGuiMock.Verify(x => x.Box(new Rect(0f, 0f, 800f, 600f), string.Empty), Times.Once);
             unityGuiMock.Verify(x => x.ModalWindow(It.IsAny<int>(), expectedPopupRect, It.IsAny<GUI.WindowFunction>(), string.Empty, boxStyle), Times.Once);
+        }
+
+        [Fact]
+        public void DrawPopupWindow_WhenContentThrows_StillEndsVerticalAndPreservesException()
+        {
+            var title = new Translator("标题", "Title");
+            var titleStyle = (GUIStyle)RuntimeHelpers.GetUninitializedObject(typeof(GUIStyle));
+            GC.SuppressFinalize(titleStyle);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.SetupGet(x => x.ScreenWidth).Returns(800f);
+            unityGui.SetupGet(x => x.ScreenHeight).Returns(600f);
+            unityGui.Setup(x => x.BeginVertical());
+            unityGui.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGui.Setup(x => x.Label(title, titleStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.EndVertical());
+            var styleResource = new StyleResource(unityGui.Object);
+            var popupTitleStyleField = typeof(StyleResource).GetField(
+                "_popupTitleStyle",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(popupTitleStyleField);
+            popupTitleStyleField.SetValue(styleResource, titleStyle);
+            var context = new GuiContext();
+            context.Popup.Title = title;
+            context.Popup.DrawAction = () => throw new InvalidOperationException("content failed");
+            var editor = new PopupEditor(unityGui.Object, styleResource);
+            var drawPopupWindowMethod = typeof(PopupEditor).GetMethod(
+                "DrawPopupWindow",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(drawPopupWindowMethod);
+            var drawPopupWindow = (Action<int, GuiContext>)drawPopupWindowMethod.CreateDelegate(
+                typeof(Action<int, GuiContext>),
+                editor);
+
+            var exception = Assert.Throws<InvalidOperationException>(() => drawPopupWindow(1, context));
+
+            Assert.Equal("content failed", exception.Message);
+            unityGui.Verify(x => x.EndVertical(), Times.Once);
         }
     }
 }

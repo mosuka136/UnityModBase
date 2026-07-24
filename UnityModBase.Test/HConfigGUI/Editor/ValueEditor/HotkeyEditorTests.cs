@@ -236,6 +236,44 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawExtra_WhenChordButtonThrows_ClosesEveryOpenedLayout()
+        {
+            const float leadingBlank = 12.5f;
+            GUIStyle boxStyle = null;
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
+            unityGui.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.EndHorizontal());
+            unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.EndVertical());
+            unityGui.Setup(x => x.Space(leadingBlank));
+            unityGui
+                .Setup(x => x.Button("A", It.IsAny<GUILayoutOption[]>()))
+                .Throws(new InvalidOperationException("chord failed"));
+            var editor = CreateEditor(unityGui);
+            var originalHotkey = CreateHotkey(UnityProvider.Instance, Key.A);
+            var entry = CreateHotkeyEntry(originalHotkey, "Entry");
+            editor.Session.Entry = entry.Object;
+            editor.Session.State = HotkeyEditState.Expanded;
+            editor.Session.OriginalValue = originalHotkey;
+            editor.Session.WorkingValue = originalHotkey.Clone();
+            var context = new GuiStateStore
+            {
+                SelectedGroupKey = "General"
+            };
+            context.SetEntryLabelWidth("General", leadingBlank);
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                editor.DrawExtra(entry.Object, context));
+
+            Assert.Equal("chord failed", exception.Message);
+            Assert.Equal(1, editor.Session.WorkingValue.Count);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Exactly(2));
+            unityGui.Verify(x => x.EndVertical(), Times.Once);
+        }
+
+        [Fact]
         public void DrawExtra_WhenRecordClicked_ClearsChordAndOpensPopup()
         {
             // Arrange

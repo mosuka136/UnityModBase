@@ -12,6 +12,10 @@ namespace UnityModBase.HLogGUI
     /// 绘制可筛选、可排序、可选择列的日志表格，并维护列编辑器、列宽与滚动状态。
     /// 日志数据属于各用户 <see cref="GuiContext"/>，而等级筛选、列可见性和滚动位置属于本编辑器实例，会在用户之间共享。
     /// </summary>
+    /// <remarks>
+    /// 表格绘制会进入剪贴板服务、事件订阅者和可替换的 IMGUI 提供器；所有已成功开启的滚动、水平和垂直布局作用域
+    /// 都在 <c>finally</c> 中闭合。异常仍向宿主传播，不会在本类中转换为日志或空操作。
+    /// </remarks>
     public class GroupEditor
     {
         private Vector2 _scrollPosition;
@@ -272,27 +276,49 @@ namespace UnityModBase.HLogGUI
             DrawColumnLogLevelMenu(context);
 
             _scrollPosition = UnityGui.BeginScrollView(_scrollPosition);
-            UnityGui.BeginHorizontal(UnityGui.BoxStyle);
-
-            var groupBinding = context.UserData;
-            var sortedGroup = groupBinding.SortedGroup;
-            foreach (var columnEditor in ColumnEditorList.Values)
+            try
             {
-                UnityGui.BeginVertical();
-                columnEditor.DrawHeader(groupBinding);
-                foreach (var entry in sortedGroup)
-                    columnEditor.DrawCell(entry, EntryEditor, Level);
-                UnityGui.EndVertical();
+                UnityGui.BeginHorizontal(UnityGui.BoxStyle);
+                try
+                {
+                    var groupBinding = context.UserData;
+                    var sortedGroup = groupBinding.SortedGroup;
+                    foreach (var columnEditor in ColumnEditorList.Values)
+                    {
+                        UnityGui.BeginVertical();
+                        try
+                        {
+                            columnEditor.DrawHeader(groupBinding);
+                            foreach (var entry in sortedGroup)
+                                columnEditor.DrawCell(entry, EntryEditor, Level);
+                        }
+                        finally
+                        {
+                            UnityGui.EndVertical();
+                        }
+                    }
+
+                    UnityGui.BeginVertical();
+                    try
+                    {
+                        DrawMiscMenuHeader();
+                        foreach (var entry in sortedGroup)
+                            DrawMiscMenu(entry);
+                    }
+                    finally
+                    {
+                        UnityGui.EndVertical();
+                    }
+                }
+                finally
+                {
+                    UnityGui.EndHorizontal();
+                }
             }
-
-            UnityGui.BeginVertical();
-            DrawMiscMenuHeader();
-            foreach (var entry in sortedGroup)
-                DrawMiscMenu(entry);
-            UnityGui.EndVertical();
-
-            UnityGui.EndHorizontal();
-            UnityGui.EndScrollView();
+            finally
+            {
+                UnityGui.EndScrollView();
+            }
         }
 
         /// <summary>
@@ -424,23 +450,34 @@ namespace UnityModBase.HLogGUI
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
             UnityGui.BeginVertical(UnityGui.BoxStyle);
-            UnityGui.Space(4);
-            UnityGui.BeginHorizontal();
-
-            foreach (var columnEditor in ColumnEditorList.Values)
+            try
             {
-                var isVisible = columnEditor.IsVisible;
-                isVisible = UnityGui.Toggle(isVisible, columnEditor.Header, StyleProvider.ColumnVisibilityToggleStyle);
-                if (columnEditor.IsVisible != isVisible)
+                UnityGui.Space(4);
+                UnityGui.BeginHorizontal();
+                try
                 {
-                    columnEditor.IsVisible = isVisible;
-                    UpdateTotalColumnWidth(context);
+                    foreach (var columnEditor in ColumnEditorList.Values)
+                    {
+                        var isVisible = columnEditor.IsVisible;
+                        isVisible = UnityGui.Toggle(isVisible, columnEditor.Header, StyleProvider.ColumnVisibilityToggleStyle);
+                        if (columnEditor.IsVisible != isVisible)
+                        {
+                            columnEditor.IsVisible = isVisible;
+                            UpdateTotalColumnWidth(context);
+                        }
+                    }
                 }
-            }
+                finally
+                {
+                    UnityGui.EndHorizontal();
+                }
 
-            UnityGui.EndHorizontal();
-            UnityGui.Space(4);
-            UnityGui.EndVertical();
+                UnityGui.Space(4);
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         /// <summary>
@@ -454,26 +491,37 @@ namespace UnityModBase.HLogGUI
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
             UnityGui.BeginVertical(UnityGui.BoxStyle);
-            UnityGui.Space(4);
-            UnityGui.BeginHorizontal();
-
-            foreach (var logLevel in Enum.GetValues(typeof(LogLevel)))
+            try
             {
-                var level = (LogLevel)logLevel;
-                if (UnityGui.Toggle(Level == level, level.ToString(), StyleProvider.ColumnLogLevelToggleStyle))
+                UnityGui.Space(4);
+                UnityGui.BeginHorizontal();
+                try
                 {
-                    if (level != Level)
+                    foreach (var logLevel in Enum.GetValues(typeof(LogLevel)))
                     {
-                        Level = level;
-                        context.IsColumnWidthDirty = true;
+                        var level = (LogLevel)logLevel;
+                        if (UnityGui.Toggle(Level == level, level.ToString(), StyleProvider.ColumnLogLevelToggleStyle))
+                        {
+                            if (level != Level)
+                            {
+                                Level = level;
+                                context.IsColumnWidthDirty = true;
+                            }
+                        }
+                        UnityGui.Space(4);
                     }
                 }
+                finally
+                {
+                    UnityGui.EndHorizontal();
+                }
+
                 UnityGui.Space(4);
             }
-
-            UnityGui.EndHorizontal();
-            UnityGui.Space(4);
-            UnityGui.EndVertical();
+            finally
+            {
+                UnityGui.EndVertical();
+            }
         }
 
         /// <summary>

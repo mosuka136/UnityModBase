@@ -1,10 +1,12 @@
 using Moq;
 using System;
+using UnityEngine;
 using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
@@ -59,6 +61,40 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 
             unityGuiMock.VerifyNoOtherCalls();
             valueEditorMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void Draw_WhenValueEditorThrows_StillEndsHorizontalAndSkipsExtraArea()
+        {
+            var name = new Translator("名称", "Name");
+            var description = new Translator("说明", "Description");
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entry.SetupGet(x => x.Name).Returns(name);
+            entry.SetupGet(x => x.Description).Returns(description);
+            var valueEditor = new Mock<IValueEditor>(MockBehavior.Strict);
+            valueEditor.Setup(x => x.CanEdit(entry.Object)).Returns(true);
+            valueEditor
+                .Setup(x => x.DrawValue(entry.Object, It.IsAny<GuiContext>()))
+                .Throws(new InvalidOperationException("value editor failed"));
+            var registry = new ValueEditorRegistry();
+            registry.RegisterEditor(valueEditor.Object);
+            GUILayoutOption width = null;
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.GetContent(name, description)).Returns((GUIContent)null);
+            unityGui.Setup(x => x.Width(0f)).Returns(width);
+            unityGui.Setup(x => x.Label(
+                (GUIContent)null,
+                It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], width))));
+            unityGui.Setup(x => x.EndHorizontal());
+            var editor = new EntryEditor(registry, unityGui.Object);
+            var context = new GuiContext();
+
+            var exception = Assert.Throws<InvalidOperationException>(() => editor.Draw(entry.Object, context));
+
+            Assert.Equal("value editor failed", exception.Message);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            valueEditor.Verify(x => x.DrawExtra(It.IsAny<IEntryBinding>(), It.IsAny<GuiContext>()), Times.Never);
         }
     }
 }

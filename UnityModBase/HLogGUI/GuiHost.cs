@@ -125,6 +125,16 @@ namespace UnityModBase.HLogGUI
         }
 
         /// <summary>
+        /// 只允许宿主切换到当前日志模块创建的上下文，避免把错误类型当作日志界面状态使用。
+        /// </summary>
+        /// <param name="context">通用宿主解析到的候选上下文。</param>
+        /// <returns>候选项是日志 GUI 上下文时为 <c>true</c>。</returns>
+        protected override bool IsContextValid(IUserContext context)
+        {
+            return context is GuiContext;
+        }
+
+        /// <summary>
         /// 根据当前列总宽度调整窗口宽度到屏幕的 50%～90%，再交由通用宿主绘制。
         /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变；当前模块上下文缺失时跳过自适应计算，沿用既有宽度进入通用绘制。
         /// </summary>

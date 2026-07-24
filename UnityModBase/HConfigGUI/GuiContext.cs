@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityModBase.BSpace;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
@@ -10,7 +11,7 @@ namespace UnityModBase.HConfigGUI
 {
     /// <summary>
     /// 保存单个用户在配置界面中的绑定树、编辑提交器、弹窗状态和布局缓存。
-    /// 上下文挂载到 <see cref="UserContext"/>，不拥有底层配置生命周期；释放时仅解除提示通知订阅。
+    /// 上下文挂载到 <see cref="UserContext"/>，不拥有底层配置生命周期；释放时会尽力提交延迟缓冲，再解除提示通知订阅。
     /// </summary>
     public class GuiContext : IUserContext
     {
@@ -118,7 +119,7 @@ namespace UnityModBase.HConfigGUI
             /// </summary>
             public Action DrawAction { get; set; }
             /// <summary>
-            /// 获取或设置用户点击关闭按钮时执行的清理回调。
+            /// 获取或设置弹窗关闭时执行的清理回调；既可能来自关闭按钮，也可能由上下文切换主动触发。
             /// </summary>
             public Action CloseAction { get; set; }
         }
@@ -165,11 +166,27 @@ namespace UnityModBase.HConfigGUI
         }
 
         /// <summary>
-        /// 解除配置变更到提示消息的事件订阅；可重复调用。
+        /// 提交尚未到期的有效编辑缓冲，并解除配置变更到提示消息的事件订阅；可重复调用。
+        /// 提交失败会记录错误，但不会阻止事件退订。
         /// </summary>
+        /// <remarks>
+        /// 待处理项按提交器快照顺序处理；单项提交抛出异常时，本次调用不会继续提交其余项。
+        /// 释放流程不重新抛出该异常，也不负责关闭弹窗或取消值编辑器拥有的会话。
+        /// </remarks>
         public void Dispose()
         {
-            UnsubscribeToastNotifications();
+            try
+            {
+                ChangeSink.CommitPending();
+            }
+            catch (Exception ex)
+            {
+                BLog.Error("Failed to commit pending config edits while disposing GUI context.", ex);
+            }
+            finally
+            {
+                UnsubscribeToastNotifications();
+            }
         }
 
         private void UnsubscribeToastNotifications()

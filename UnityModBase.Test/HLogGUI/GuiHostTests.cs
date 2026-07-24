@@ -82,6 +82,18 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
+        public void IsContextValid_AcceptsOnlyLogGuiContext()
+        {
+            var sut = new TestGuiHost();
+            using var validContext = new GuiContext();
+            using var wrongContext = new TrackingContext();
+
+            Assert.True(sut.IsContextValidForTest(validContext));
+            Assert.False(sut.IsContextValidForTest(wrongContext));
+            Assert.False(sut.IsContextValidForTest(null));
+        }
+
+        [Fact]
         public void OnDestroy_WhenBaseRemovalSubscriptionExists_UnsubscribesIt()
         {
             // Arrange
@@ -141,6 +153,11 @@ namespace UnityModBase.Test.HLogGUI
             public void DestroyForTest()
             {
                 OnDestroy();
+            }
+
+            public bool IsContextValidForTest(IUserContext context)
+            {
+                return IsContextValid(context);
             }
         }
 

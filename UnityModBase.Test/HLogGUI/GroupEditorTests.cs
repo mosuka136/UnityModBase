@@ -150,6 +150,73 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
+        public void DrawColumnVisibilityMenu_WhenToggleThrows_ClosesNestedLayouts()
+        {
+            var editor = CreateGroupEditor(out var unityGui, out var unityService);
+            var boxStyle = CreateUninitializedGuiStyle();
+            var toggleStyle = CreateUninitializedGuiStyle();
+            var columnStyle = CreateUninitializedGuiStyle();
+            var column = new GroupEditor.ColumnEditor(
+                EntryContentType.Message,
+                new Translator("消息", "Message"),
+                columnStyle,
+                unityGui.Object,
+                unityService.Object);
+            SetColumnEditors(editor, new Dictionary<EntryContentType, GroupEditor.ColumnEditor>
+            {
+                [EntryContentType.Message] = column
+            });
+            SetCachedStyle(editor.StyleProvider, "_columnVisibilityToggleStyle", toggleStyle);
+            unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
+            unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.Space(4f));
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui
+                .Setup(x => x.Toggle(true, column.Header, toggleStyle, It.IsAny<GUILayoutOption[]>()))
+                .Throws(new InvalidOperationException("toggle failed"));
+            unityGui.Setup(x => x.EndHorizontal());
+            unityGui.Setup(x => x.EndVertical());
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                editor.DrawColumnVisibilityMenu(new GuiContext()));
+
+            Assert.Equal("toggle failed", exception.Message);
+            Assert.True(column.IsVisible);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGui.Verify(x => x.EndVertical(), Times.Once);
+        }
+
+        [Fact]
+        public void DrawColumnLogLevelMenu_WhenToggleThrows_ClosesNestedLayouts()
+        {
+            var editor = CreateGroupEditor(out var unityGui, out _);
+            var boxStyle = CreateUninitializedGuiStyle();
+            var toggleStyle = CreateUninitializedGuiStyle();
+            SetCachedStyle(editor.StyleProvider, "_columnLogLevelToggleStyle", toggleStyle);
+            unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
+            unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.Space(4f));
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui
+                .Setup(x => x.Toggle(
+                    It.IsAny<bool>(),
+                    It.IsAny<string>(),
+                    toggleStyle,
+                    It.IsAny<GUILayoutOption[]>()))
+                .Throws(new InvalidOperationException("level toggle failed"));
+            unityGui.Setup(x => x.EndHorizontal());
+            unityGui.Setup(x => x.EndVertical());
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                editor.DrawColumnLogLevelMenu(new GuiContext()));
+
+            Assert.Equal("level toggle failed", exception.Message);
+            Assert.Equal(LogLevel.Info, editor.Level);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGui.Verify(x => x.EndVertical(), Times.Once);
+        }
+
+        [Fact]
         public void DrawMiscMenu_WhenEntryIsNull_ThrowsArgumentNullException()
         {
             var editor = CreateGroupEditor(out _, out _);
@@ -255,6 +322,17 @@ namespace UnityModBase.Test.HLogGUI
             var field = typeof(StyleResource).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.NotNull(field);
             field.SetValue(resource, style);
+        }
+
+        private static void SetColumnEditors(
+            GroupEditor editor,
+            Dictionary<EntryContentType, GroupEditor.ColumnEditor> columnEditors)
+        {
+            var property = typeof(GroupEditor).GetProperty(
+                nameof(GroupEditor.ColumnEditorList),
+                BindingFlags.Public | BindingFlags.Instance);
+            Assert.NotNull(property);
+            property.SetValue(editor, columnEditors);
         }
     }
 }

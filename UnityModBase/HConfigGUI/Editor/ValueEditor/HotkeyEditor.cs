@@ -10,6 +10,10 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
     /// 绘制热键组合列表，并协调 <see cref="HotkeyEditSession"/> 与配置模态窗口完成录制、增删和提交。
     /// 编辑期间显示工作副本，只有状态机确认后的非空变化才通过上下文提交器写回配置。
     /// </summary>
+    /// <remarks>
+    /// 会话和弹窗状态预期仅由 Unity 主线程推进。录制或布局内部绘制失败时，已开启的 IMGUI 布局会闭合，
+    /// 但会话状态不会在此处自动回滚，调用方可通过 <see cref="HotkeyEditSession.CancelEdit"/> 结束编辑。
+    /// </remarks>
     public class HotkeyEditor : IValueEditor
     {
         /// <summary>
@@ -78,39 +82,60 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                 return;
 
             UnityGui.BeginHorizontal();
-            UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
-            UnityGui.BeginVertical(UnityGui.BoxStyle);
-
-            var chords = new List<HotkeyChord>(value.Hotkeys);
-            foreach (var chord in chords)
+            try
             {
-                UnityGui.BeginHorizontal();
-
-                UnityGui.Button(chord.ToString(), UnityGui.ExpandWidth(true));
-
-                if (UnityGui.Button(TranslatorResource.Record, UnityGui.ExpandWidth(false)))
+                UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
+                UnityGui.BeginVertical(UnityGui.BoxStyle);
+                try
                 {
-                    chord.Clear();
-                    Session.SetWorkingChord(chord, context.ChangeSink);
-                    SetPopupWindow(context);
+                    // 删除操作会直接修改工作副本；使用快照可避免在枚举期间使热键集合失效。
+                    var chords = new List<HotkeyChord>(value.Hotkeys);
+                    foreach (var chord in chords)
+                    {
+                        UnityGui.BeginHorizontal();
+                        try
+                        {
+                            UnityGui.Button(chord.ToString(), UnityGui.ExpandWidth(true));
+
+                            if (UnityGui.Button(TranslatorResource.Record, UnityGui.ExpandWidth(false)))
+                            {
+                                chord.Clear();
+                                Session.SetWorkingChord(chord, context.ChangeSink);
+                                SetPopupWindow(context);
+                            }
+
+                            if (value.Count > 1 && UnityGui.Button(TranslatorResource.Remove, UnityGui.ExpandWidth(false)))
+                                Session.RemoveChord(chord, context.ChangeSink);
+                        }
+                        finally
+                        {
+                            UnityGui.EndHorizontal();
+                        }
+                    }
+
+                    UnityGui.BeginHorizontal();
+                    try
+                    {
+                        if (UnityGui.Button(TranslatorResource.Add, UnityGui.ExpandWidth(true)))
+                        {
+                            Session.AddChord(new HotkeyChord(value.UnityService), context.ChangeSink);
+                            SetPopupWindow(context);
+                        }
+                    }
+                    finally
+                    {
+                        UnityGui.EndHorizontal();
+                    }
                 }
-
-                if (value.Count > 1 && UnityGui.Button(TranslatorResource.Remove, UnityGui.ExpandWidth(false)))
-                    Session.RemoveChord(chord, context.ChangeSink);
-
+                finally
+                {
+                    UnityGui.EndVertical();
+                }
+            }
+            finally
+            {
                 UnityGui.EndHorizontal();
             }
-
-            UnityGui.BeginHorizontal();
-            if (UnityGui.Button(TranslatorResource.Add, UnityGui.ExpandWidth(true)))
-            {
-                Session.AddChord(new HotkeyChord(value.UnityService), context.ChangeSink);
-                SetPopupWindow(context);
-            }
-            UnityGui.EndHorizontal();
-
-            UnityGui.EndVertical();
-            UnityGui.EndHorizontal();
         }
 
         /// <summary>

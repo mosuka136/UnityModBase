@@ -1,5 +1,8 @@
 using System.Reflection;
+using Moq;
+using UnityEngine;
 using UnityModBase.HGuiSpace;
+using UnityModBase.HProvider;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HGuiSpace
@@ -110,6 +113,30 @@ namespace UnityModBase.Test.HGuiSpace
         }
 
         [Fact]
+        public void Awake_WhenDefaultUserHasNoModuleContext_ClearsSelectionWithoutTryingLaterUser()
+        {
+            var unavailableUser = CreateUser();
+            var availableUser = CreateUser();
+            var availableContext = new TrackingContext();
+            availableUser.AddChildContext("module", availableContext);
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var sut = new TestGuiHost("module");
+            sut.Awake();
+            sut.Select(selectedUser.UserId, selectedContext);
+
+            UserManager.RemoveUser(selectedUser.UserId);
+
+            Assert.Equal(unavailableUser.UserId, sut.GetDefaultUserKey());
+            Assert.Equal(string.Empty, sut.SelectedUserKey);
+            Assert.Null(sut.CurrentContext);
+            Assert.NotEqual(availableUser.UserId, sut.SelectedUserKey);
+            Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
+            Assert.Null(sut.Editor.LastContext);
+        }
+
+        [Fact]
         public void Awake_WhenUnselectedUserIsRemoved_PreservesSelectionAndContext()
         {
             // Arrange
@@ -128,27 +155,6 @@ namespace UnityModBase.Test.HGuiSpace
             // Assert
             Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
             Assert.Same(selectedContext, sut.CurrentContext);
-            Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
-            Assert.Null(sut.Editor.LastContext);
-        }
-
-        [Fact]
-        public void Awake_WhenLastSelectedUserIsRemoved_ClearsSelectionAndContext()
-        {
-            // Arrange
-            var selectedUser = CreateUser();
-            var selectedContext = new TrackingContext();
-            selectedUser.AddChildContext("module", selectedContext);
-            var sut = new TestGuiHost("module");
-            sut.Awake();
-            sut.Select(selectedUser.UserId, selectedContext);
-
-            // Act
-            UserManager.RemoveUser(selectedUser.UserId);
-
-            // Assert
-            Assert.Equal(string.Empty, sut.SelectedUserKey);
-            Assert.Null(sut.CurrentContext);
             Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
             Assert.Null(sut.Editor.LastContext);
         }
@@ -174,6 +180,60 @@ namespace UnityModBase.Test.HGuiSpace
             Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
             Assert.Same(selectedContext, sut.CurrentContext);
             Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
+        }
+
+        [Fact]
+        public void DrawWindow_WhenUserEditorThrows_StillEndsArea()
+        {
+            var user = CreateUser();
+            var context = new TrackingContext();
+            user.AddChildContext("module", context);
+            var expectedArea = new Rect(10f, 30f, -20f, -40f);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.Setup(x => x.BeginArea(expectedArea));
+            unityGui.Setup(x => x.EndArea());
+            var sut = new TestGuiHost("module");
+            sut.ConfigureDrawing(unityGui.Object, new[] { user });
+            sut.Select(user.UserId, context);
+            sut.Editor.DrawException = new InvalidOperationException("draw failed");
+
+            var exception = Assert.Throws<InvalidOperationException>(() => sut.DrawWindow(1));
+
+            Assert.Equal("draw failed", exception.Message);
+            unityGui.Verify(x => x.BeginArea(expectedArea), Times.Once);
+            unityGui.Verify(x => x.EndArea(), Times.Once);
+            unityGui.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void DrawWindow_WhenSelectionChangesBeforeEditorThrows_SwitchesContextAfterEndingArea()
+        {
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var nextUser = CreateUser();
+            var nextContext = new TrackingContext();
+            nextUser.AddChildContext("module", nextContext);
+            var expectedArea = new Rect(10f, 30f, -20f, -40f);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.Setup(x => x.BeginArea(expectedArea));
+            unityGui.Setup(x => x.EndArea());
+            var sut = new TestGuiHost("module");
+            sut.ConfigureDrawing(unityGui.Object, new[] { selectedUser, nextUser });
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.Editor.NextSelectedKey = nextUser.UserId;
+            sut.Editor.DrawException = new InvalidOperationException("draw failed");
+
+            var exception = Assert.Throws<InvalidOperationException>(() => sut.DrawWindow(1));
+
+            Assert.Equal("draw failed", exception.Message);
+            Assert.Equal(nextUser.UserId, sut.SelectedUserKey);
+            Assert.Same(nextContext, sut.CurrentContext);
+            Assert.Equal(1, sut.Editor.SetStatusDirtyCallCount);
+            Assert.Same(nextContext, sut.Editor.LastContext);
+            unityGui.Verify(x => x.BeginArea(expectedArea), Times.Once);
+            unityGui.Verify(x => x.EndArea(), Times.Once);
+            unityGui.VerifyNoOtherCalls();
         }
 
         private UserContext CreateUser()
@@ -204,6 +264,12 @@ namespace UnityModBase.Test.HGuiSpace
                 CurrentContext = context;
             }
 
+            public void ConfigureDrawing(IUnityGuiProvider unityGui, IEnumerable<UserContext> users)
+            {
+                UnityGui = unityGui;
+                Users = users;
+            }
+
             public void DestroyForTest()
             {
                 OnDestroy();
@@ -214,6 +280,8 @@ namespace UnityModBase.Test.HGuiSpace
         {
             public int SetStatusDirtyCallCount { get; private set; }
             public IUserContext LastContext { get; private set; }
+            public string NextSelectedKey { get; set; }
+            public Exception DrawException { get; set; }
 
             public TrackingUserEditor()
                 : base(null, null)
@@ -224,6 +292,14 @@ namespace UnityModBase.Test.HGuiSpace
             {
                 SetStatusDirtyCallCount++;
                 LastContext = context;
+            }
+
+            public override void Draw(IEnumerable<UserContext> users, ref string selectedKey, IUserContext guiContext)
+            {
+                if (NextSelectedKey != null)
+                    selectedKey = NextSelectedKey;
+                if (DrawException != null)
+                    throw DrawException;
             }
         }
 

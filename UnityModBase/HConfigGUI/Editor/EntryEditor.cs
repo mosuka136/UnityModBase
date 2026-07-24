@@ -40,6 +40,10 @@ namespace UnityModBase.HConfigGUI.Editor
         /// <param name="entry">要绘制的配置项绑定。</param>
         /// <param name="context">提供布局状态和变更提交器的有效 GUI 上下文。</param>
         /// <exception cref="ArgumentNullException"><paramref name="entry"/> 或 <paramref name="context"/> 为 null。</exception>
+        /// <remarks>
+        /// 值编辑器或配置回调抛出异常时仍会闭合当前水平布局，异常随后继续传播；
+        /// 只有通用配置行完整绘制后才会调用值编辑器的附加区域。
+        /// </remarks>
         public void Draw(IEntryBinding entry, GuiContext context)
         {
             if (entry == null)
@@ -57,11 +61,17 @@ namespace UnityModBase.HConfigGUI.Editor
             var editor = Registry.GetEditor(entry);
 
             UnityGui.BeginHorizontal();
-            UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(context.GetEntryLabelWidth(context.SelectedGroupKey)));
-            editor.DrawValue(entry, context);
-            if (UnityGui.Button(TranslatorResource.Reset, UnityGui.ExpandWidth(false)))
-                context.ChangeSink.ResetValue(entry);
-            UnityGui.EndHorizontal();
+            try
+            {
+                UnityGui.Label(UnityGui.GetContent(entry.Name, entry.Description), UnityGui.Width(context.GetEntryLabelWidth(context.SelectedGroupKey)));
+                editor.DrawValue(entry, context);
+                if (UnityGui.Button(TranslatorResource.Reset, UnityGui.ExpandWidth(false)))
+                    context.ChangeSink.ResetValue(entry);
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
 
             editor.DrawExtra(entry, context);
         }

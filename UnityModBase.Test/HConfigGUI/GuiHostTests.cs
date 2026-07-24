@@ -1,9 +1,12 @@
 using Moq;
 using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Editor;
+using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
+using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
 namespace UnityModBase.Test.HConfigGUI
@@ -112,6 +115,66 @@ namespace UnityModBase.Test.HConfigGUI
             }
         }
 
+        [Fact]
+        public void OnCurrentContextChanging_CommitsPendingEditAndClosesPopup()
+        {
+            var sut = new TestGuiHost();
+            var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            using var userEditor = new UserEditor(
+                unityService.Object,
+                unityGui.Object,
+                new StyleResource(null));
+            sut.Configure(unityService.Object, userEditor);
+            var currentContext = new GuiContext();
+            var nextContext = new GuiContext();
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = "old";
+            var closeCallCount = 0;
+            entry.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entry.SetupGet(x => x.Value).Returns(() => storedValue);
+            entry.SetupSet(x => x.Value = "new").Callback<object>(value => storedValue = (string)value);
+            currentContext.ChangeSink.SetValue(entry.Object, "new", delay: 10f);
+            currentContext.Popup.IsOpen = true;
+            currentContext.Popup.Title = new Translator("标题", "Title");
+            currentContext.Popup.DrawAction = () => { };
+            currentContext.Popup.CloseAction = () => closeCallCount++;
+            var hotkey = new Hotkey(UnityProvider.Instance);
+            var hotkeyEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            hotkeyEntry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            hotkeyEntry.SetupGet(x => x.Value).Returns(hotkey);
+            userEditor.GroupEditor.HotkeyEditor.Session.BeginEdit(hotkeyEntry.Object);
+
+            sut.ChangeContextForTest(currentContext, nextContext);
+
+            Assert.Equal("new", storedValue);
+            Assert.False(editBuffer.IsUsing);
+            Assert.Equal(1, closeCallCount);
+            Assert.False(currentContext.Popup.IsOpen);
+            Assert.Null(currentContext.Popup.Title);
+            Assert.Null(currentContext.Popup.DrawAction);
+            Assert.Null(currentContext.Popup.CloseAction);
+            Assert.Null(userEditor.GroupEditor.HotkeyEditor.Session.Entry);
+            Assert.Equal(HotkeyEditState.Idle, userEditor.GroupEditor.HotkeyEditor.Session.State);
+            entry.VerifySet(x => x.Value = "new", Times.Once);
+            unityService.VerifyNoOtherCalls();
+            unityGui.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void IsContextValid_AcceptsOnlyValidConfigGuiContext()
+        {
+            var sut = new TestGuiHost();
+            using var validContext = new GuiContext();
+            using var wrongContext = new TrackingContext();
+
+            Assert.True(sut.IsContextValidForTest(validContext));
+            Assert.False(sut.IsContextValidForTest(GuiContext.InvalidGuiContext));
+            Assert.False(sut.IsContextValidForTest(wrongContext));
+            Assert.False(sut.IsContextValidForTest(null));
+        }
+
         private static Action<string> CreateUserRemovalHandler(GuiHostBase target)
         {
             var method = typeof(GuiHostBase).GetMethod(
@@ -149,6 +212,16 @@ namespace UnityModBase.Test.HConfigGUI
             public void DestroyForTest()
             {
                 OnDestroy();
+            }
+
+            public void ChangeContextForTest(IUserContext currentContext, IUserContext nextContext)
+            {
+                OnCurrentContextChanging(currentContext, nextContext);
+            }
+
+            public bool IsContextValidForTest(IUserContext context)
+            {
+                return IsContextValid(context);
             }
         }
 

@@ -300,6 +300,84 @@ namespace UnityModBase.Test.HConfigGUI
             }
         }
 
+        [Fact]
+        public void CommitPending_WhenValidDelayedValueExists_CommitsImmediately()
+        {
+            var sink = new EntryChangeSink();
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = "old";
+            entry.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entry.SetupGet(x => x.Value).Returns(() => storedValue);
+            entry.SetupSet(x => x.Value = "new").Callback<object>(value => storedValue = (string)value);
+
+            sink.SetValue(entry.Object, "new", delay: 10f);
+
+            sink.CommitPending();
+            sink.FlushValue(10f);
+
+            Assert.Equal("new", storedValue);
+            Assert.False(editBuffer.IsUsing);
+            entry.VerifySet(x => x.Value = "new", Times.Once);
+        }
+
+        [Fact]
+        public void CommitPending_WhenDelayedValueIsInvalid_DiscardsBuffer()
+        {
+            var sink = new EntryChangeSink();
+            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var editBuffer = new EntryEditBuffer();
+            entry.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entry.SetupGet(x => x.Value).Returns(10);
+
+            sink.SetValue(entry.Object, "invalid", false, 10f);
+
+            sink.CommitPending();
+            sink.FlushValue(10f);
+
+            Assert.False(editBuffer.IsUsing);
+            entry.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
+        }
+
+        [Fact]
+        public void CommitPending_WhenMultipleEntriesArePending_CommitsEachEntryOnce()
+        {
+            var sink = new EntryChangeSink();
+            var firstEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var secondEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var firstBuffer = new EntryEditBuffer();
+            var secondBuffer = new EntryEditBuffer();
+            var firstValue = "first-old";
+            var secondValue = "second-old";
+            firstEntry.SetupGet(x => x.EditBuffer).Returns(firstBuffer);
+            firstEntry.SetupGet(x => x.Value).Returns(() => firstValue);
+            firstEntry
+                .SetupSet(x => x.Value = "first-new")
+                .Callback<object>(value => firstValue = (string)value);
+            secondEntry.SetupGet(x => x.EditBuffer).Returns(secondBuffer);
+            secondEntry.SetupGet(x => x.Value).Returns(() => secondValue);
+            secondEntry
+                .SetupSet(x => x.Value = "second-new")
+                .Callback<object>(value => secondValue = (string)value);
+            var changedEntries = new List<IEntryBinding>();
+            sink.OnEntryValueChanged += changedEntries.Add;
+            sink.SetValue(firstEntry.Object, "first-new", delay: 10f);
+            sink.SetValue(secondEntry.Object, "second-new", delay: 20f);
+
+            sink.CommitPending();
+            sink.FlushValue(float.MaxValue);
+
+            Assert.Equal("first-new", firstValue);
+            Assert.Equal("second-new", secondValue);
+            Assert.False(firstBuffer.IsUsing);
+            Assert.False(secondBuffer.IsUsing);
+            Assert.Contains(firstEntry.Object, changedEntries);
+            Assert.Contains(secondEntry.Object, changedEntries);
+            Assert.Equal(2, changedEntries.Count);
+            firstEntry.VerifySet(x => x.Value = "first-new", Times.Once);
+            secondEntry.VerifySet(x => x.Value = "second-new", Times.Once);
+        }
+
         public static IEnumerable<object[]> GetSupportedNumberConversions()
         {
             yield return new object[] { typeof(byte), (byte)1, "200", (byte)200 };

@@ -234,6 +234,41 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawExtra_WhenSelectionGridThrows_ClosesNestedLayouts()
+        {
+            GUIStyle boxStyle = null;
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
+            unityGui.Setup(x => x.BeginHorizontal());
+            unityGui.Setup(x => x.Space(12.5f));
+            unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGui
+                .Setup(x => x.SelectionGrid(0, It.IsAny<string[]>(), 1, It.IsAny<GUILayoutOption[]>()))
+                .Throws(new InvalidOperationException("selection failed"));
+            unityGui.Setup(x => x.EndVertical());
+            unityGui.Setup(x => x.EndHorizontal());
+            var editor = new EnumEditor(unityGui.Object);
+            var entry = CreateEntry("VisibleEnumEntry", typeof(VisibleEnum), VisibleEnum.Visible);
+            var context = new GuiStateStore
+            {
+                SelectedGroupKey = "General",
+                ResetButtonWidth = 8.5f
+            };
+            context.SetEntryLabelWidth("General", 12.5f);
+            context.ExpandedEnumKey = entry.Object.Key;
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                editor.DrawExtra(entry.Object, context));
+
+            Assert.Equal("selection failed", exception.Message);
+            Assert.Equal(entry.Object.Key, context.ExpandedEnumKey);
+            Assert.Equal(VisibleEnum.Visible, entry.Object.Value);
+            unityGui.Verify(x => x.EndVertical(), Times.Once);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+        }
+
+        [Fact]
         public void DrawExtra_WhenCurrentValueIsHidden_FallsBackToFirstVisibleOptionAndUpdatesEntry()
         {
             // Arrange
