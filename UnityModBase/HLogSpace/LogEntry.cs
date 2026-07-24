@@ -169,7 +169,7 @@ namespace UnityModBase.HLogSpace
                 hash = hash * 31 + (File?.GetHashCode() ?? 0);
                 hash = hash * 31 + Line.GetHashCode();
                 hash = hash * 31 + (Member?.GetHashCode() ?? 0);
-                hash = hash * 31 + (Exception?.Message.GetHashCode() ?? 0);
+                hash = hash * 31 + (Exception?.GetHashCode() ?? 0);
                 return hash;
             }
         }
