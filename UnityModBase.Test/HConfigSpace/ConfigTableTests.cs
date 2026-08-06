@@ -31,7 +31,6 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Same(name, table.Name);
             Assert.Same(description, table.Description);
             Assert.Empty(table.Table);
-            Assert.Same(fileTable, table.FileTable);
             Assert.Same(name, fileTable.Name);
             Assert.Same(description, fileTable.Description);
         }

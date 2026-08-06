@@ -278,7 +278,7 @@ namespace UnityModBase.Test.HConfigSpace
             var result = manager.Bind<int>("TestTable", "TestKey", 456, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
 
             Assert.NotNull(result);
-            Assert.Equal("TestTable", result.TableName);
+            Assert.Equal("TestTable", result.TableKey);
             Assert.Equal("TestKey", result.Key);
         }
 
@@ -293,7 +293,7 @@ namespace UnityModBase.Test.HConfigSpace
             var result = manager.Bind<string>("TestTable", "NewKey", "DefaultValue", new Translator("新键", "NewKey"), new Translator("描述", "Description"));
 
             Assert.NotNull(result);
-            Assert.Equal("TestTable", result.TableName);
+            Assert.Equal("TestTable", result.TableKey);
             Assert.Equal("NewKey", result.Key);
         }
 
@@ -352,7 +352,7 @@ namespace UnityModBase.Test.HConfigSpace
             var result = manager.Bind<bool>("TestTable", "BoolKey", true, new Translator("布尔键", "BoolKey"), new Translator("描述", "Description"));
 
             Assert.NotNull(result);
-            Assert.Equal("TestTable", result.TableName);
+            Assert.Equal("TestTable", result.TableKey);
             Assert.Equal("BoolKey", result.Key);
         }
 
@@ -387,34 +387,33 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Equal("UpdatedValue", entry.Value);
         }
 
+        // 注：原 Reload_WhenSuccessful_RebindsFileTableAndPreservesTableMetadata 测试覆盖的
+        // 运行时表文件表引用切换（ConfigTable.FileTable）和重载时把运行时表名/说明同步回新文件表的行为，
+        // 已在本次重构中随 TableReloadPlan 与 ConfigTable.FileTable 一并移除，故删除该测试。
+        // 取而代之，下方用 Reload_WhenSuccessful_PreservesEntryMetadataAndReplacesFileSheet
+        // 验证重构后仍保留的行为：配置项级元数据随重载同步，且 FileSheet 被替换为新实例。
+
         [Fact]
-        public void Reload_WhenSuccessful_RebindsFileTableAndPreservesTableMetadata()
+        public void Reload_WhenSuccessful_PreservesEntryMetadataAndReplacesFileSheet()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = 1\n");
             using var manager = new ConfigService(tempPath);
-            var tableName = new Translator("测试表", "Test Table");
-            var tableDescription = new Translator("表说明", "Table Description");
-            manager.CreateTable("TestTable", tableName, tableDescription);
-            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
-            var runtimeTable = manager.Sheet["TestTable"];
-            var originalFileTable = runtimeTable.FileTable;
+            manager.CreateTable("TestTable", new Translator("测试表", "Test Table"));
+            var entryName = new Translator("测试键", "TestKey");
+            var entryDescription = new Translator("键说明", "Key Description");
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, entryName, entryDescription);
+            var originalFileSheet = manager.FileSheet;
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = 2\n");
 
             var result = manager.Reload();
 
-            var activeFileTable = manager.FileSheet.GetTable("TestTable").Value;
             Assert.True(result);
             Assert.Equal(2, entry.Value);
-            Assert.NotSame(originalFileTable, activeFileTable);
-            Assert.Same(activeFileTable, runtimeTable.FileTable);
-            Assert.Same(tableName, activeFileTable.Name);
-            Assert.Same(tableDescription, activeFileTable.Description);
-
-            var persistedContent = File.ReadAllText(tempPath);
-            Assert.Contains("# Name: 测试表, Test Table", persistedContent);
-            Assert.Contains("## 表说明", persistedContent);
-            Assert.Contains("## Table Description", persistedContent);
+            Assert.NotSame(originalFileSheet, manager.FileSheet);
+            // 重载后候选项的条目级元数据由 PrepareBind 的 CopyTo 从运行时声明同步，应保留。
+            Assert.Same(entryName, entry.Entry.Name);
+            Assert.Same(entryDescription, entry.Entry.Description);
         }
 
         [Fact]
@@ -651,7 +650,6 @@ namespace UnityModBase.Test.HConfigSpace
             var firstEntry = manager.Bind<int>("TestTable", "FirstKey", 0, new Translator("第一项", "First"), new Translator("描述", "Description"));
             manager.Sheet["TestTable"].Add(new ThrowingReloadEntry("TestTable", "SecondKey"));
             var originalFileSheet = manager.FileSheet;
-            var originalFileTable = manager.Sheet["TestTable"].FileTable;
             var originalEntry = firstEntry.Entry;
             var invocationCount = 0;
             firstEntry.OnValueChanged += (_, _) => invocationCount++;
@@ -661,7 +659,6 @@ namespace UnityModBase.Test.HConfigSpace
 
             Assert.False(result);
             Assert.Same(originalFileSheet, manager.FileSheet);
-            Assert.Same(originalFileTable, manager.Sheet["TestTable"].FileTable);
             Assert.Same(originalEntry, firstEntry.Entry);
             Assert.Equal(1, firstEntry.Value);
             Assert.Equal("1", firstEntry.Entry.Value);
@@ -807,12 +804,14 @@ namespace UnityModBase.Test.HConfigSpace
             }
         }
 
-        // 返回一个在提交阶段抛出异常的计划，用于覆盖“前序计划已应用、后序计划失败”的回滚路径。
-        private sealed class ThrowingReloadEntry : IConfigEntry, IConfigEntryReloadParticipant
+        // 在提交阶段抛出异常的配置项替身，用于覆盖“前序计划已应用、后序计划失败”的逆序回滚路径。
+        // 新协议下配置项直接实现 PrepareBind/ApplyBind/RollbackBind/PublishBind，
+        // 因此替身在 PrepareBind 返回一个指向自身、在 ApplyBind 抛出异常的计划。
+        private sealed class ThrowingReloadEntry : IConfigEntry
         {
             public Translator Name { get; } = new Translator("抛出异常的配置项", "Throwing Entry");
             public Translator Description { get; } = new Translator("测试提交回滚", "Tests commit rollback");
-            public string TableName { get; }
+            public string TableKey { get; }
             public string Key { get; }
             public ConfigFileEntry Entry { get; }
             public Type ValueType => typeof(int);
@@ -825,9 +824,9 @@ namespace UnityModBase.Test.HConfigSpace
                 remove { }
             }
 
-            public ThrowingReloadEntry(string tableName, string key)
+            public ThrowingReloadEntry(string tableKey, string key)
             {
-                TableName = tableName;
+                TableKey = tableKey;
                 Key = key;
                 Entry = new ConfigFileEntry
                 {
@@ -842,30 +841,25 @@ namespace UnityModBase.Test.HConfigSpace
                 // 此测试替身只通过事务协议参与重载，不覆盖单项直接重绑定入口。
             }
 
-            bool IConfigEntryReloadParticipant.TryPrepareRebind(
-                ConfigFileEntry candidate,
-                out ConfigReloadPlan plan,
-                out string errorMessage)
+            public bool PrepareBind(ConfigFileEntry candidate, out EntryChangePlan plan, out string errorMessage)
             {
-                plan = new ThrowingRebindPlan();
+                // changed 传 false：本替身的 ApplyBind 必定抛出，不需要构造可提交的值变化。
+                plan = new EntryChangePlan(this, Entry, BoxedValue, candidate, BoxedValue, candidate.Value, 0, changed: false);
                 errorMessage = string.Empty;
                 return true;
             }
-        }
 
-        private sealed class ThrowingRebindPlan : ConfigReloadPlan
-        {
-            internal override void Apply()
+            public void ApplyBind(EntryChangePlan plan)
             {
                 throw new InvalidOperationException("commit failed");
             }
 
-            internal override void Rollback()
+            public void RollbackBind(EntryChangePlan plan)
             {
                 // Apply 在写入任何测试状态前即抛出，因此没有需要恢复的局部状态。
             }
 
-            internal override void Publish()
+            public void PublishBind(EntryChangePlan plan)
             {
                 // 提交阶段必定失败，协调器不应到达该计划的发布阶段。
             }

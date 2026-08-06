@@ -223,7 +223,7 @@ namespace UnityModBase.HConfigSpace
                 }
                 var fileSheet = sheetResult.Value;
 
-                var plans = new List<ConfigReloadPlan>();
+                var plans = new List<EntryChangePlan>();
                 var preparationSucceeded = true;
 
                 // 扫描全部绑定以尽可能收集完整诊断，但任何一项失败都会阻止整批提交。
@@ -231,13 +231,7 @@ namespace UnityModBase.HConfigSpace
                 foreach (var table in Sheet.Values)
                 {
                     var tableResult = fileSheet.GetTable(table.Key);
-                    if (tableResult.Success)
-                    {
-                        tableResult.Value.Name = table.Name;
-                        tableResult.Value.Description = table.Description;
-                        plans.Add(new TableReloadPlan(table, tableResult.Value));
-                    }
-                    else
+                    if (!tableResult.Success)
                     {
                         foreach (var error in tableResult.Errors)
                             BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
@@ -246,21 +240,16 @@ namespace UnityModBase.HConfigSpace
 
                     foreach (var entry in table)
                     {
-                        var entryResult = fileSheet.GetEntry(entry.TableName, entry.Key);
+                        var entryResult = fileSheet.GetEntry(entry.TableKey, entry.Key);
                         if (entryResult.Success)
                         {
-                            if (!(entry is IConfigEntryReloadParticipant participant))
-                            {
-                                BLog.Error($"Config entry {entry.TableName}.{entry.Key} does not support transactional reload.");
-                                preparationSucceeded = false;
-                            }
-                            else if (participant.TryPrepareRebind(entryResult.Value, out var plan, out var errorMessage))
+                            if (entry.PrepareBind(entryResult.Value, out var plan, out var errorMessage))
                             {
                                 plans.Add(plan);
                             }
                             else
                             {
-                                BLog.Error($"Config entry {entry.TableName}.{entry.Key} in file is invalid. Errors: {errorMessage}");
+                                BLog.Error($"Config entry {entry.TableKey}.{entry.Key} in file is invalid. Errors: {errorMessage}");
                                 preparationSucceeded = false;
                             }
                         }
@@ -284,14 +273,14 @@ namespace UnityModBase.HConfigSpace
                     return false;
                 }
 
-                var appliedPlans = new Stack<ConfigReloadPlan>();
+                var appliedPlans = new Stack<EntryChangePlan>();
                 try
                 {
                     foreach (var plan in plans)
                     {
                         // 先入栈，使 Apply 自身发生意外异常时也能参与后续的逆序回滚。
                         appliedPlans.Push(plan);
-                        plan.Apply();
+                        plan.ConfigEntry.ApplyBind(plan);
                     }
                 }
                 catch (Exception ex)
@@ -300,7 +289,8 @@ namespace UnityModBase.HConfigSpace
                     {
                         try
                         {
-                            appliedPlans.Pop().Rollback();
+                            var plan = appliedPlans.Pop();
+                            plan.ConfigEntry.RollbackBind(plan);
                         }
                         catch (Exception rollbackException)
                         {
@@ -320,7 +310,7 @@ namespace UnityModBase.HConfigSpace
                 {
                     try
                     {
-                        plan.Publish();
+                        plan.ConfigEntry.PublishBind(plan);
                     }
                     catch (Exception ex)
                     {

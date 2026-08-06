@@ -8,66 +8,6 @@ using UnityModBase.HTranslatorSpace;
 namespace UnityModBase.HConfigSpace
 {
     /// <summary>
-    /// 运行时配置项的非泛型视图。
-    /// UI 层通过该接口读取元数据并写入装箱值，而不需要在绑定阶段知道具体泛型类型。
-    /// 自定义实现可以参与运行时展示，但 <see cref="ConfigService.Reload"/> 只接受同时实现程序集内部重载协议的配置项；
-    /// 将外部自定义实现直接加入配置表会使事务重载预检失败。
-    /// </summary>
-    public interface IConfigEntry
-    {
-        /// <summary>
-        /// 当前绑定文件项提供的多语言展示名称。
-        /// </summary>
-        Translator Name { get; }
-
-        /// <summary>
-        /// 当前绑定文件项提供的多语言说明。
-        /// </summary>
-        Translator Description { get; }
-
-        /// <summary>
-        /// 运行时声明所属的表键名；重新绑定文件项不会改变该值。
-        /// </summary>
-        string TableName { get; }
-
-        /// <summary>
-        /// 当前绑定文件项的键名。
-        /// </summary>
-        string Key { get; }
-
-        /// <summary>
-        /// 当前绑定的文件层模型；重载成功后可能替换为新实例。
-        /// </summary>
-        ConfigFileEntry Entry { get; }
-
-        /// <summary>
-        /// 装箱值必须遵循的运行时声明类型。
-        /// </summary>
-        Type ValueType { get; }
-
-        /// <summary>
-        /// 装箱后的当前值。赋值必须能直接转换为声明类型，并会执行与强类型赋值相同的编码和事件流程。
-        /// </summary>
-        object BoxedValue { get; set; }
-
-        /// <summary>
-        /// 装箱后的声明默认值；该值用于元数据，不表示读取失败时会自动回退。
-        /// </summary>
-        object BoxedDefaultValue { get; }
-
-        /// <summary>
-        /// 面向非泛型调用方的同步值变化事件。
-        /// </summary>
-        event EventHandler OnValueChangedBase;
-
-        /// <summary>
-        /// 替换文件层绑定，并尝试从新文件项恢复当前强类型值。
-        /// </summary>
-        /// <param name="entry">包含待恢复值的新文件项。</param>
-        void RebindEntry(ConfigFileEntry entry);
-    }
-
-    /// <summary>
     /// 一个强类型运行时配置项。
     /// 它把文件层面的 <see cref="ConfigFileEntry"/> 与业务代码使用的 <typeparamref name="T"/> 值绑定起来，并在值变化时同步文件项文本与触发事件。
     /// 该类不直接写文件；写回时机由 <see cref="ConfigService"/> 订阅变化事件后决定。
@@ -75,7 +15,7 @@ namespace UnityModBase.HConfigSpace
     /// 实例不提供并发保护；赋值、重绑定和事件订阅应由调用方串行化。
     /// </summary>
     /// <typeparam name="T">配置项值类型。</typeparam>
-    public class ConfigEntry<T> : IConfigEntry, IConfigEntryReloadParticipant
+    public class ConfigEntry<T> : IConfigEntry
     {
         private T _value;
 
@@ -138,7 +78,7 @@ namespace UnityModBase.HConfigSpace
         public Translator Description => Entry.Description;
 
         /// <inheritdoc/>
-        public string TableName { get; private set; }
+        public string TableKey { get; private set; }
 
         /// <summary>
         /// 当前绑定文件项的键名。
@@ -191,7 +131,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 创建尚未绑定文件项的实例。
-        /// <see cref="Entry"/>、<see cref="TableName"/> 和默认值元数据保持默认状态，绑定完成前不应作为正常配置项使用。
+        /// <see cref="Entry"/>、<see cref="TableKey"/> 和默认值元数据保持默认状态，绑定完成前不应作为正常配置项使用。
         /// </summary>
         public ConfigEntry()
         {
@@ -258,7 +198,7 @@ namespace UnityModBase.HConfigSpace
             if (!ConfigFileTable.IsValidTableName(tableKey))
                 throw new InvalidOperationException($"Invalid table name: {tableKey}");
 
-            TableName = tableKey;
+            TableKey = tableKey;
             DefaultValue = defaultValue;
             RebindEntry(entry);
         }
@@ -279,82 +219,14 @@ namespace UnityModBase.HConfigSpace
             if (entry == null)
                 return;
 
-            if (!TryPrepareRebind(entry, out var plan, out var errorMessage))
+            if (!PrepareBind(entry, out var plan, out var errorMessage))
             {
                 BLog.Error(errorMessage, null, string.Empty, string.Empty, 0);
                 throw new InvalidOperationException(errorMessage);
             }
 
-            plan.Apply();
-            plan.Publish();
-        }
-
-        bool IConfigEntryReloadParticipant.TryPrepareRebind(ConfigFileEntry candidate, out ConfigReloadPlan plan, out string errorMessage)
-        {
-            return TryPrepareRebind(candidate, out plan, out errorMessage);
-        }
-
-        /// <summary>
-        /// 在不切换当前绑定的前提下验证候选项，并构造可回滚的内存提交计划。
-        /// 配置服务批量重载时，候选项属于尚未生效的新文件模型，因此准备阶段可以向其复制当前运行时元数据；
-        /// 直接重绑定也复用该预检，但会立即应用返回的计划。活动绑定、当前值和变化事件在本阶段保持不变。
-        /// </summary>
-        /// <param name="candidate">从新文件模型读取的候选项。</param>
-        /// <param name="plan">成功时返回捕获新旧状态的单次提交计划；失败时为 <c>null</c>。</param>
-        /// <param name="errorMessage">失败时返回可直接记录的完整诊断；成功时为空字符串。</param>
-        /// <returns>候选值是否已完成解码、必要的规范化编码和元数据准备，可以进入提交阶段。</returns>
-        private bool TryPrepareRebind(ConfigFileEntry candidate, out ConfigReloadPlan plan, out string errorMessage)
-        {
-            plan = null;
-
-            if (candidate == null)
-            {
-                errorMessage = "Candidate config entry cannot be null.";
-                return false;
-            }
-
-            try
-            {
-                var decodeResult = ConfigFileEntry.DecodeValue<T>(candidate.Value);
-                if (!decodeResult.Success)
-                {
-                    errorMessage = CreatePreparationError(candidate, "decode", decodeResult.Errors);
-                    return false;
-                }
-
-                var changed = !Equal(decodeResult.Value, _value);
-                var encodedValue = candidate.Value;
-
-                if (changed)
-                {
-                    // 在预检阶段完成规范化编码，确保 Apply 只包含可回滚的内存赋值。
-                    // 等价值沿用用户原始文本，与 Value 的等值短路规则保持一致。
-                    var encodeResult = ConfigFileEntry.EncodeValue(decodeResult.Value);
-                    if (!encodeResult.Success)
-                    {
-                        errorMessage = CreatePreparationError(candidate, "encode", encodeResult.Errors);
-                        return false;
-                    }
-
-                    encodedValue = encodeResult.Value;
-                }
-
-                // false 表示只把运行时声明的名称、说明和类型约束写入候选项，不覆盖用户刚读取的值。
-                if (Entry != null && !Entry.CopyTo(candidate, false))
-                {
-                    errorMessage = $"Failed to copy metadata for config entry: {TableName}.{candidate.Key}.";
-                    return false;
-                }
-
-                plan = new EntryReloadPlan(this, Entry, _value, candidate, decodeResult.Value, encodedValue, changed);
-                errorMessage = string.Empty;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = $"Unexpected error while preparing config entry {TableName}.{candidate.Key}: {ex}";
-                return false;
-            }
+            ApplyBind(plan);
+            PublishBind(plan);
         }
 
         /// <summary>
@@ -425,79 +297,6 @@ namespace UnityModBase.HConfigSpace
             {
                 _pendingValueChanges.Clear();
                 _publishingValueChanged = false;
-            }
-        }
-
-        /// <summary>
-        /// 保存单个配置项重绑定前后的状态，使批量重载可以先静默提交，再统一发布事件。
-        /// 回滚只会发生在事件发布前；候选项的元数据随废弃的新文件模型一起丢弃，无需恢复。
-        /// </summary>
-        private sealed class EntryReloadPlan : ConfigReloadPlan
-        {
-            private readonly ConfigEntry<T> _owner;
-            private readonly ConfigFileEntry _oldEntry;
-            private readonly T _oldValue;
-            private readonly ConfigFileEntry _newEntry;
-            private readonly T _newValue;
-            private readonly string _encodedValue;
-            // Apply 会规范化候选值；回滚时需恢复它，避免失败计划残留部分提交痕迹。
-            private readonly string _originalCandidateValue;
-            private readonly bool _changed;
-
-            // 旧版本用于回滚；应用后版本用于判断计划值是否已被事件处理器的后续赋值取代。
-            private readonly long _oldChangeVersion;
-            private long _appliedChangeVersion;
-
-            // 在 Apply 的第一步置位，使后续任一赋值意外失败时，本计划仍会进入回滚路径。
-            private bool _applied;
-
-            internal EntryReloadPlan(ConfigEntry<T> owner, ConfigFileEntry oldEntry, T oldValue, ConfigFileEntry newEntry, T newValue, string encodedValue, bool changed)
-            {
-                _owner = owner;
-                _oldEntry = oldEntry;
-                _oldValue = oldValue;
-                _newEntry = newEntry;
-                _newValue = newValue;
-                _encodedValue = encodedValue;
-                _originalCandidateValue = newEntry.Value;
-                _changed = changed;
-                _oldChangeVersion = owner._changeVersion;
-            }
-
-            internal override void Apply()
-            {
-                _applied = true;
-
-                if (_changed)
-                    _newEntry.Value = _encodedValue;
-
-                _owner.Entry = _newEntry;
-                if (_changed)
-                {
-                    _owner._value = _newValue;
-                    _owner._changeVersion++;
-                    _appliedChangeVersion = _owner._changeVersion;
-                }
-            }
-
-            internal override void Rollback()
-            {
-                if (!_applied)
-                    return;
-
-                _owner.Entry = _oldEntry;
-                _owner._value = _oldValue;
-                _owner._changeVersion = _oldChangeVersion;
-                _newEntry.Value = _originalCandidateValue;
-                _applied = false;
-            }
-
-            internal override void Publish()
-            {
-                // 其他配置项的处理器可能已经再次修改本项；此时普通赋值流程已经发布了更新后的值，
-                // 不再发布本计划捕获的旧变化，避免重复或失真的通知。
-                if (_applied && _changed && _owner._changeVersion == _appliedChangeVersion)
-                    _owner.PublishValueChanged();
             }
         }
 
@@ -592,6 +391,124 @@ namespace UnityModBase.HConfigSpace
             }
 
             return false;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// 配置服务批量重载时，候选项属于尚未生效的新文件模型，因此准备阶段可以向其复制当前运行时元数据；
+        /// 直接 <see cref="RebindEntry"/> 也复用该预检，但会立即应用返回的计划。活动绑定、当前值和变化事件在本阶段保持不变。
+        /// </remarks>
+        public bool PrepareBind(ConfigFileEntry candidate, out EntryChangePlan plan, out string errorMessage)
+        {
+            plan = null;
+
+            if (candidate == null)
+            {
+                errorMessage = "Candidate config entry cannot be null.";
+                return false;
+            }
+
+            try
+            {
+                var decodeResult = ConfigFileEntry.DecodeValue<T>(candidate.Value);
+                if (!decodeResult.Success)
+                {
+                    errorMessage = CreatePreparationError(candidate, "decode", decodeResult.Errors);
+                    return false;
+                }
+
+                var changed = !Equal(decodeResult.Value, _value);
+                var encodedValue = candidate.Value;
+
+                if (changed)
+                {
+                    // 在预检阶段完成规范化编码，确保 Apply 只包含可回滚的内存赋值。
+                    // 等价值沿用用户原始文本，与 Value 的等值短路规则保持一致。
+                    var encodeResult = ConfigFileEntry.EncodeValue(decodeResult.Value);
+                    if (!encodeResult.Success)
+                    {
+                        errorMessage = CreatePreparationError(candidate, "encode", encodeResult.Errors);
+                        return false;
+                    }
+
+                    encodedValue = encodeResult.Value;
+                }
+
+                // false 表示只把运行时声明的名称、说明和类型约束写入候选项，不覆盖用户刚读取的值。
+                if (Entry != null && !Entry.CopyTo(candidate, false))
+                {
+                    errorMessage = $"Failed to copy metadata for config entry: {TableKey}.{candidate.Key}.";
+                    return false;
+                }
+
+                plan = new EntryChangePlan(this, Entry, _value, candidate, decodeResult.Value, encodedValue, _changeVersion, changed);
+                errorMessage = string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Unexpected error while preparing config entry {TableKey}.{candidate.Key}: {ex}";
+                return false;
+            }
+        }
+
+        /// <inheritdoc/>
+        /// <exception cref="ArgumentNullException"><paramref name="plan"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><see cref="EntryChangePlan.NewValue"/> 类型与 <see cref="ValueType"/> 不匹配。</exception>
+        public void ApplyBind(EntryChangePlan plan)
+        {
+            if (plan == null)
+                throw new ArgumentNullException();
+
+            if (plan.NewValue.GetType() != ValueType)
+                throw new ArgumentException($"Plan value type {plan.NewValue.GetType()} does not match entry value type {ValueType}.");
+
+            plan.Applied = true;
+
+            if (plan.Changed)
+                plan.NewEntry.Value = plan.EncodedValue;
+
+            Entry = plan.NewEntry;
+            if (plan.Changed)
+            {
+                _value = (T)plan.NewValue;
+                _changeVersion++;
+                plan.AppliedChangeVersion = _changeVersion;
+            }
+        }
+
+        /// <inheritdoc/>
+        /// <exception cref="ArgumentNullException"><paramref name="plan"/> 为 <c>null</c>。</exception>
+        public void PublishBind(EntryChangePlan plan)
+        {
+            if (plan == null)
+                throw new ArgumentNullException();
+
+            // 其他配置项的处理器可能已经再次修改本项；此时普通赋值流程已经发布了更新后的值，
+            // 不再发布本计划捕获的旧变化，避免重复或失真的通知。
+            if (plan.Applied && plan.Changed && _changeVersion == plan.AppliedChangeVersion)
+                PublishValueChanged();
+        }
+
+        /// <inheritdoc/>
+        /// <exception cref="ArgumentNullException"><paramref name="plan"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><see cref="EntryChangePlan.OldValue"/> 类型与 <see cref="ValueType"/> 不匹配。</exception>
+        public void RollbackBind(EntryChangePlan plan)
+        {
+            if (plan == null)
+                throw new ArgumentNullException();
+
+            if (plan.OldValue.GetType() != ValueType)
+                throw new ArgumentException($"Plan value type {plan.OldValue.GetType()} does not match entry value type {ValueType}.");
+
+            if (!plan.Applied)
+                return;
+
+            Entry = plan.OldEntry;
+            _value = (T)plan.OldValue;
+            _changeVersion = plan.OldChangeVersion;
+            plan.NewEntry.Value = plan.OriginalCandidateValue;
+            plan.Applied = false;
         }
     }
 

@@ -342,7 +342,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Equal(typeof(int), entry.ValueType);
             Assert.Equal(default, entry.Value);
             Assert.Equal(default, entry.DefaultValue);
-            Assert.Null(entry.TableName);
+            Assert.Null(entry.TableKey);
             Assert.Null(entry.Entry);
         }
 
@@ -362,7 +362,7 @@ namespace UnityModBase.Test.HConfigSpace
             var entry = new ConfigEntry<int>("General", model, 10);
 
             // Assert
-            Assert.Equal("General", entry.TableName);
+            Assert.Equal("General", entry.TableKey);
             Assert.Equal(10, entry.DefaultValue);
             Assert.Same(model, entry.Entry);
             Assert.Equal(42, entry.Value);
@@ -700,6 +700,241 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Same(entry, actualSender);
             var changedArgs = Assert.IsType<EntryValueChangedEventArgs<int>>(actualArgs);
             Assert.Equal(100, changedArgs.Value);
+        }
+
+        // ---- PrepareBind / ApplyBind / PublishBind / RollbackBind ----
+        // 以下测试直接覆盖重构后 IConfigEntry 上新增的事务协议方法。
+        // 旧实现把这些逻辑放在内部的 EntryReloadPlan 与 IConfigEntryReloadParticipant 中，
+        // 只能通过 RebindEntry 或 ConfigService.Reload 间接验证；现在它们成为公开接口，应单独测试。
+
+        [Fact]
+        public void PrepareBind_WhenCandidateIsNull_ReturnsFalseAndProducesErrorMessage()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+
+            var success = entry.PrepareBind(null, out var plan, out var errorMessage);
+
+            Assert.False(success);
+            Assert.Null(plan);
+            Assert.NotEmpty(errorMessage);
+        }
+
+        [Fact]
+        public void PrepareBind_WhenDecodeFails_ReturnsFalseWithoutChangingActiveBinding()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var badCandidate = new ConfigFileEntry { Key = "TestKey", Value = "not_an_int" };
+
+            var success = entry.PrepareBind(badCandidate, out var plan, out var errorMessage);
+
+            Assert.False(success);
+            Assert.Null(plan);
+            Assert.Contains("decode", errorMessage);
+            // 预检失败不得修改活动绑定或运行时值。
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(42, entry.Value);
+        }
+
+        [Fact]
+        public void PrepareBind_WhenSuccessful_DoesNotChangeActiveBindingOrRaiseEvents()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+
+            var success = entry.PrepareBind(candidate, out var plan, out _);
+
+            Assert.True(success);
+            Assert.NotNull(plan);
+            Assert.True(plan.Changed);
+            // 准备阶段只验证并构造计划；活动绑定和值必须保持不变，且不发布事件。
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(1, entry.Value);
+            Assert.Equal(0, invocationCount);
+        }
+
+        [Fact]
+        public void PrepareBind_WhenCandidateValueEqualsCurrent_MarksPlanUnchangedAndKeepsOriginalText()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            // 文本内容相等的候选项；等值时计划不应改写候选项文本。
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+
+            var success = entry.PrepareBind(candidate, out var plan, out _);
+
+            Assert.True(success);
+            Assert.False(plan.Changed);
+            Assert.Equal("42", candidate.Value);
+        }
+
+        [Fact]
+        public void PrepareBind_CopiesRuntimeEntryMetadataToCandidate()
+        {
+            var name = new Translator(chinese: "名称", english: "Name");
+            var description = new Translator(chinese: "描述", english: "Description");
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42", Name = name, Description = description };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+
+            entry.PrepareBind(candidate, out _, out _);
+
+            Assert.Same(name, candidate.Name);
+            Assert.Same(description, candidate.Description);
+        }
+
+        [Fact]
+        public void ApplyBind_WhenValueChanged_SwitchesBindingAndUpdatesValueWithoutPublishing()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+            entry.PrepareBind(candidate, out var plan, out _);
+
+            entry.ApplyBind(plan);
+
+            Assert.Same(candidate, entry.Entry);
+            Assert.Equal(99, entry.Value);
+            Assert.Equal("99", candidate.Value);
+            Assert.True(plan.Applied);
+            // Apply 不负责发布事件；事件由 PublishBind 触发。
+            Assert.Equal(0, invocationCount);
+        }
+
+        [Fact]
+        public void PublishBind_AfterApply_RaisesTypedAndBaseEventsOnce()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var typedCount = 0;
+            var baseCount = 0;
+            entry.OnValueChanged += (_, _) => typedCount++;
+            entry.OnValueChangedBase += (_, _) => baseCount++;
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+            entry.PrepareBind(candidate, out var plan, out _);
+            entry.ApplyBind(plan);
+
+            entry.PublishBind(plan);
+
+            Assert.Equal(1, typedCount);
+            Assert.Equal(1, baseCount);
+        }
+
+        [Fact]
+        public void PublishBind_WhenAppliedValueSupersededByLaterAssignment_DoesNotRaiseEvent()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var observedValues = new List<int>();
+            entry.OnValueChanged += (_, value) => observedValues.Add(value);
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+            entry.PrepareBind(candidate, out var plan, out _);
+            entry.ApplyBind(plan);
+            // 在发布前，其他流程（如事件处理器赋值）改写本项，使计划值过期。
+            entry.Value = 7;
+
+            entry.PublishBind(plan);
+
+            // 仅普通赋值的 7 被发布；过期的重载候选 99 不应再次发布。
+            Assert.Equal(new[] { 7 }, observedValues);
+        }
+
+        [Fact]
+        public void PublishBind_WhenPlanNotChanged_DoesNotRaiseEvent()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            entry.PrepareBind(candidate, out var plan, out _);
+            entry.ApplyBind(plan);
+
+            entry.PublishBind(plan);
+
+            Assert.Equal(0, invocationCount);
+        }
+
+        [Fact]
+        public void RollbackBind_WhenNotApplied_RestoresNothingAndKeepsCandidateText()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
+            entry.PrepareBind(candidate, out var plan, out _);
+
+            entry.RollbackBind(plan);
+
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(1, entry.Value);
+        }
+
+        [Fact]
+        public void RollbackBind_AfterApply_RestoresBindingValueAndCandidateText()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = " 99 " };
+            entry.PrepareBind(candidate, out var plan, out _);
+            // 记录候选文本被 Apply 规范化前的原始值，回滚后应恢复。
+            var originalCandidateText = plan.OriginalCandidateValue;
+            entry.ApplyBind(plan);
+
+            entry.RollbackBind(plan);
+
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(1, entry.Value);
+            Assert.Equal(originalCandidateText, candidate.Value);
+            Assert.False(plan.Applied);
+            // 回滚不发布事件。
+            Assert.Equal(0, invocationCount);
+        }
+
+        [Fact]
+        public void ApplyBind_WhenPlanValueTypeMismatch_ThrowsArgumentException()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "\"s\"" };
+            var entry = new ConfigEntry<string>("General", model, "s");
+            // 构造一个 NewValue 类型与声明类型不一致的计划，模拟跨配置项错误复用。
+            var wrongPlan = new EntryChangePlan(
+                entry, model, "s", model, 0, "\"0\"", 0, changed: true);
+
+            Assert.Throws<ArgumentException>(() => entry.ApplyBind(wrongPlan));
+        }
+
+        [Fact]
+        public void ApplyBind_WithNullPlan_ThrowsArgumentNullException()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+
+            Assert.Throws<ArgumentNullException>(() => entry.ApplyBind(null));
+        }
+
+        [Fact]
+        public void PublishBind_WithNullPlan_ThrowsArgumentNullException()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+
+            Assert.Throws<ArgumentNullException>(() => entry.PublishBind(null));
+        }
+
+        [Fact]
+        public void RollbackBind_WithNullPlan_ThrowsArgumentNullException()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>("General", model, 0);
+
+            Assert.Throws<ArgumentNullException>(() => entry.RollbackBind(null));
         }
 
     }
