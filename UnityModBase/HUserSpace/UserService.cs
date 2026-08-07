@@ -8,7 +8,7 @@ namespace UnityModBase.HUserSpace
 {
     /// <summary>
     /// 持有单个用户的内存日志数据库、可选文件写入器和可选配置服务，并协调日志转发、配置模型事件接线与资源释放。
-    /// 重复注册日志会释放旧写入器；重复注册配置只替换当前引用，不释放旧服务，且仅重新挂接配置创建前暂存的处理器。
+    /// 重复注册日志会释放旧写入器；重复注册配置会释放旧服务，并重新挂接经由本类型 <see cref="OnConfigChanged"/> 登记的处理器。
     /// 本类型不负责声明配置表或配置项，也不负责配置界面投影。
     /// </summary>
     /// <remarks>该类型没有内部生命周期锁，注册、事件订阅、日志转发与释放应由调用方串行化。</remarks>
@@ -17,17 +17,19 @@ namespace UnityModBase.HUserSpace
         // 防止替换写入器或释放时重复退订数据库事件；它不是跨线程同步标记。
         private bool _logWriterSubscribed = false;
 
-        // 暂存配置服务创建前添加的模型变化处理器；每次 RegisterConfig 都会把仍在列表中的处理器挂到新服务。
-        // 该列表跨配置替换和 Dispose 保留，用于迁移早期订阅，不代表当前服务上的完整订阅集合。
+        // 记录所有经过 OnConfigChanged 登记的模型变化处理器；每次 RegisterConfig 都会把列表中的处理器挂到新服务。
+        // 该列表跨配置替换和 Dispose 保留，用于把早期订阅迁移到后续创建的配置服务，不代表当前服务上的完整订阅集合。
         private readonly List<Action> _configChangedList = new List<Action>();
 
         /// <summary>
         /// 观察当前或随后创建的配置服务所发布的模型变化。
         /// </summary>
         /// <remarks>
-        /// <see cref="Config"/> 尚未创建时，添加的处理器会暂存并由 <see cref="RegisterConfig(Type, string)"/> 挂接；
-        /// 配置服务已存在时，添加的处理器只直接挂到当时的服务，不会加入待迁移列表。
-        /// 移除操作会同时尝试从当前配置服务和暂存列表退订，但不会触及已被替换的旧服务。
+        /// 添加处理器时：若 <see cref="Config"/> 已存在则同时挂接到它，并无论何种情况都登记到内部暂存列表；
+        /// <see cref="RegisterConfig(Type, string)"/> 替换服务时，会把暂存列表中的全部处理器重新挂接到新服务。
+        /// 因此经由本事件登记的处理器会跟随配置服务迁移；而直接订阅某个 <see cref="Config"/> 实例的处理器不会被迁移，
+        /// 且旧实例在替换时会被释放，其上的外部订阅随之失效且无法退订。
+        /// 移除操作会同时从当前配置服务和暂存列表退订，但不会触及已被替换并释放的旧服务。
         /// 配置服务构造期间的首次读取发生在暂存处理器挂接之前，因此不会通过本事件通知这些处理器。
         /// 事件的执行顺序和异常隔离规则由 <see cref="ConfigService.OnConfigChanged"/> 定义。
         /// </remarks>
@@ -37,8 +39,7 @@ namespace UnityModBase.HUserSpace
             {
                 if (Config != null)
                     Config.OnConfigChanged += value;
-                else
-                    _configChangedList.Add(value);
+                _configChangedList.Add(value);
             }
             remove
             {
@@ -128,15 +129,17 @@ namespace UnityModBase.HUserSpace
 
         /// <summary>
         /// 创建配置服务并立即读取指定文件，然后替换当前配置引用。
-        /// 创建完成后，把配置服务创建前暂存的模型变化处理器挂到新服务；本方法本身不发布配置注册或变化事件。
+        /// 创建完成后，把 <see cref="OnConfigChanged"/> 登记过的全部处理器挂到新服务；本方法本身不发布配置注册或变化事件。
         /// </summary>
         /// <param name="configManagerType">声明配置项的管理器类型，不可为 <c>null</c>。</param>
         /// <param name="configFilePath">配置文件路径，不可为 <c>null</c> 或空字符串；仅空白字符串会交由配置服务处理。</param>
         /// <exception cref="ArgumentException"><paramref name="configFilePath"/> 为 <c>null</c> 或空字符串时抛出。</exception>
         /// <exception cref="ArgumentNullException"><paramref name="configManagerType"/> 为 <c>null</c> 时抛出。</exception>
         /// <remarks>
-        /// 当前已有配置服务不会在替换前自动释放。直接订阅旧服务或在旧服务存在期间通过 <see cref="OnConfigChanged"/> 添加的处理器
-        /// 不会迁移到新服务；只有配置创建前进入暂存列表的处理器会再次挂接。
+        /// 替换前会先释放旧的 <see cref="Config"/>。旧服务实例被释放后，外部持有的旧引用不应再使用，
+        /// 且后续通过 <see cref="OnConfigChanged"/> 的 <c>remove</c> 无法触及已释放的旧服务；
+        /// 因此在旧服务存在期间直接订阅旧服务（而非经由本类型的 <see cref="OnConfigChanged"/>）的处理器不会被迁移。
+        /// 经由本类型 <see cref="OnConfigChanged"/> 登记的处理器都记录在暂存列表中，会在新服务上重新挂接。
         /// </remarks>
         public void RegisterConfig(Type configManagerType, string configFilePath)
         {
@@ -144,6 +147,8 @@ namespace UnityModBase.HUserSpace
                 throw new ArgumentException("Config file path cannot be null or empty.", nameof(configFilePath));
 
             ConfigManagerType = configManagerType ?? throw new ArgumentNullException(nameof(configManagerType));
+
+            Config?.Dispose();
             Config = new ConfigService(configFilePath);
 
             foreach (var handler in _configChangedList)

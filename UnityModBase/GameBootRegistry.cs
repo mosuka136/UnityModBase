@@ -144,7 +144,8 @@ namespace UnityModBase
                    assemblyName.StartsWith("Microsoft.") ||
                    assemblyName.StartsWith("Newtonsoft.") ||
                    assemblyName.StartsWith("BepInEx.") ||
-                   assemblyName.StartsWith("HarmonyLib");
+                   assemblyName.StartsWith("HarmonyLib") ||
+                   assemblyName.StartsWith("0Harmony");
         }
 
         /// <summary>
