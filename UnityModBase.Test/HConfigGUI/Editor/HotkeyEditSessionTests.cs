@@ -105,9 +105,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityProvider = UnityProvider.Instance;
             var session = new HotkeyEditSession
             {
-                Entry = CreateEntryBinding(new Hotkey(unityProvider)).Object,
+                Entry = CreateEntryBinding(new Hotkey()).Object,
                 State = HotkeyEditState.WaitingPress,
-                WorkingValue = new Hotkey(unityProvider)
+                WorkingValue = new Hotkey()
             };
 
             session.Update();
@@ -123,9 +123,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityProvider = UnityProvider.Instance;
             var session = new HotkeyEditSession
             {
-                Entry = CreateEntryBinding(new Hotkey(unityProvider)).Object,
+                Entry = CreateEntryBinding(new Hotkey()).Object,
                 State = HotkeyEditState.Recording,
-                WorkingValue = new Hotkey(unityProvider)
+                WorkingValue = new Hotkey()
             };
 
             session.Update();
@@ -139,9 +139,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var unityProvider = UnityProvider.Instance;
             var session = new HotkeyEditSession
             {
-                Entry = CreateEntryBinding(new Hotkey(unityProvider)).Object,
+                Entry = CreateEntryBinding(new Hotkey()).Object,
                 State = HotkeyEditState.WaitingConfirm,
-                WorkingValue = new Hotkey(unityProvider),
+                WorkingValue = new Hotkey(),
                 WorkingChord = new HotkeyChord(unityProvider),
                 PreviewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider)),
                 PreviewKeyboardChord = new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider))
@@ -164,7 +164,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             bool originalValidBeforeEdit)
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider)
+            var hotkey = new Hotkey()
             {
                 Valid = originalValidBeforeEdit
             };
@@ -202,7 +202,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void BeginEdit_WhenEntryContainsHotkey_InitializesEditingState()
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider);
+            var hotkey = new Hotkey();
             hotkey.Add(new HotkeyChord(unityProvider));
             var entry = CreateEntryBinding(hotkey);
             var session = new HotkeyEditSession
@@ -246,7 +246,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void BeginEdit_WhenSessionIsNotIdle_DoesNothing()
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider);
+            var hotkey = new Hotkey();
             var entry = CreateEntryBinding(hotkey);
             var session = new HotkeyEditSession
             {
@@ -265,7 +265,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void BeginRecord_WhenSessionIsNotExpanded_DoesNothing()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = true
             };
@@ -291,7 +291,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void BeginRecord_WhenSessionIsExpanded_SetsRecordingState()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = true
             };
@@ -317,11 +317,11 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void CancelRecord_WhenSessionIsExpanded_DoesNothing()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = false
             };
-            var previousWorkingValue = new Hotkey(unityProvider);
+            var previousWorkingValue = new Hotkey();
             var workingChord = new HotkeyChord(unityProvider);
             var entry = CreateEntryBinding(originalValue);
             var session = new HotkeyEditSession
@@ -347,7 +347,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void CancelRecord_WhenRecording_RestoresCapturedValidityAndEditingState()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = false
             };
@@ -376,7 +376,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void CancelEdit_WhenRecording_RestoresCapturedValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider)
+            var hotkey = new Hotkey()
             {
                 Valid = false
             };
@@ -404,7 +404,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void Dispose_WhenRecording_RestoresCapturedValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider)
+            var hotkey = new Hotkey()
             {
                 Valid = false
             };
@@ -432,7 +432,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmEdit_WhenSessionIsExpanded_PreservesValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
-            var hotkey = new Hotkey(unityProvider)
+            var hotkey = new Hotkey()
             {
                 Valid = false
             };
@@ -458,7 +458,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmEdit_WhenStateIsWaitingConfirm_ConfirmsChangeRestoresValidityAndClearsSession()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = false
             };
@@ -494,7 +494,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenGamepadPreviewIsValid_UpdatesEntryAndResetsEditingState()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             var entry = CreateEntryBinding(originalValue);
             var workingChord = new HotkeyChord(unityProvider);
             var previewGamepadChord = new GamepadChord(unityProvider, new GamepadTrigger(GamepadButton.DpadUp, unityProvider));
@@ -528,7 +528,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenSessionIsNotWaitingConfirm_CancelsRecord()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = false
             };
@@ -555,7 +555,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenKeyboardPreviewIsValid_UsesKeyboardChord()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider)
+            var originalValue = new Hotkey()
             {
                 Valid = false
             };
@@ -585,7 +585,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenBothPreviewsAreValid_KeepsExistingWorkingChordAndWritesResult()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             var originalChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)), unityProvider);
             originalValue.Add(originalChord);
             var entry = CreateEntryBinding(originalValue);
@@ -616,14 +616,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenResultHasNoValidChord_DoesNotWriteBackAndRefreshesWorkingCopy()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.D, unityProvider)), unityProvider));
             var entry = CreateEntryBinding(originalValue);
             var session = new HotkeyEditSession();
 
             session.BeginEdit(entry.Object);
             session.BeginRecord(new HotkeyChord(unityProvider));
-            session.WorkingValue = new Hotkey(unityProvider);
+            session.WorkingValue = new Hotkey();
             session.State = HotkeyEditState.WaitingConfirm;
             session.PreviewGamepadChord = new GamepadChord(unityProvider);
             session.PreviewKeyboardChord = new KeyboardChord(unityProvider);
@@ -656,7 +656,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void SetWorkingChord_WhenEditing_ReplacesCurrentChordAndBeginsRecording()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             var originalChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider);
             originalValue.Add(originalChord);
             var entry = CreateEntryBinding(originalValue);
@@ -699,7 +699,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void AddChord_WhenEditing_AddsChordAndBeginsRecording()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
             var entry = CreateEntryBinding(originalValue);
             var addedChord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.G, unityProvider)), unityProvider);
@@ -737,7 +737,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void RemoveChord_WhenEditing_RemovesChordAndCommitsRemainingValue()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
                 unityProvider));
@@ -772,7 +772,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void RemoveChord_WhenChordIsCurrentlyRecording_RemovesMatchingChordFromWorkingCopy()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
                 unityProvider));
@@ -798,7 +798,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void RemoveChord_WhenNewChordIsCurrentlyRecording_CancelsAdditionWithoutWritingEntry()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)),
                 unityProvider));
@@ -826,7 +826,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void RemoveChord_WhenItIsTheLastChord_PreservesOriginalValue()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.C, unityProvider)),
                 unityProvider));
@@ -853,7 +853,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void ConfirmRecord_WhenWorkingValueIsUnchanged_DoesNotWriteEntry()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             originalValue.Add(new HotkeyChord(
                 new KeyboardChord(unityProvider, new KeyboardTrigger(Key.D, unityProvider)),
                 unityProvider));
@@ -892,12 +892,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void DealWaitingPress_WhenNoInputPressed_LeavesStateUnchanged()
         {
             var unityProvider = UnityProvider.Instance;
-            var entry = CreateEntryBinding(new Hotkey(unityProvider));
+            var entry = CreateEntryBinding(new Hotkey());
             var session = new HotkeyEditSession
             {
                 Entry = entry.Object,
                 State = HotkeyEditState.WaitingPress,
-                WorkingValue = new Hotkey(unityProvider)
+                WorkingValue = new Hotkey()
             };
 
             session.DealWaitingPress();
@@ -1016,9 +1016,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         {
             return new HotkeyEditSession
             {
-                Entry = CreateEntryBinding(new Hotkey(unityProvider)).Object,
+                Entry = CreateEntryBinding(new Hotkey()).Object,
                 State = state,
-                WorkingValue = new Hotkey(unityProvider),
+                WorkingValue = new Hotkey(),
                 WorkingChord = new HotkeyChord(unityProvider),
                 PreviewGamepadChord = new GamepadChord(unityProvider),
                 PreviewKeyboardChord = new KeyboardChord(unityProvider)
@@ -1042,7 +1042,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void Update_WhenStateIsUnknown_LeavesSessionUntouched()
         {
             var unityProvider = UnityProvider.Instance;
-            var originalValue = new Hotkey(unityProvider);
+            var originalValue = new Hotkey();
             var entry = CreateEntryBinding(originalValue);
             var workingValue = originalValue.Clone();
             var workingChord = new HotkeyChord(unityProvider);

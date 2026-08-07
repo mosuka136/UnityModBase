@@ -758,7 +758,7 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         // 记录重载期间的编解码次数，并可注入编码失败，用于验证预检不会重复转换或泄漏部分状态。
-        private sealed class ReloadProbeAdapter : IConfigEntryAdapter
+        private sealed class ReloadProbeAdapter : IConfigEntryValue
         {
             public static int DecodeCount { get; private set; }
             public static int EncodeCount { get; private set; }
@@ -794,6 +794,13 @@ namespace UnityModBase.Test.HConfigSpace
             public ConfigFileResult<string> EncodeValueType()
             {
                 return ConfigFileResult<string>.Ok(nameof(ReloadProbeAdapter));
+            }
+
+            // 重载探测适配器的等值以 Content 为准：PrepareBind 通过 EqualBoxed 判断候选值是否变化，
+            // 因此本实现必须把相同内容视为相等、不同内容视为不等，验证计数才成立。
+            public bool Equals(IConfigEntryValue other)
+            {
+                return other is ReloadProbeAdapter adapter && adapter.Content == Content;
             }
 
             public static void Reset()

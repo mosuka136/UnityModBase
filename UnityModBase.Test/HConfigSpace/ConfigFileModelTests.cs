@@ -65,7 +65,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Contains("Failed to encode using IConfigEntryAdapter", error.Message);
+            Assert.Contains($"Failed to encode using {nameof(IConfigEntryValue)}", error.Message);
             Assert.Contains("encode boom", error.Message);
         }
 
@@ -216,7 +216,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Contains("Failed to decode using IConfigEntryAdapter", error.Message);
+            Assert.Contains($"Failed to decode using {nameof(IConfigEntryValue)}", error.Message);
             Assert.Contains("decode boom", error.Message);
         }
 
@@ -1488,7 +1488,7 @@ namespace UnityModBase.Test.HConfigSpace
         {
         }
 
-        private class FailingEncodeAdapter : IConfigEntryAdapter
+        private class FailingEncodeAdapter : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1504,9 +1504,11 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Ok("FailingEncodeAdapter");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
-        private class ThrowingEncodeAdapter : IConfigEntryAdapter
+        private class ThrowingEncodeAdapter : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1522,9 +1524,11 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Ok("ThrowingEncodeAdapter");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
-        private class FailingDecodeAdapter : IConfigEntryAdapter
+        private class FailingDecodeAdapter : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1540,9 +1544,11 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Ok("FailingDecodeAdapter");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
-        private class ThrowingDecodeAdapter : IConfigEntryAdapter
+        private class ThrowingDecodeAdapter : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1558,9 +1564,11 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Ok("ThrowingDecodeAdapter");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
-        private class WrongTypeDecodeAdapter : IConfigEntryAdapter
+        private class WrongTypeDecodeAdapter : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1576,6 +1584,8 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Ok("WrongTypeDecodeAdapter");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
     }
 }

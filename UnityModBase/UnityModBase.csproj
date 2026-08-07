@@ -83,7 +83,7 @@
     <Compile Include="HConfigSpace\ConfigFileTable.cs" />
     <Compile Include="HConfigSpace\ConfigSheet.cs" />
     <Compile Include="HConfigSpace\ConfigTable.cs" />
-    <Compile Include="HConfigSpace\IConfigEntryAdapter.cs" />
+    <Compile Include="HConfigSpace\IConfigEntryValue.cs" />
     <Compile Include="HEnumHelper\DisplayEnumAttribute.cs" />
     <Compile Include="HEnumHelper\EnumHelper.cs" />
     <Compile Include="HGuiSpace\GuiHostBase.cs" />

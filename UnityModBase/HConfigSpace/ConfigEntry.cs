@@ -314,12 +314,14 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 非泛型等值比较实现。
-        /// 当前只支持基础类型、字符串、枚举、数组和 IEnumerable；未知复杂对象按不相等处理。
-        /// IEnumerable 会被完整、按顺序枚举并在可释放时释放枚举器，因此调用方应避免传入无限序列或带破坏性副作用的枚举源。
+        /// 当前支持基础类型、字符串、枚举、数组、<see cref="IEnumerable"/> 以及实现 <see cref="IConfigEntryValue"/> 的自定义值类型；未知复杂对象按不相等处理。
         /// </summary>
         /// <param name="a">第一个待比较对象。</param>
         /// <param name="b">第二个待比较对象。</param>
         /// <returns>类型相同且内容符合本配置模型等值规则时返回 <c>true</c>。</returns>
+        /// <remarks>
+        /// <see cref="IEnumerable"/> 会被完整、按顺序枚举并在可释放时释放枚举器，因此调用方应避免传入无限序列或带破坏性副作用的枚举源。
+        /// </remarks>
         public static bool EqualBoxed(object a, object b)
         {
             if (a == null && b == null)
@@ -354,6 +356,17 @@ namespace UnityModBase.HConfigSpace
                 }
 
                 return true;
+            }
+
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
+            {
+                var valueA = a as IConfigEntryValue;
+                var valueB = b as IConfigEntryValue;
+
+                if (valueA == null || valueB == null)
+                    return false;
+
+                return valueA.Equals(valueB);
             }
 
             if (typeof(IEnumerable).IsAssignableFrom(type))

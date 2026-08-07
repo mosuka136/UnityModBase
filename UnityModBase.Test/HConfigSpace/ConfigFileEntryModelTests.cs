@@ -1241,8 +1241,8 @@ namespace UnityModBase.Test.HConfigSpace
         {
             // Arrange
             var key = "AdapterDefaultFailure";
-            IConfigEntryAdapter value = new TestAdapterWithSuccess();
-            IConfigEntryAdapter defaultValue = new TestAdapterEncodeFailure();
+            IConfigEntryValue value = new TestAdapterWithSuccess();
+            IConfigEntryValue defaultValue = new TestAdapterEncodeFailure();
             var name = new Translator("名称", "Name");
             var description = new Translator("描述", "Description");
 
@@ -1307,7 +1307,7 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
 
-        private class TestAdapterWithSuccess : IConfigEntryAdapter
+        private class TestAdapterWithSuccess : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1323,6 +1323,8 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return "CustomType";
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
         private enum TestEnum
@@ -1332,7 +1334,7 @@ namespace UnityModBase.Test.HConfigSpace
             Value3
         }
 
-        private class TestAdapterWithFailure : IConfigEntryAdapter
+        private class TestAdapterWithFailure : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1348,9 +1350,11 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Test failure"));
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
-        private class TestAdapterEncodeFailure : IConfigEntryAdapter
+        private class TestAdapterEncodeFailure : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1366,10 +1370,12 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 return "AdapterType";
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
 
 
-        private class TestAdapterThatThrows : IConfigEntryAdapter
+        private class TestAdapterThatThrows : IConfigEntryValue
         {
             public ConfigFileResult<string> Encode()
             {
@@ -1385,6 +1391,8 @@ namespace UnityModBase.Test.HConfigSpace
             {
                 throw new InvalidOperationException("Test exception");
             }
+
+            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
         }
     }
 }

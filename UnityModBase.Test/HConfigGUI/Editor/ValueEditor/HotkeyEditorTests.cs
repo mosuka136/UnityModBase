@@ -549,7 +549,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
 
         private static Hotkey CreateHotkey(UnityProvider unityProvider, params Key[] keys)
         {
-            var hotkey = new Hotkey(unityProvider);
+            var hotkey = new Hotkey();
             foreach (var key in keys)
             {
                 var chord = new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(key, unityProvider)), unityProvider);

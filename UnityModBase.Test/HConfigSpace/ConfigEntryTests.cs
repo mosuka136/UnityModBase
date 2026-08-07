@@ -671,6 +671,62 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result);
         }
 
+        // IConfigEntryValue 分支：EqualBoxed 把比较委托给实现类型自身的 Equals，
+        // 因此两个实现了该接口的对象是否相等由实现决定，而非由 EqualBoxed 的内置规则决定。
+        [Fact]
+        public void EqualBoxed_WhenConfigEntryValuesEqual_ReturnsTrue()
+        {
+            // Arrange
+            var a = new StubConfigEntryValue("same");
+            var b = new StubConfigEntryValue("same");
+
+            // Act
+            var result = ConfigEntry<int>.EqualBoxed(a, b);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public void EqualBoxed_WhenConfigEntryValuesNotEqual_ReturnsFalse()
+        {
+            // Arrange
+            var a = new StubConfigEntryValue("same");
+            var b = new StubConfigEntryValue("different");
+
+            // Act
+            var result = ConfigEntry<int>.EqualBoxed(a, b);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void EqualBoxed_WhenFirstConfigEntryValueIsNull_ReturnsFalse()
+        {
+            // Arrange
+            var b = new StubConfigEntryValue("value");
+
+            // Act
+            var result = ConfigEntry<int>.EqualBoxed(null, b);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void EqualBoxed_WhenSecondConfigEntryValueIsNull_ReturnsFalse()
+        {
+            // Arrange
+            var a = new StubConfigEntryValue("value");
+
+            // Act
+            var result = ConfigEntry<int>.EqualBoxed(a, null);
+
+            // Assert
+            Assert.False(result);
+        }
+
         [Fact]
         public void OnValueChangedBase_WhenValueChanges_RaisesEventWithConvertedEventArgs()
         {
@@ -956,5 +1012,22 @@ namespace UnityModBase.Test.HConfigSpace
         {
             return null;
         }
+    }
+
+    // 最小 IConfigEntryValue 实现，供 EqualBoxed 的适配器分支测试使用。
+    // 等值以 Content 为准，其余方法仅提供满足接口的占位实现。
+    public class StubConfigEntryValue : IConfigEntryValue
+    {
+        public string Content { get; }
+
+        public StubConfigEntryValue(string content)
+        {
+            Content = content;
+        }
+
+        public ConfigFileResult<string> Encode() => ConfigFileResult<string>.Ok(Content);
+        public ConfigFileResult<object> Decode(string content) => ConfigFileResult<object>.Ok(new StubConfigEntryValue(content));
+        public ConfigFileResult<string> EncodeValueType() => ConfigFileResult<string>.Ok(nameof(StubConfigEntryValue));
+        public bool Equals(IConfigEntryValue other) => other is StubConfigEntryValue v && v.Content == Content;
     }
 }

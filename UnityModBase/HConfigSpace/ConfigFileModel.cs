@@ -12,7 +12,7 @@ namespace UnityModBase.HConfigSpace
     /// 配置文件值的编码/解码工具。
     /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合使用方括号和逗号分隔，数字使用不随系统区域变化的格式。
     /// 它只处理单个值及集合值，不解析表头、键名或注释。
-    /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryAdapter"/> 实现代码，其线程安全和副作用由适配器自行保证。
+    /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryValue"/> 实现代码，其线程安全和副作用由适配器自行保证。
     /// </summary>
     public class ConfigFileModel
     {
@@ -42,11 +42,11 @@ namespace UnityModBase.HConfigSpace
             if (type == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
 
-            if (typeof(IConfigEntryAdapter).IsAssignableFrom(type))
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
                 {
-                    var adapter = (IConfigEntryAdapter)value;
+                    var adapter = (IConfigEntryValue)value;
                     var result = adapter.Encode();
                     if (!result.Success)
                         return ConfigFileResult<string>.Fail(result.Errors);
@@ -55,7 +55,7 @@ namespace UnityModBase.HConfigSpace
                 }
                 catch (Exception ex)
                 {
-                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to encode using IConfigEntryAdapter. Error: {ex.Message}"));
+                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to encode using {nameof(IConfigEntryValue)}. Error: {ex.Message}"));
                 }
             }
 
@@ -148,11 +148,11 @@ namespace UnityModBase.HConfigSpace
 
             value = value.Trim();
 
-            if (typeof(IConfigEntryAdapter).IsAssignableFrom(type))
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
                 {
-                    var adapterInstance = (IConfigEntryAdapter)Activator.CreateInstance(type);
+                    var adapterInstance = (IConfigEntryValue)Activator.CreateInstance(type);
                     var result = adapterInstance.Decode(value);
                     if (!result.Success)
                         return ConfigFileResult<object>.Fail(result.Errors);
@@ -160,7 +160,7 @@ namespace UnityModBase.HConfigSpace
                 }
                 catch (Exception ex)
                 {
-                    return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to decode using IConfigEntryAdapter. Error: {ex.Message}"));
+                    return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to decode using {nameof(IConfigEntryValue)}. Error: {ex.Message}"));
                 }
             }
 

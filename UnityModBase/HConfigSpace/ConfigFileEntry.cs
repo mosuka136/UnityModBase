@@ -278,11 +278,11 @@ namespace UnityModBase.HConfigSpace
         /// <exception cref="NullReferenceException"><paramref name="type"/> 为空，或集合元素类型无法识别。</exception>
         public static ConfigFileResult<string> EncodeValueType(Type type)
         {
-            if (typeof(IConfigEntryAdapter).IsAssignableFrom(type))
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
                 {
-                    var adapterInstance = (IConfigEntryAdapter)Activator.CreateInstance(type);
+                    var adapterInstance = (IConfigEntryValue)Activator.CreateInstance(type);
                     var result = adapterInstance.EncodeValueType();
                     if (!result.Success)
                         return ConfigFileResult<string>.Fail(result.Errors);

@@ -271,7 +271,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void Dispose_WhenHotkeySessionIsRecording_ClearsSessionAndRestoresValidity()
         {
             var editor = CreateEditor(out _, out _);
-            var originalValue = new Hotkey(UnityProvider.Instance);
+            var originalValue = new Hotkey();
             var entry = CreateEntryBindingMock(typeof(Hotkey), originalValue, key: "Hotkey");
             editor.HotkeyEditor.Session.BeginEdit(entry.Object);
             editor.HotkeyEditor.Session.BeginRecord(new HotkeyChord(UnityProvider.Instance));

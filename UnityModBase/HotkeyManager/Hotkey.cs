@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityModBase.BSpace;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HProvider;
 
@@ -11,7 +10,7 @@ namespace UnityModBase.HotkeyManager
     /// 表示一个可由多个按键组合触发的热键配置。
     /// 配置文件格式使用逗号分隔多个组合，例如 <c>Ctrl+F1,GamepadStart</c>；任意一个组合在当前帧按下即视为触发。
     /// </summary>
-    public class Hotkey : IConfigEntryAdapter
+    public class Hotkey : IConfigEntryValue
     {
         private static readonly UnityProvider _defaultUnityService = UnityProvider.Instance;
 
@@ -57,13 +56,17 @@ namespace UnityModBase.HotkeyManager
         }
 
         /// <summary>
-        /// 使用指定 Unity 服务创建空热键。
+        /// 使用已有的组合列表与 Unity 服务构造热键实例。
+        /// 该构造函数对两个参数执行非空校验，是 <see cref="TryParse"/> 与 <see cref="Clone"/> 等内部组装路径的统一入口，
+        /// 不对外公开。
         /// </summary>
-        /// <param name="unityService">输入状态提供器；此构造函数不执行空值校验。</param>
-        public Hotkey(UnityProvider unityService)
+        /// <param name="hotkeyChords">已解析完成的组合列表；引用将被直接持有，调用方不应再继续修改。</param>
+        /// <param name="unityService">热键及其组合查询输入时使用的 Unity 服务。</param>
+        /// <exception cref="ArgumentNullException">任一参数为 <c>null</c>。</exception>
+        private Hotkey(List<HotkeyChord> hotkeyChords, UnityProvider unityService)
         {
-            UnityService = unityService;
-            Hotkeys = new List<HotkeyChord>();
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
+            Hotkeys = hotkeyChords ?? throw new ArgumentNullException(nameof(hotkeyChords));
         }
 
         /// <summary>
@@ -74,35 +77,15 @@ namespace UnityModBase.HotkeyManager
         /// <exception cref="ArgumentException">文本为空、格式非法或无法使用给定服务解析时抛出。</exception>
         public Hotkey(string hotkey, UnityProvider unityService)
         {
-            UnityService = unityService;
-            Hotkeys = new List<HotkeyChord>();
-            if (!TryParse(hotkey))
+            if (string.IsNullOrWhiteSpace(hotkey))
+                throw new ArgumentException("Hotkey string cannot be null or whitespace.");
+
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
+
+            if (TryParse(hotkey, unityService, out var parsedHotkey))
+                Hotkeys = parsedHotkey.Hotkeys;
+            else
                 throw new ArgumentException($"Invalid hotkey string: {hotkey}");
-        }
-
-        /// <summary>
-        /// 深复制源热键的组合结构，并为新热键设置指定服务。
-        /// 内部组合按各自的克隆规则保留源组合的 Unity 服务引用，不会自动重绑定到参数服务。
-        /// </summary>
-        /// <param name="hotkey">要复制的源热键，不可为 <c>null</c>。</param>
-        /// <param name="unityService">新热键顶层使用的 Unity 服务。</param>
-        /// <exception cref="NullReferenceException"><paramref name="hotkey"/> 为 <c>null</c> 时抛出。</exception>
-        public Hotkey(Hotkey hotkey, UnityProvider unityService)
-        {
-            UnityService = unityService;
-            Hotkeys = hotkey.Hotkeys.Select(h => h.Clone() as HotkeyChord).ToList();
-        }
-
-        /// <summary>
-        /// 使用指定组合创建热键。组合引用会浅复制到新的列表，组合对象本身仍与调用方共享。
-        /// </summary>
-        /// <param name="unityService">热键顶层使用的 Unity 服务。</param>
-        /// <param name="hotkeys">初始组合数组，不可为 <c>null</c>。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="hotkeys"/> 为 <c>null</c> 时由集合转换抛出。</exception>
-        public Hotkey(UnityProvider unityService, params HotkeyChord[] hotkeys)
-        {
-            UnityService = unityService;
-            Hotkeys = hotkeys.ToList();
         }
 
         /// <summary>
@@ -173,17 +156,23 @@ namespace UnityModBase.HotkeyManager
         }
 
         /// <summary>
-        /// 从配置文本解析热键。空的逗号分段会被跳过；任一非空组合失败时保留原列表并记录警告。
+        /// 从配置文本解析热键，并返回新建的 <see cref="Hotkey"/> 实例。
+        /// 该方法为纯函数：不修改任何已有实例、不写日志，仅在解析成功时通过 <paramref name="result"/> 返回新对象。
         /// </summary>
         /// <param name="text"><see cref="Separator"/> 分隔的组合文本。</param>
-        /// <returns>至少解析出一个组合且所有非空组合均成功时为 <c>true</c>。</returns>
-        public bool TryParse(string text)
+        /// <param name="unityService">各组合查询输入时使用的 Unity 服务。</param>
+        /// <param name="result">解析成功时返回的新热键；失败时为 <c>null</c>。</param>
+        /// <returns>至少解析出一个组合、且没有任何空段或失败组合时为 <c>true</c>。</returns>
+        /// <remarks>
+        /// 解析策略偏严格：任意一个逗号分段为空白或无法识别，整体即判定失败并返回 <c>false</c>，
+        /// 调用方需自行决定是否记录诊断。
+        /// </remarks>
+        public static bool TryParse(string text, UnityProvider unityService, out Hotkey result)
         {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                BLog.Warn("Failed to parse hotkey: input is empty.");
+            result = null;
+
+            if (string.IsNullOrWhiteSpace(text) || unityService == null)
                 return false;
-            }
 
             var newHotkeys = new List<HotkeyChord>();
             var chordStrings = text.Split(Separator);
@@ -191,27 +180,19 @@ namespace UnityModBase.HotkeyManager
             {
                 var chordStr = ch.Trim();
                 if (string.IsNullOrWhiteSpace(chordStr))
-                    continue;
-
-                var chordResult = HotkeyChord.TryParse(chordStr, UnityService);
-                if (!chordResult.Success)
-                {
-                    foreach (var error in chordResult.Errors)
-                    {
-                        BLog.Warn($"Failed to parse hotkey chord '{chordStr}': {error}");
-                    }
                     return false;
-                }
+
+                var chordResult = HotkeyChord.TryParse(chordStr, unityService);
+                if (!chordResult.Success)
+                    return false;
+
                 newHotkeys.Add(chordResult.Value);
             }
 
             if (newHotkeys.Count == 0)
-            {
-                BLog.Warn("Failed to parse hotkey: no valid chords found.");
                 return false;
-            }
 
-            Hotkeys = newHotkeys;
+            result = new Hotkey(newHotkeys, unityService);
             return true;
         }
 
@@ -230,7 +211,8 @@ namespace UnityModBase.HotkeyManager
         /// <returns>独立的热键对象。</returns>
         public Hotkey Clone()
         {
-            return new Hotkey(this, UnityService);
+            var chords = new List<HotkeyChord>(Hotkeys.Select(h => h.Clone() as HotkeyChord));
+            return new Hotkey(chords, UnityService);
         }
 
         /// <inheritdoc />
@@ -240,10 +222,14 @@ namespace UnityModBase.HotkeyManager
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// 框架通过无参构造函数创建临时实例调用本方法，实现内部委托给静态 <see cref="TryParse(string, UnityProvider, out Hotkey)"/>，
+        /// 返回的是解析所得的新实例而非临时实例自身；临时实例的状态不参与结果。
+        /// </remarks>
         public ConfigFileResult<object> Decode(string content)
         {
-            if (TryParse(content))
-                return this;
+            if (TryParse(content, _defaultUnityService, out var result))
+                return result;
             return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Failed to decode Hotkey"));
         }
 
@@ -251,6 +237,20 @@ namespace UnityModBase.HotkeyManager
         public ConfigFileResult<string> EncodeValueType()
         {
             return "Hotkey";
+        }
+
+        /// <summary>
+        /// 比较当前热键与另一个配置值是否包含相同组合。
+        /// 仅当 <paramref name="other"/> 同样是 <see cref="Hotkey"/> 时，比较才有意义，
+        /// 否则直接返回 <c>false</c>；具体相等规则见 <see cref="HasSameHotkey(Hotkey)"/>。
+        /// </summary>
+        /// <param name="other">另一个配置值，可能为 <c>null</c> 或其他实现类型。</param>
+        /// <returns>类型一致且组合集合等价时为 <c>true</c>。</returns>
+        public bool Equals(IConfigEntryValue other)
+        {
+            if (other == null || other.GetType() != typeof(Hotkey))
+                return false;
+            return HasSameHotkey((Hotkey)other);
         }
     }
 }

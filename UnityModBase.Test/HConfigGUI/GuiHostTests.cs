@@ -140,7 +140,7 @@ namespace UnityModBase.Test.HConfigGUI
             currentContext.Popup.Title = new Translator("标题", "Title");
             currentContext.Popup.DrawAction = () => { };
             currentContext.Popup.CloseAction = () => closeCallCount++;
-            var hotkey = new Hotkey(UnityProvider.Instance);
+            var hotkey = new Hotkey();
             var hotkeyEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
             hotkeyEntry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             hotkeyEntry.SetupGet(x => x.Value).Returns(hotkey);
