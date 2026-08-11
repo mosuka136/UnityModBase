@@ -1,20 +1,19 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 
 namespace UnityModBase.HConfigSpace
 {
     /// <summary>
     /// 配置文件值的编码/解码工具。
-    /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合使用方括号和逗号分隔，数字使用不随系统区域变化的格式。
-    /// 它只处理单个值及集合值，不解析表头、键名或注释。
+    /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合用方括号、元组用圆括号并以逗号分隔元素，数字使用不随系统区域变化的格式。
+    /// 它只处理单个值、集合与元组；<see cref="IsKeyValuePair"/>、<see cref="IsComment"/>、<see cref="IsValidKeyName"/> 仅提供行分类与键名校验，
+    /// 键值行和表结构的解析由 <see cref="ConfigFileEntry"/>、<see cref="ConfigFileTable"/> 负责。
     /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryValue"/> 实现代码，其线程安全和副作用由适配器自行保证。
     /// </summary>
-    public class ConfigFileModel
+    public static partial class ConfigFileModel
     {
         /// <summary>
         /// 将强类型值编码为配置文件中的文本表示。
@@ -24,21 +23,20 @@ namespace UnityModBase.HConfigSpace
         /// <returns>编码结果；不支持的类型会返回失败结果。</returns>
         public static ConfigFileResult<string> Encode<T>(T value)
         {
-            return Encode(value, typeof(T));
+            return Encode(typeof(T), value);
         }
 
         /// <summary>
         /// 按指定类型将对象编码为配置文本。
         /// </summary>
-        /// <param name="value">待编码对象。</param>
         /// <param name="type">用于选择编码规则的声明类型；应与 <paramref name="value"/> 兼容。</param>
+        /// <param name="value">待编码对象。</param>
         /// <returns>编码后的字符串，或包含错误信息的失败结果。</returns>
         /// <exception cref="InvalidCastException">内置类型的值与 <paramref name="type"/> 不兼容。</exception>
-        public static ConfigFileResult<string> Encode(object value, Type type)
+        public static ConfigFileResult<string> Encode(Type type, object value)
         {
             if (value == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null"));
-
             if (type == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
 
@@ -59,57 +57,17 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            switch (type)
-            {
-                case Type t when t == typeof(string):
-                    return ConfigFileResult<string>.Ok(EncodeString((string)value));
-                case Type t when t == typeof(sbyte):
-                    return ConfigFileResult<string>.Ok(((sbyte)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(short):
-                    return ConfigFileResult<string>.Ok(((short)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(int):
-                    return ConfigFileResult<string>.Ok(((int)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(long):
-                    return ConfigFileResult<string>.Ok(((long)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(byte):
-                    return ConfigFileResult<string>.Ok(((byte)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(ushort):
-                    return ConfigFileResult<string>.Ok(((ushort)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(uint):
-                    return ConfigFileResult<string>.Ok(((uint)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(ulong):
-                    return ConfigFileResult<string>.Ok(((ulong)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(float):
-                    return ConfigFileResult<string>.Ok(((float)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(double):
-                    return ConfigFileResult<string>.Ok(((double)value).ToString(CultureInfo.InvariantCulture));
-                case Type t when t == typeof(bool):
-                    return ConfigFileResult<string>.Ok(((bool)value).ToString(CultureInfo.InvariantCulture));
-                default:
-                    break;
-            }
+            if (IsPrimitiveType(type))
+                return EncodePrimitive(type, value);
 
             if (type.IsEnum)
                 return ConfigFileResult<string>.Ok(value.ToString());
 
+            if (IsTupleType(type))
+                return EncodeTuple(type, value);
+
             if (typeof(IEnumerable).IsAssignableFrom(type))
-            {
-                var collectionType = GetCollectionElementType(type);
-                if (collectionType == null)
-                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported collection type"));
-
-                var elements = new List<string>();
-                foreach (var item in (IEnumerable)value)
-                {
-                    var result = Encode(item, collectionType);
-                    if (!result.Success)
-                        return ConfigFileResult<string>.Fail(result.Errors);
-                    elements.Add(result.Value);
-                }
-
-                // 每个元素先独立完成引号、转义或嵌套集合编码；解码器据此只把顶层逗号视为分隔符。
-                return ConfigFileResult<string>.Ok($"[{string.Join(",", elements)}]");
-            }
+                return EncodeCollection(type, value);
 
             return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported type"));
         }
@@ -122,7 +80,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>解码后且可直接转换为 <typeparamref name="T"/> 的值，否则返回失败结果。</returns>
         public static ConfigFileResult<T> Decode<T>(string value)
         {
-            var result = Decode(value, typeof(T));
+            var result = Decode(typeof(T), value);
             if (!result.Success)
                 return ConfigFileResult<T>.Fail(result.Errors);
 
@@ -135,14 +93,13 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 按运行时类型解码配置文本。
         /// </summary>
-        /// <param name="value">配置文件中的值文本。</param>
         /// <param name="type">目标声明类型。适配器类型必须提供可访问的无参构造函数。</param>
+        /// <param name="value">配置文件中的值文本。</param>
         /// <returns>解码后的对象，或包含错误信息的失败结果。</returns>
-        public static ConfigFileResult<object> Decode(string value, Type type)
+        public static ConfigFileResult<object> Decode(Type type, string value)
         {
             if (string.IsNullOrWhiteSpace(value))
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null or whitespace"));
-
             if (type == null)
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
 
@@ -164,68 +121,8 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            switch (type)
-            {
-                case Type t when t == typeof(string):
-                    return DecodeString(value);
-                case Type t when t == typeof(sbyte):
-                    if (sbyte.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var sbyteResult))
-                        return ConfigFileResult<object>.Ok(sbyteResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid sbyte value: {value}"));
-                case Type t when t == typeof(short):
-                    if (short.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var shortResult))
-                        return ConfigFileResult<object>.Ok(shortResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid short value: {value}"));
-                case Type t when t == typeof(int):
-                    if (int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var intResult))
-                        return ConfigFileResult<object>.Ok(intResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid int value: {value}"));
-                case Type t when t == typeof(long):
-                    if (long.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var longResult))
-                        return ConfigFileResult<object>.Ok(longResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid long value: {value}"));
-                case Type t when t == typeof(byte):
-                    if (byte.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var byteResult))
-                        return ConfigFileResult<object>.Ok(byteResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid byte value: {value}"));
-                case Type t when t == typeof(ushort):
-                    if (ushort.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var ushortResult))
-                        return ConfigFileResult<object>.Ok(ushortResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid ushort value: {value}"));
-                case Type t when t == typeof(uint):
-                    if (uint.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var uintResult))
-                        return ConfigFileResult<object>.Ok(uintResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid uint value: {value}"));
-                case Type t when t == typeof(ulong):
-                    if (ulong.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var ulongResult))
-                        return ConfigFileResult<object>.Ok(ulongResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid ulong value: {value}"));
-                case Type t when t == typeof(float):
-                    if (float.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var floatResult))
-                        return ConfigFileResult<object>.Ok(floatResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid float value: {value}"));
-                case Type t when t == typeof(double):
-                    if (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var doubleResult))
-                        return ConfigFileResult<object>.Ok(doubleResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid double value: {value}"));
-                case Type t when t == typeof(bool):
-                    if (bool.TryParse(value, out var boolResult))
-                        return ConfigFileResult<object>.Ok(boolResult);
-                    else
-                        return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid bool value: {value}"));
-                default:
-                    break;
-            }
+            if (IsPrimitiveType(type))
+                return DecodePrimitive(type, value);
 
             if (type.IsEnum)
             {
@@ -240,132 +137,52 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
+            if (IsTupleType(type))
+                return DecodeTuple(type, value);
+
             if (typeof(IEnumerable).IsAssignableFrom(type))
-            {
-                var collectionType = GetCollectionElementType(type);
-                if (collectionType == null)
-                    return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported collection type"));
-
-                var splitResult = SplitCollectionString(value);
-                if (!splitResult.Success)
-                    return ConfigFileResult<object>.Fail(splitResult.Errors);
-
-                var elements = new List<object>();
-                foreach (var item in splitResult.Value)
-                {
-                    var result = Decode(item.Trim(), collectionType);
-                    if (!result.Success)
-                        return ConfigFileResult<object>.Fail(result.Errors);
-                    elements.Add(result.Value);
-                }
-
-                return CreateCollectionResult(type, collectionType, elements);
-            }
+                return DecodeCollection(type, value);
 
             return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Decoding not implemented"));
         }
 
         /// <summary>
-        /// 获取集合类型的元素类型。
+        /// 按顶层逗号拆分复合值文本，是集合与元组拆分共用的词法扫描实现。
+        /// 引号内的逗号、括号不视为结构字符；嵌套的 <c>[</c> <c>]</c>、<c>(</c> <c>)</c> 必须配对平衡。
+        /// 引号内的转义序列（<c>\\</c>、<c>\"</c>、<c>\n</c>、<c>\r</c>、<c>\t</c>）在此阶段按原文保留，由后续 <see cref="DecodeString"/> 统一反转义。
         /// </summary>
-        /// <param name="collectionType">数组、<see cref="IEnumerable{T}"/> 或实现泛型 IEnumerable 的类型。</param>
-        /// <returns>元素类型；无法识别时返回 <c>null</c>。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="collectionType"/> 为 <c>null</c>。</exception>
-        public static Type GetCollectionElementType(Type collectionType)
-        {
-            if (collectionType.IsArray)
-                return collectionType.GetElementType();
-
-            if (collectionType.IsGenericType && collectionType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                return collectionType.GetGenericArguments()[0];
-
-            var enumerableType = collectionType.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
-
-            return enumerableType?.GetGenericArguments()[0];
-        }
-
-        /// <summary>
-        /// 按配置格式编码字符串。
-        /// </summary>
-        /// <param name="value">待编码的非空字符串。</param>
-        /// <param name="quote">是否用双引号包裹。</param>
-        /// <param name="trim">是否在编码前去掉首尾空白。</param>
-        /// <param name="escape">是否转义反斜杠、双引号和常见控制字符。</param>
-        /// <returns>编码后的字符串。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="value"/> 为 <c>null</c> 且需要去空白或转义。</exception>
-        public static string EncodeString(string value, bool quote = true, bool trim = false, bool escape = true)
-        {
-            if (trim)
-                value = value.Trim();
-            if (escape)
-                value = value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
-            if (quote)
-                value = $"\"{value}\"";
-            return value;
-        }
-
-        /// <summary>
-        /// 按配置格式解码字符串。
-        /// <c>null</c>、空字符串和纯空白会在引号校验之前统一解码为空字符串，这是当前格式的兼容规则。
-        /// </summary>
-        /// <param name="value">待解码文本。</param>
-        /// <param name="quote">是否要求文本以双引号包裹。</param>
-        /// <param name="trim">是否在解码前去掉首尾空白。</param>
-        /// <param name="escape">是否解析反斜杠转义。</param>
-        /// <returns>解码后的字符串。</returns>
-        public static ConfigFileResult<string> DecodeString(string value, bool quote = true, bool trim = true, bool escape = true)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return ConfigFileResult<string>.Ok(string.Empty);
-
-            if (trim)
-                value = value.Trim();
-
-            if (quote)
-            {
-                if (value.Length >= 2 && value.StartsWith("\"") && value.EndsWith("\""))
-                    value = value.Substring(1, value.Length - 2);
-                else
-                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "String must start and end with a quote"));
-            }
-
-            if (escape)
-            {
-                var unescapeResult = UnescapeString(value);
-                if (!unescapeResult.Success)
-                    return unescapeResult;
-
-                value = unescapeResult.Value;
-            }
-
-            return ConfigFileResult<string>.Ok(value);
-        }
-
-        /// <summary>
-        /// 将集合文本拆分为元素文本。
-        /// </summary>
-        /// <param name="value">形如 <c>[a,b]</c> 的集合文本。</param>
-        /// <returns>元素文本数组；引号未闭合、括号不平衡或存在空元素时返回失败。</returns>
-        public static ConfigFileResult<string[]> SplitCollectionString(string value)
+        /// <param name="value">待拆分文本，允许带首尾空白。</param>
+        /// <param name="opening">外层起始定界符；与 <paramref name="closing"/> 同为 <c>'\0'</c> 时表示文本无外层定界符（用于 <c>ConfigEntryValue</c> 这类顶层逗号分隔编码）。</param>
+        /// <param name="closing">外层结束定界符；非 <c>'\0'</c> 时要求文本去除首尾空白后必须被该对定界符完整包裹，拆分前会先去掉这对定界符。</param>
+        /// <returns>
+        /// 各元素的原始文本（已去首尾空白、未反转义）；去除定界符后内容为空时返回空数组。
+        /// 引号未闭合、转义序列非法、括号不平衡或出现空元素（如 <c>[a,,b]</c>）时返回失败。
+        /// </returns>
+        public static ConfigFileResult<string[]> SplitCompositeString(string value, char opening, char closing)
         {
             if (string.IsNullOrWhiteSpace(value))
                 return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null or whitespace"));
 
             value = value.Trim();
-            if (!value.StartsWith("[") || !value.EndsWith("]"))
-                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Collection string must start with '[' and end with ']'"));
 
-            value = value.Substring(1, value.Length - 2).Trim();
+            if (opening != '\0' || closing != '\0')
+            {
+                if (value.Length < 2 || value[0] != opening || value[value.Length - 1] != closing)
+                    return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Value must start with '{opening}' and end with '{closing}'"));
+
+                value = value.Substring(1, value.Length - 2).Trim();
+            }
+
             if (value.Length == 0)
                 return ConfigFileResult<string[]>.Ok(new string[0]);
 
             var elements = new List<string>();
             var currentElement = new StringBuilder();
-            bool inQuotes = false;
-            int bracketDepth = 0;
 
-            // 不能直接用 Split(',')：字符串元素可能含有转义字符，集合元素也允许嵌套方括号。
+            var brackets = new Stack<char>();
+
+            bool inQuotes = false;
+
             for (int i = 0; i < value.Length; i++)
             {
                 char c = value[i];
@@ -383,16 +200,13 @@ namespace UnityModBase.HConfigSpace
 
                         currentElement.Append(c);
                         currentElement.Append(next);
+
                         i++;
                         continue;
                     }
 
                     if (c == '"')
-                    {
                         inQuotes = false;
-                        currentElement.Append(c);
-                        continue;
-                    }
 
                     currentElement.Append(c);
                     continue;
@@ -405,31 +219,38 @@ namespace UnityModBase.HConfigSpace
                     continue;
                 }
 
-                if (c == '[')
+                if (c == '[' || c == '(')
                 {
-                    bracketDepth++;
+                    brackets.Push(c);
                     currentElement.Append(c);
                     continue;
                 }
 
-                if (c == ']')
+                if (c == ']' || c == ')')
                 {
-                    if (bracketDepth == 0)
-                        return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Unexpected closing bracket in collection"));
+                    if (brackets.Count == 0)
+                        return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Unexpected closing delimiter '{c}'"));
 
-                    bracketDepth--;
+                    char expectedOpening = (c == ']' ? '[' : '(');
+
+                    if (brackets.Peek() != expectedOpening)
+                        return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Mismatched closing delimiter '{c}'"));
+
+                    brackets.Pop();
+
                     currentElement.Append(c);
                     continue;
                 }
 
-                if (c == ',' && bracketDepth == 0)
+                if (c == ',' && brackets.Count == 0)
                 {
                     var element = currentElement.ToString().Trim();
                     if (element.Length == 0)
-                        return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Collection contains empty element"));
+                        return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Composite value contains empty element"));
 
                     elements.Add(element);
                     currentElement.Clear();
+
                     continue;
                 }
 
@@ -437,14 +258,14 @@ namespace UnityModBase.HConfigSpace
             }
 
             if (inQuotes)
-                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Unclosed quoted string in collection"));
+                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Unclosed quoted string"));
 
-            if (bracketDepth != 0)
-                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Unbalanced nested collection brackets"));
+            if (brackets.Count != 0)
+                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Unbalanced nested delimiters"));
 
             var lastElement = currentElement.ToString().Trim();
             if (lastElement.Length == 0)
-                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Collection contains empty element"));
+                return ConfigFileResult<string[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Composite value contains empty element"));
 
             elements.Add(lastElement);
 
@@ -452,341 +273,188 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 根据目标集合类型创建解码结果。
-        /// 创建顺序依次为数组、可直接赋值的 <see cref="List{T}"/>、接受辅助 List/数组的公开构造函数，
-        /// 最后是公开无参构造函数加兼容的 <c>Add</c> 方法；所有路径都使用已经校验类型的元素。
+        /// 按配置模型的等值规则比较两个值，供 <see cref="ConfigEntry{T}"/> 判断“值未变化”以跳过写入与事件。
+        /// 两者的运行时类型必须相同，否则直接视为不相等。原始类型、字符串、枚举按 <see cref="object.Equals(object, object)"/> 比较；
+        /// 数组与 <see cref="IEnumerable"/> 按元素顺序递归深度比较；<see cref="IConfigEntryValue"/> 委托给其实现的业务等值判断。
+        /// 其余类型一律视为不相等，使配置项按“值已变化”保守处理。
         /// </summary>
-        /// <param name="type">目标集合类型。</param>
-        /// <param name="elementType">集合元素类型。</param>
-        /// <param name="elements">已解码但尚未放入目标集合的元素。</param>
-        /// <returns>目标集合实例。</returns>
-        public static ConfigFileResult<object> CreateCollectionResult(Type type, Type elementType, List<object> elements)
+        /// <param name="a">第一个待比较值，可为 <c>null</c>。</param>
+        /// <param name="b">第二个待比较值，可为 <c>null</c>；仅两者同为 <c>null</c> 时相等。</param>
+        /// <returns>类型相同且内容符合上述规则时返回 <c>true</c>。</returns>
+        /// <remarks>
+        /// 数组分支必须先于 <see cref="IEnumerable"/> 判断（数组本身实现了 <see cref="IEnumerable"/>），以便用长度快速排除不等；
+        /// <see cref="IConfigEntryValue"/> 分支先于 <see cref="IEnumerable"/>，保证同时可枚举的自定义值类型使用其业务等值语义。
+        /// 枚举序列会被完整遍历，且枚举器在可释放时会被释放；调用方不应传入无限序列或枚举有破坏性副作用的源。
+        /// </remarks>
+        public static bool ValueEqual(object a, object b)
         {
-            if (type == null)
-                return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
+            if (a == null && b == null)
+                return true;
 
-            if (elementType == null)
-                return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Element type cannot be null"));
+            if (a == null || b == null)
+                return false;
 
-            if (elements == null)
-                return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Elements cannot be null"));
+            var type = a.GetType();
 
-            var validatedElementsResult = ValidateCollectionElements(elementType, elements);
-            if (!validatedElementsResult.Success)
-                return ConfigFileResult<object>.Fail(validatedElementsResult.Errors);
+            if (type != b.GetType())
+                return false;
 
-            var arrayResult = CreateTypedArray(elementType, validatedElementsResult.Value);
-            if (!arrayResult.Success)
-                return ConfigFileResult<object>.Fail(arrayResult.Errors);
+            if (type.IsPrimitive || type == typeof(string) || type.IsEnum)
+                return object.Equals(a, b);
 
             if (type.IsArray)
-                return ConfigFileResult<object>.Ok(arrayResult.Value);
-
-            var listResult = CreateTypedList(elementType, validatedElementsResult.Value);
-            if (!listResult.Success)
-                return ConfigFileResult<object>.Fail(listResult.Errors);
-
-            var list = listResult.Value;
-            var listType = list.GetType();
-            if (type.IsAssignableFrom(listType))
-                return ConfigFileResult<object>.Ok(list);
-
-            ConfigFileResult<object> constructorResult;
-            if (TryCreateCollectionFromConstructor(type, list, arrayResult.Value, out constructorResult))
-                return constructorResult;
-
-            ConfigFileResult<object> addMethodResult;
-            if (TryCreateCollectionFromAddMethod(type, elementType, validatedElementsResult.Value, out addMethodResult))
-                return addMethodResult;
-
-            return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Unsupported collection type: {type.FullName}"));
-        }
-
-        /// <summary>
-        /// 校验集合元素是否能安全放入目标元素类型。
-        /// </summary>
-        /// <param name="elementType">集合声明的元素类型。</param>
-        /// <param name="elements">已解码元素。</param>
-        /// <returns>校验后的元素数组。</returns>
-        public static ConfigFileResult<object[]> ValidateCollectionElements(Type elementType, List<object> elements)
-        {
-            var validatedElements = new object[elements.Count];
-            for (int i = 0; i < elements.Count; i++)
             {
-                var validationResult = ValidateCollectionElement(elementType, elements[i], i);
-                if (!validationResult.Success)
-                    return ConfigFileResult<object[]>.Fail(validationResult.Errors);
+                var arrayA = a as Array;
+                var arrayB = b as Array;
 
-                validatedElements[i] = validationResult.Value;
+                if (arrayA == null || arrayB == null)
+                    return false;
+
+                if (arrayA.Length != arrayB.Length)
+                    return false;
+
+                for (int i = 0; i < arrayA.Length; i++)
+                {
+                    if (!ValueEqual(arrayA.GetValue(i), arrayB.GetValue(i)))
+                        return false;
+                }
+
+                return true;
             }
 
-            return ConfigFileResult<object[]>.Ok(validatedElements);
-        }
-
-        /// <summary>
-        /// 校验单个集合元素的赋值兼容性。
-        /// </summary>
-        /// <param name="elementType">集合声明的元素类型。</param>
-        /// <param name="element">待校验元素。</param>
-        /// <param name="index">元素在集合中的索引，用于错误定位。</param>
-        /// <returns>可放入集合的元素值。</returns>
-        public static ConfigFileResult<object> ValidateCollectionElement(Type elementType, object element, int index)
-        {
-            if (element == null)
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
-                var nullableUnderlyingType = Nullable.GetUnderlyingType(elementType);
-                if (!elementType.IsValueType || nullableUnderlyingType != null)
-                    return ConfigFileResult<object>.Ok(null);
+                var valueA = a as IConfigEntryValue;
+                var valueB = b as IConfigEntryValue;
 
-                return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Element at index {index} cannot be null for value type {elementType.FullName}"));
+                if (valueA == null || valueB == null)
+                    return false;
+
+                return valueA.Equals(valueB);
             }
 
-            if (elementType.IsInstanceOfType(element))
-                return ConfigFileResult<object>.Ok(element);
-
-            var underlyingType = Nullable.GetUnderlyingType(elementType);
-            if (underlyingType != null && underlyingType.IsInstanceOfType(element))
-                return ConfigFileResult<object>.Ok(element);
-
-            return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Element at index {index} is not assignable to {elementType.FullName}. Actual type: {element.GetType().FullName}"));
-        }
-
-        /// <summary>
-        /// 使用反射创建指定元素类型的数组。
-        /// </summary>
-        /// <param name="elementType">数组元素类型。</param>
-        /// <param name="elements">数组元素。</param>
-        /// <returns>创建出的数组实例。</returns>
-        public static ConfigFileResult<Array> CreateTypedArray(Type elementType, object[] elements)
-        {
-            try
+            if (typeof(IEnumerable).IsAssignableFrom(type))
             {
-                var array = Array.CreateInstance(elementType, elements.Length);
-                for (int i = 0; i < elements.Length; i++)
-                    array.SetValue(elements[i], i);
+                var enumA = (a as IEnumerable)?.GetEnumerator();
+                var enumB = (b as IEnumerable)?.GetEnumerator();
 
-                return ConfigFileResult<Array>.Ok(array);
-            }
-            catch (Exception ex) when (ex is ArgumentException || ex is InvalidCastException || ex is NotSupportedException)
-            {
-                return ConfigFileResult<Array>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to create array for element type {elementType.FullName}. Error: {ex.Message}"));
-            }
-        }
-
-        /// <summary>
-        /// 创建辅助 <see cref="List{T}"/>，用于后续直接返回或作为构造函数参数。
-        /// </summary>
-        /// <param name="elementType">列表元素类型。</param>
-        /// <param name="elements">列表元素。</param>
-        /// <returns>填充完成的泛型列表。</returns>
-        public static ConfigFileResult<IList> CreateTypedList(Type elementType, object[] elements)
-        {
-            var listType = typeof(List<>).MakeGenericType(elementType);
-
-            try
-            {
-                var list = (IList)Activator.CreateInstance(listType);
-                for (int i = 0; i < elements.Length; i++)
-                    list.Add(elements[i]);
-
-                return ConfigFileResult<IList>.Ok(list);
-            }
-            catch (Exception ex) when (ex is MissingMethodException)
-            {
-                return ConfigFileResult<IList>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Failed to create helper list for element type {elementType.FullName}. Error: {ex.Message}"));
-            }
-            catch (Exception ex) when (ex is ArgumentException || ex is InvalidCastException || ex is NotSupportedException)
-            {
-                return ConfigFileResult<IList>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to populate helper list for element type {elementType.FullName}. Error: {ex.Message}"));
-            }
-        }
-
-        /// <summary>
-        /// 尝试通过单参数构造函数创建目标集合类型。
-        /// 反射返回的首个兼容公开构造函数一旦执行（无论成功或抛出异常）即结束尝试，不会回退到其他兼容构造函数。
-        /// </summary>
-        /// <param name="type">目标集合类型。</param>
-        /// <param name="list">辅助列表参数。</param>
-        /// <param name="array">辅助数组参数。</param>
-        /// <param name="result">如果找到了可用构造函数，则返回成功或失败结果；未找到时为 <c>null</c>。</param>
-        /// <returns>是否找到了匹配的构造路径。</returns>
-        public static bool TryCreateCollectionFromConstructor(Type type, IList list, Array array, out ConfigFileResult<object> result)
-        {
-            var constructors = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public)
-                .Where(c => c.GetParameters().Length == 1)
-                .ToArray();
-
-            var listType = list.GetType();
-            var arrayType = array.GetType();
-
-            for (int i = 0; i < constructors.Length; i++)
-            {
-                var constructor = constructors[i];
-                var parameterType = constructor.GetParameters()[0].ParameterType;
-                object argument = null;
-                if (parameterType.IsAssignableFrom(listType))
-                    argument = list;
-                else if (parameterType.IsAssignableFrom(arrayType))
-                    argument = array;
-                else
-                    continue;
+                if (enumA == null || enumB == null)
+                    return false;
 
                 try
                 {
-                    result = ConfigFileResult<object>.Ok(constructor.Invoke(new[] { argument }));
+                    while (true)
+                    {
+                        var hasNextA = enumA.MoveNext();
+                        var hasNextB = enumB.MoveNext();
+
+                        if (hasNextA != hasNextB)
+                            return false;
+
+                        if (!hasNextA)
+                            break;
+
+                        if (!ValueEqual(enumA.Current, enumB.Current))
+                            return false;
+                    }
+
                     return true;
                 }
-                catch (Exception ex) when (ex is TargetInvocationException || ex is ArgumentException || ex is MemberAccessException)
+                finally
                 {
-                    var message = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                        ? invocationException.InnerException.Message
-                        : ex.Message;
-                    result = ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to construct collection type {type.FullName}. Error: {message}"));
-                    return true;
+                    (enumA as IDisposable)?.Dispose();
+                    (enumB as IDisposable)?.Dispose();
                 }
             }
 
-            result = null;
             return false;
         }
 
         /// <summary>
-        /// 尝试通过无参构造函数和 <c>Add</c> 方法创建目标集合类型。
-        /// 创建或逐项添加失败时返回失败结果；此前已添加元素的临时实例不会暴露给调用方。
+        /// 按泛型声明类型生成人工可读的类型提示。
         /// </summary>
-        /// <param name="type">目标集合类型。</param>
-        /// <param name="elementType">集合元素类型。</param>
-        /// <param name="elements">待添加元素。</param>
-        /// <param name="result">如果找到了创建路径，则返回成功或失败结果；未找到时为 <c>null</c>。</param>
-        /// <returns>是否找到了可执行的创建路径。</returns>
-        public static bool TryCreateCollectionFromAddMethod(Type type, Type elementType, object[] elements, out ConfigFileResult<object> result)
+        /// <typeparam name="T">配置值的声明类型。</typeparam>
+        /// <returns>类型提示，或不受支持的类型诊断。</returns>
+        public static ConfigFileResult<string> EncodeValueType<T>()
         {
-            var constructor = type.GetConstructor(Type.EmptyTypes);
-            if (constructor == null)
-            {
-                result = null;
-                return false;
-            }
+            return EncodeValueType(typeof(T));
+        }
 
-            var addMethod = FindAddMethod(type, elementType);
-            if (addMethod == null)
-            {
-                result = null;
-                return false;
-            }
+        /// <summary>
+        /// 按运行时类型生成人工可读的配置值类型提示。
+        /// 集合会在元素类型提示后追加 <c>[]</c>；当前实现不会传播嵌套元素类型的失败结果，不受支持的泛型元素可能退化为空类型提示 <c>[]</c>。
+        /// </summary>
+        /// <param name="type">配置值声明类型；适配器类型必须提供可访问的无参构造函数。</param>
+        /// <returns>内置类型、枚举、集合或适配器的类型提示；非集合的其他类型返回失败结果。</returns>
+        public static ConfigFileResult<string> EncodeValueType(Type type)
+        {
+            if (type == null)
+                return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Type cannot be null"));
 
-            object instance;
-            try
-            {
-                instance = constructor.Invoke(new object[0]);
-            }
-            catch (Exception ex) when (ex is TargetInvocationException || ex is MemberAccessException)
-            {
-                var message = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                    ? invocationException.InnerException.Message
-                    : ex.Message;
-                result = ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to create collection type {type.FullName}. Error: {message}"));
-                return true;
-            }
-
-            for (int i = 0; i < elements.Length; i++)
+            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
                 {
-                    addMethod.Invoke(instance, new[] { elements[i] });
+                    var adapterInstance = (IConfigEntryValue)Activator.CreateInstance(type);
+                    var result = adapterInstance.EncodeValueType();
+                    if (!result.Success)
+                        return ConfigFileResult<string>.Fail(result.Errors);
+
+                    return result;
                 }
-                catch (Exception ex) when (ex is TargetInvocationException || ex is ArgumentException || ex is TargetParameterCountException || ex is MethodAccessException)
+                catch (Exception ex)
                 {
-                    var message = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                        ? invocationException.InnerException.Message
-                        : ex.Message;
-                    result = ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Failed to add element at index {i} to collection type {type.FullName}. Error: {message}"));
-                    return true;
+                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, $"Failed to encode value type for {type.FullName}: {ex.Message}"));
                 }
             }
 
-            result = ConfigFileResult<object>.Ok(instance);
-            return true;
+            if (IsPrimitiveType(type))
+                return EncodePrimitiveType(type);
+
+            if (type.IsEnum)
+                return $"Enum {type.Name}";
+
+            if (IsTupleType(type))
+                return EncodeTupleType(type);
+
+            if (typeof(IEnumerable).IsAssignableFrom(type))
+                return $"{EncodeValueType(GetCollectionElementType(type))}[]";
+
+            return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Unsupported type: {type.FullName}"));
         }
 
         /// <summary>
-        /// 查找可接受指定元素类型的公开实例 <c>Add</c> 方法。
-        /// 若存在多个兼容重载，返回反射枚举到的第一个方法，因此集合类型应避免提供语义不同但参数都兼容的重载。
+        /// 判断键名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
         /// </summary>
-        /// <param name="type">集合类型。</param>
-        /// <param name="elementType">集合元素类型。</param>
-        /// <returns>匹配的方法；不存在时返回 <c>null</c>。</returns>
-        public static MethodInfo FindAddMethod(Type type, Type elementType)
+        /// <param name="key">待检查的键名。</param>
+        /// <returns>键名是否可以安全写入键值行。</returns>
+        public static bool IsValidKeyName(string key)
         {
-            var methods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                .Where(m => m.Name == "Add")
-                .ToArray();
-
-            for (int i = 0; i < methods.Length; i++)
-            {
-                var method = methods[i];
-                var parameters = method.GetParameters();
-                if (parameters.Length != 1)
-                    continue;
-
-                var parameterType = parameters[0].ParameterType;
-                if (parameterType == elementType || parameterType.IsAssignableFrom(elementType))
-                    return method;
-
-                var underlyingType = Nullable.GetUnderlyingType(elementType);
-                if (underlyingType != null && parameterType.IsAssignableFrom(underlyingType))
-                    return method;
-            }
-
-            return null;
+            return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
         }
 
         /// <summary>
-        /// 解析配置字符串中的转义序列。
-        /// 仅支持本配置格式写出的反斜杠、双引号、换行、回车和制表符转义。
+        /// 粗略判断一行是否可能是键值对。
+        /// 该检查只要求存在等号且不是注释，不校验键名和值；需要可靠结果时应调用 <see cref="ConfigFileEntry.DecodeKeyValuePair"/>。
         /// </summary>
-        /// <param name="value">不含外层引号的字符串内容。</param>
-        /// <returns>解析后的字符串。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="value"/> 为 <c>null</c>。</exception>
-        public static ConfigFileResult<string> UnescapeString(string value)
+        /// <param name="content">待分类的单行文本；为 <c>null</c> 时返回 <c>false</c>。</param>
+        /// <returns>该行是否应进入键值解析流程。</returns>
+        public static bool IsKeyValuePair(string content)
         {
-            var builder = new StringBuilder(value.Length);
-            for (int i = 0; i < value.Length; i++)
-            {
-                var current = value[i];
-                if (current != '\\')
-                {
-                    builder.Append(current);
-                    continue;
-                }
+            if (content == null)
+                return false;
+            content = content.Trim();
+            return content.Contains('=') && !content.StartsWith("#");
+        }
 
-                if (i + 1 >= value.Length)
-                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Invalid escape sequence at end of string"));
-
-                i++;
-                switch (value[i])
-                {
-                    case '\\':
-                        builder.Append('\\');
-                        break;
-                    case '"':
-                        builder.Append('"');
-                        break;
-                    case 'n':
-                        builder.Append('\n');
-                        break;
-                    case 'r':
-                        builder.Append('\r');
-                        break;
-                    case 't':
-                        builder.Append('\t');
-                        break;
-                    default:
-                        return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Invalid escape sequence: \\{value[i]}"));
-                }
-            }
-
-            return ConfigFileResult<string>.Ok(builder.ToString());
+        /// <summary>
+        /// 判断忽略行首空白后是否以井号开头。
+        /// </summary>
+        /// <param name="content">待分类的单行文本；为 <c>null</c> 时返回 <c>false</c>。</param>
+        /// <returns>该行是否为配置注释。</returns>
+        public static bool IsComment(string content)
+        {
+            return content != null && content.TrimStart().StartsWith("#");
         }
     }
 }

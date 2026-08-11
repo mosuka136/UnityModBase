@@ -12,7 +12,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(sbyte);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -26,7 +26,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(short);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -40,7 +40,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(byte);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -54,7 +54,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(ushort);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -68,7 +68,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(uint);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -82,7 +82,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(ulong);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -96,7 +96,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(double);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -110,7 +110,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(List<int>);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -124,7 +124,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(TestAdapterWithFailure);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.False(result.Success);
@@ -138,7 +138,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(TestAdapterThatThrows);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.False(result.Success);
@@ -219,27 +219,6 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void CreateEntry_WithValidParameters_ReturnsEntry()
-        {
-            // Arrange
-            var key = "TestKey";
-            var value = 42;
-            var defaultValue = 10;
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Value);
-            Assert.Equal(key, result.Value.Key);
-            Assert.Equal(name, result.Value.Name);
-            Assert.Equal(description, result.Value.Description);
-        }
-
-        [Fact]
         public void DecodeKeyValuePair_WithComment_ReturnsFailure()
         {
             // Arrange
@@ -276,7 +255,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(string);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -290,7 +269,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(int);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -304,7 +283,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(long);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -318,7 +297,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(float);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -332,7 +311,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(bool);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -346,7 +325,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(TestEnum);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -360,7 +339,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(ConfigFileEntryModelTests);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.False(result.Success);
@@ -375,30 +354,11 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(TestAdapterWithSuccess);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
             Assert.Equal("CustomType", result.Value);
-        }
-
-        [Fact]
-        public void CreateEntry_WithInvalidKey_ReturnsFailure()
-        {
-            // Arrange
-            var key = "Invalid Key!";
-            var value = 42;
-            var defaultValue = 10;
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.False(result.Success);
-            Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.InvalidKeyName);
         }
 
         [Fact]
@@ -438,7 +398,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(int[]);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -469,25 +429,6 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.False(result.Success);
             Assert.NotEmpty(result.Errors);
-        }
-
-        [Fact]
-        public void CreateEntry_WithEmptyKey_ReturnsFailure()
-        {
-            // Arrange
-            var key = "";
-            var value = 42;
-            var defaultValue = 10;
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.False(result.Success);
-            Assert.NotEmpty(result.Errors);
-            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.InvalidKeyName);
         }
 
         [Fact]
@@ -567,7 +508,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = typeof(TestEnum[]);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -600,46 +541,6 @@ namespace UnityModBase.Test.HConfigSpace
             // Assert
             Assert.True(result.Success);
             Assert.Equal("test string", result.Value);
-        }
-
-        [Fact]
-        public void CreateEntry_WithNullName_ReturnsEntry()
-        {
-            // Arrange
-            var key = "TestKey";
-            var value = 42;
-            var defaultValue = 10;
-            Translator name = null;
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Value);
-            Assert.Equal(key, result.Value.Key);
-            Assert.Null(result.Value.Name);
-        }
-
-        [Fact]
-        public void CreateEntry_WithNullDescription_ReturnsEntry()
-        {
-            // Arrange
-            var key = "TestKey";
-            var value = 42;
-            var defaultValue = 10;
-            var name = new Translator("名称", "Name");
-            Translator description = null;
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Value);
-            Assert.Equal(key, result.Value.Key);
-            Assert.Null(result.Value.Description);
         }
 
         [Fact]
@@ -676,7 +577,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void EncodeValueType_GenericMethod_WithInt_ReturnsInt32()
         {
             // Arrange & Act
-            var result = ConfigFileEntry.EncodeValueType<int>();
+            var result = ConfigFileModel.EncodeValueType<int>();
 
             // Assert
             Assert.True(result.Success);
@@ -712,53 +613,13 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void CreateEntry_WithBoolType_ReturnsEntry()
-        {
-            // Arrange
-            var key = "TestBool";
-            var value = true;
-            var defaultValue = false;
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Value);
-            Assert.Equal(key, result.Value.Key);
-            Assert.Equal("Boolean", result.Value.ValueType);
-        }
-
-        [Fact]
-        public void CreateEntry_WithStringType_ReturnsEntry()
-        {
-            // Arrange
-            var key = "TestString";
-            var value = "test";
-            var defaultValue = "default";
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Value);
-            Assert.Equal(key, result.Value.Key);
-            Assert.Equal("String", result.Value.ValueType);
-        }
-
-        [Fact]
         public void EncodeValueType_WithStringList_ReturnsStringArrayType()
         {
             // Arrange
             var type = typeof(List<string>);
 
             // Act
-            var result = ConfigFileEntry.EncodeValueType(type);
+            var result = ConfigFileModel.EncodeValueType(type);
 
             // Assert
             Assert.True(result.Success);
@@ -1014,6 +875,36 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Equal("Valid_Key_1", model.Key);
         }
 
+        // TableKey 是本次重构新增的文件项属性：解析阶段由 ConfigFileTable.DecodeTable 按所属表回填，
+        // 运行时供 ConfigEntry.PrepareBind 校验候选项归属。其 setter 复用 ConfigFileTable.IsValidTableName 校验，
+        // 与 Key setter 的校验模式对称，这里补齐等价的赋值/拒绝用例。
+
+        [Fact]
+        public void TableKey_WithInvalidValue_ThrowsArgumentException()
+        {
+            // Arrange
+            var model = new ConfigFileEntry();
+
+            // Act
+            var exception = Assert.Throws<ArgumentException>(() => model.TableKey = "Invalid Table!");
+
+            // Assert
+            Assert.Contains("Invalid table name: Invalid Table!", exception.Message);
+        }
+
+        [Fact]
+        public void TableKey_WithValidValue_SetsProperty()
+        {
+            // Arrange
+            var model = new ConfigFileEntry();
+
+            // Act
+            model.TableKey = "Valid_Table_1";
+
+            // Assert
+            Assert.Equal("Valid_Table_1", model.TableKey);
+        }
+
         [Fact]
         public void EncodeName_WithEmptyTranslation_SkipsEmptyValue()
         {
@@ -1211,85 +1102,11 @@ namespace UnityModBase.Test.HConfigSpace
         public void EncodeValueType_GenericMethod_WithUnsupportedType_ReturnsFailure()
         {
             // Arrange & Act
-            var result = ConfigFileEntry.EncodeValueType<ConfigFileEntryModelTests>();
+            var result = ConfigFileModel.EncodeValueType<ConfigFileEntryModelTests>();
 
             // Assert
             Assert.False(result.Success);
             Assert.Contains(result.Errors, error => error.Code == ConfigFileErrorCode.UnsupportedType);
-        }
-
-        [Fact]
-        public void CreateEntry_WithValueEncodingFailure_ReturnsFailure()
-        {
-            // Arrange
-            var key = "AdapterValueFailure";
-            var value = new TestAdapterEncodeFailure();
-            var defaultValue = new TestAdapterEncodeFailure();
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.False(result.Success);
-            Assert.Contains(result.Errors, error => error.Code == ConfigFileErrorCode.InvalidValue);
-        }
-
-        [Fact]
-        public void CreateEntry_WithDefaultValueEncodingFailure_ReturnsFailure()
-        {
-            // Arrange
-            var key = "AdapterDefaultFailure";
-            IConfigEntryValue value = new TestAdapterWithSuccess();
-            IConfigEntryValue defaultValue = new TestAdapterEncodeFailure();
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.False(result.Success);
-            Assert.Contains(result.Errors, error => error.Code == ConfigFileErrorCode.InvalidValue);
-        }
-
-        [Fact]
-        public void CreateEntry_WithValueTypeEncodingFailure_ReturnsFailure()
-        {
-            // Arrange
-            var key = "AdapterTypeFailure";
-            var value = new TestAdapterWithFailure();
-            var defaultValue = new TestAdapterWithFailure();
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.False(result.Success);
-            Assert.Contains(result.Errors, error => error.Code == ConfigFileErrorCode.InvalidType);
-        }
-
-        [Fact]
-        public void CreateEntry_WithValidStringParameters_SetsEncodedValues()
-        {
-            // Arrange
-            var key = "EncodedString";
-            var value = "current";
-            var defaultValue = "fallback";
-            var name = new Translator("名称", "Name");
-            var description = new Translator("描述", "Description");
-
-            // Act
-            var result = ConfigFileEntry.CreateEntry(key, value, defaultValue, name, description);
-
-            // Assert
-            Assert.True(result.Success);
-            Assert.Equal("\"current\"", result.Value.Value);
-            Assert.Equal("\"fallback\"", result.Value.DefaultValue);
-            Assert.Equal("String", result.Value.ValueType);
         }
 
         [Fact]
@@ -1349,26 +1166,6 @@ namespace UnityModBase.Test.HConfigSpace
             public ConfigFileResult<string> EncodeValueType()
             {
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Test failure"));
-            }
-
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
-        }
-
-        private class TestAdapterEncodeFailure : IConfigEntryValue
-        {
-            public ConfigFileResult<string> Encode()
-            {
-                return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Encode failed"));
-            }
-
-            public ConfigFileResult<object> Decode(string content)
-            {
-                return new object();
-            }
-
-            public ConfigFileResult<string> EncodeValueType()
-            {
-                return "AdapterType";
             }
 
             public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);

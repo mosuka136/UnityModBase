@@ -6,6 +6,13 @@ namespace UnityModBase.Test.HConfigSpace
 {
     public class ConfigEntryTests
     {
+        // 重构后 ConfigEntry<T> 只保留五参构造函数（含 name/description）。
+        // 绝大多数测试不关心展示文本，统一通过该工厂构造，避免在每个用例里重复空 Translator。
+        private static ConfigEntry<T> CreateEntry<T>(string tableKey, ConfigFileEntry entry, T defaultValue)
+        {
+            return new ConfigEntry<T>(entry, defaultValue, new Translator(), new Translator());
+        }
+
         [Fact]
         public void Name_WhenEntryHasName_ReturnsEntryName()
         {
@@ -17,7 +24,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Value = "\"test\"",
                 Name = expectedName
             };
-            var entry = new ConfigEntry<string>("General", model, "default");
+            var entry = new ConfigEntry<string>(model, "default", expectedName, new Translator());
 
             // Act
             var actualName = entry.Name;
@@ -37,7 +44,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Value = "\"test\"",
                 Description = expectedDescription
             };
-            var entry = new ConfigEntry<string>("General", model, "default");
+            var entry = new ConfigEntry<string>(model, "default", new Translator(), expectedDescription);
 
             // Act
             var actualDescription = entry.Description;
@@ -55,7 +62,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
 
             // Act
             var valueType = entry.ValueType;
@@ -64,71 +71,14 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Equal(typeof(int), valueType);
         }
 
-        [Fact]
-        public void RebindEntry_WhenEntryIsNull_ReturnsWithoutException()
-        {
-            // Arrange
-            var model = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "42"
-            };
-            var entry = new ConfigEntry<int>("General", model, 0);
-
-            // Act
-            entry.RebindEntry(null);
-
-            // Assert
-            Assert.Same(model, entry.Entry);
-            Assert.Equal(42, entry.Value);
-            Assert.Equal("42", entry.Entry.Value);
-        }
-
-        [Fact]
-        public void RebindEntry_WhenValidEntry_UpdatesEntryAndValue()
-        {
-            // Arrange
-            var initialModel = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "42"
-            };
-            var entry = new ConfigEntry<int>("General", initialModel, 0);
-            
-            var newModel = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "99"
-            };
-
-            // Act
-            entry.RebindEntry(newModel);
-
-            // Assert
-            Assert.Same(newModel, entry.Entry);
-            Assert.Equal(99, entry.Value);
-        }
-
-        [Fact]
-        public void RebindEntry_WhenDecodeValueFails_ThrowsInvalidOperationException()
-        {
-            // Arrange
-            var initialModel = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "42"
-            };
-            var entry = new ConfigEntry<int>("General", initialModel, 0);
-            
-            var newModel = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "invalid_integer"
-            };
-
-            // Act & Assert
-            Assert.Throws<InvalidOperationException>(() => entry.RebindEntry(newModel));
-        }
+        // 注：原 RebindEntry 系列测试覆盖的“单项直接重绑定”入口已在本次重构中随 RebindEntry 一并移除。
+        // 其行为由公开的事务协议方法覆盖：
+        //   - 空候选项 → PrepareBind_WhenCandidateIsNull_ReturnsFalseAndProducesErrorMessage
+        //   - 有效重绑定更新值与绑定 → ApplyBind_WhenValueChanged_SwitchesBindingAndUpdatesValueWithoutPublishing
+        //     及 PublishBind_AfterApply_RaisesTypedAndBaseEventsOnce
+        //   - 解码失败 → PrepareBind_WhenDecodeFails_ReturnsFalseWithoutChangingActiveBinding
+        //     （新协议改为返回 false 并附带诊断，不再抛 InvalidOperationException）
+        // 因此删除这三个只验证已移除 API 的测试。
 
         [Fact]
         public void Value_WhenSetToNull_ThrowsInvalidOperationException()
@@ -139,7 +89,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "\"test\""
             };
-            var entry = new ConfigEntry<string>("General", model, "default");
+            var entry = CreateEntry("General", model, "default");
 
             // Act & Assert
             var exception = Assert.Throws<InvalidOperationException>(() => entry.Value = null);
@@ -156,7 +106,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var typedInvocationCount = 0;
             var baseInvocationCount = 0;
             entry.OnValueChanged += (sender, value) => typedInvocationCount++;
@@ -181,7 +131,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var invocationOrder = new List<string>();
             var typedValue = 0;
             var baseValue = 0;
@@ -227,7 +177,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             IConfigEntry iEntry = entry;
 
             // Act
@@ -246,7 +196,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             IConfigEntry iEntry = entry;
 
             // Act
@@ -266,7 +216,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "\"test\""
             };
-            var entry = new ConfigEntry<string>("General", model, "defaultValue");
+            var entry = CreateEntry("General", model, "defaultValue");
             IConfigEntry iEntry = entry;
 
             // Act
@@ -285,7 +235,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             IConfigEntry iEntry = entry;
             var invocationCount = 0;
             object actualSender = null;
@@ -317,7 +267,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             IConfigEntry iEntry = entry;
             var invocationCount = 0;
             EventHandler handler = (sender, args) => invocationCount++;
@@ -333,39 +283,31 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void Constructor_WhenParameterless_CreatesInstance()
+        public void Constructor_BindsFileEntryAndDecodesValueOverDefault()
         {
-            // Arrange & Act
-            var entry = new ConfigEntry<int>();
-
-            // Assert
-            Assert.Equal(typeof(int), entry.ValueType);
-            Assert.Equal(default, entry.Value);
-            Assert.Equal(default, entry.DefaultValue);
-            Assert.Null(entry.TableKey);
-            Assert.Null(entry.Entry);
-        }
-
-        [Fact]
-        public void Constructor_WithThreeParameters_InitializesProperties()
-        {
+            // 重构后构造函数不再接收 tableKey，TableKey 改由绑定文件项派生。
+            // 该用例覆盖其核心契约：文件项中已有的有效值优先于声明默认值，默认值只写入元数据。
             // Arrange
+            var name = new Translator(chinese: "名称", english: "Name");
+            var description = new Translator(chinese: "描述", english: "Description");
             var model = new ConfigFileEntry
             {
+                TableKey = "General",
                 Key = "TestKey",
                 Value = "42",
-                Name = new Translator(chinese: "名称", english: "Name"),
-                Description = new Translator(chinese: "描述", english: "Description")
             };
 
             // Act
-            var entry = new ConfigEntry<int>("General", model, 10);
+            var entry = new ConfigEntry<int>(model, 10, name, description);
 
             // Assert
+            // TableKey 不再由构造参数提供，而是从绑定的文件项读取。
             Assert.Equal("General", entry.TableKey);
             Assert.Equal(10, entry.DefaultValue);
             Assert.Same(model, entry.Entry);
+            // 文件中的 42 优先于声明的默认值 10。
             Assert.Equal(42, entry.Value);
+            Assert.Equal(typeof(int), entry.ValueType);
         }
 
         [Fact]
@@ -376,25 +318,38 @@ namespace UnityModBase.Test.HConfigSpace
             var description = new Translator(chinese: "描述", english: "Description");
 
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>("General", null, 0, name, description));
+            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(null, 0, name, description));
         }
 
+        // 重构后构造函数对 name/description 增加了 null 校验（旧 CreateEntry 允许传入 null）。
+        // 这两个测试覆盖新增强约束，并与下方元数据回读测试互为补充。
         [Fact]
-        public void Constructor_WhenInvalidTableName_ThrowsInvalidOperationException()
+        public void Constructor_WhenNameIsNull_ThrowsArgumentNullException()
         {
             // Arrange
-            var model = new ConfigFileEntry
-            {
-                Key = "TestKey",
-                Value = "42"
-            };
-            var name = new Translator(chinese: "名称", english: "Name");
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
             var description = new Translator(chinese: "描述", english: "Description");
 
             // Act & Assert
-            var exception = Assert.Throws<InvalidOperationException>(() => new ConfigEntry<int>("Invalid-Table-Name", model, 0, name, description));
-            Assert.Contains("Invalid table name", exception.Message);
+            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(model, 0, null, description));
         }
+
+        [Fact]
+        public void Constructor_WhenDescriptionIsNull_ThrowsArgumentNullException()
+        {
+            // Arrange
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var name = new Translator(chinese: "名称", english: "Name");
+
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(model, 0, name, null));
+        }
+
+        // 注：原 Constructor_WhenInvalidTableName_ThrowsInvalidOperationException 测试的是
+        // 旧版接收 tableKey 参数的构造函数对非法表名的校验。重构后构造函数不再接收 tableKey，
+        // TableKey 改由绑定的文件项提供，表名校验随之移至 ConfigFileEntry.TableKey setter、
+        // ConfigTable 构造函数与 ConfigService.CreateTable，相关行为由 ConfigServiceTests 与
+        // ConfigTableTests 覆盖，故删除该用例。
 
         [Fact]
         public void Constructor_WhenUnsupportedValueType_ThrowsInvalidOperationException()
@@ -409,7 +364,7 @@ namespace UnityModBase.Test.HConfigSpace
             var description = new Translator(chinese: "描述", english: "Description");
 
             // Act & Assert
-            var exception = Assert.Throws<InvalidOperationException>(() => new ConfigEntry<UnsupportedType>("General", model, new UnsupportedType(), name, description));
+            var exception = Assert.Throws<InvalidOperationException>(() => new ConfigEntry<UnsupportedType>(model, new UnsupportedType(), name, description));
             Assert.Contains("Failed to encode value type", exception.Message);
         }
 
@@ -426,7 +381,7 @@ namespace UnityModBase.Test.HConfigSpace
             var description = new Translator(chinese: "描述", english: "Description");
 
             // Act & Assert
-            var exception = Assert.Throws<InvalidOperationException>(() => new ConfigEntry<string>("General", model, null, name, description));
+            var exception = Assert.Throws<InvalidOperationException>(() => new ConfigEntry<string>(model, null, name, description));
             Assert.Contains("Failed to encode default value", exception.Message);
         }
 
@@ -631,7 +586,7 @@ namespace UnityModBase.Test.HConfigSpace
             var description = new Translator(chinese: "描述", english: "Description");
 
             // Act
-            var entry = new ConfigEntry<TestEnum>("General", model, TestEnum.Value1, name, description);
+            var entry = new ConfigEntry<TestEnum>(model, TestEnum.Value1, name, description);
 
             // Assert
             Assert.NotNull(entry.Entry.AcceptableValues);
@@ -736,7 +691,7 @@ namespace UnityModBase.Test.HConfigSpace
                 Key = "TestKey",
                 Value = "42"
             };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             IConfigEntry iEntry = entry;
             object actualSender = null;
             EventArgs actualArgs = null;
@@ -767,7 +722,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PrepareBind_WhenCandidateIsNull_ReturnsFalseAndProducesErrorMessage()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
 
             var success = entry.PrepareBind(null, out var plan, out var errorMessage);
 
@@ -780,7 +735,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PrepareBind_WhenDecodeFails_ReturnsFalseWithoutChangingActiveBinding()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var badCandidate = new ConfigFileEntry { Key = "TestKey", Value = "not_an_int" };
 
             var success = entry.PrepareBind(badCandidate, out var plan, out var errorMessage);
@@ -794,10 +749,50 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void PrepareBind_WhenCandidateKeyDiffersFromCurrentEntryKey_ReturnsFalseWithoutChangingBinding()
+        {
+            // 重新绑定阶段要求候选项键与当前绑定键一致，防止跨配置项错误复用候选项。
+            // 该校验只在已存在活动绑定时生效；首次构造阶段 Entry 为 null，候选项即待绑定项，不触发该校验。
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = CreateEntry("General", model, 0);
+            var wrongKeyCandidate = new ConfigFileEntry { Key = "OtherKey", Value = "99" };
+
+            var success = entry.PrepareBind(wrongKeyCandidate, out var plan, out var errorMessage);
+
+            Assert.False(success);
+            Assert.Null(plan);
+            Assert.Contains("OtherKey", errorMessage);
+            Assert.Contains("TestKey", errorMessage);
+            // 键不匹配不得修改活动绑定或运行时值。
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(42, entry.Value);
+        }
+
+        [Fact]
+        public void PrepareBind_WhenCandidateTableKeyDiffersFromCurrentTableKey_ReturnsFalseWithoutChangingBinding()
+        {
+            // 候选项表键名必须与当前项一致；该校验先于键名校验，避免候选项被错误跨表复用。
+            // 与键名校验不同，这里显式给两边设置不同的 TableKey，以触发该独立分支。
+            var model = new ConfigFileEntry { TableKey = "General", Key = "TestKey", Value = "42" };
+            var entry = new ConfigEntry<int>(model, 0, new Translator(), new Translator());
+            var wrongTableCandidate = new ConfigFileEntry { TableKey = "Other", Key = "TestKey", Value = "99" };
+
+            var success = entry.PrepareBind(wrongTableCandidate, out var plan, out var errorMessage);
+
+            Assert.False(success);
+            Assert.Null(plan);
+            Assert.Contains("Other", errorMessage);
+            Assert.Contains("General", errorMessage);
+            // 表键不匹配不得修改活动绑定或运行时值。
+            Assert.Same(model, entry.Entry);
+            Assert.Equal(42, entry.Value);
+        }
+
+        [Fact]
         public void PrepareBind_WhenSuccessful_DoesNotChangeActiveBindingOrRaiseEvents()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var invocationCount = 0;
             entry.OnValueChanged += (_, _) => invocationCount++;
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
@@ -817,7 +812,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PrepareBind_WhenCandidateValueEqualsCurrent_MarksPlanUnchangedAndKeepsOriginalText()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             // 文本内容相等的候选项；等值时计划不应改写候选项文本。
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "42" };
 
@@ -834,7 +829,7 @@ namespace UnityModBase.Test.HConfigSpace
             var name = new Translator(chinese: "名称", english: "Name");
             var description = new Translator(chinese: "描述", english: "Description");
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42", Name = name, Description = description };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = new ConfigEntry<int>(model, 0, name, description);
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
 
             entry.PrepareBind(candidate, out _, out _);
@@ -847,7 +842,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void ApplyBind_WhenValueChanged_SwitchesBindingAndUpdatesValueWithoutPublishing()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var invocationCount = 0;
             entry.OnValueChanged += (_, _) => invocationCount++;
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
@@ -867,7 +862,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PublishBind_AfterApply_RaisesTypedAndBaseEventsOnce()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var typedCount = 0;
             var baseCount = 0;
             entry.OnValueChanged += (_, _) => typedCount++;
@@ -886,7 +881,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PublishBind_WhenAppliedValueSupersededByLaterAssignment_DoesNotRaiseEvent()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var observedValues = new List<int>();
             entry.OnValueChanged += (_, value) => observedValues.Add(value);
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
@@ -905,7 +900,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PublishBind_WhenPlanNotChanged_DoesNotRaiseEvent()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var invocationCount = 0;
             entry.OnValueChanged += (_, _) => invocationCount++;
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "42" };
@@ -921,7 +916,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void RollbackBind_WhenNotApplied_RestoresNothingAndKeepsCandidateText()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = "99" };
             entry.PrepareBind(candidate, out var plan, out _);
 
@@ -935,7 +930,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void RollbackBind_AfterApply_RestoresBindingValueAndCandidateText()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
             var invocationCount = 0;
             entry.OnValueChanged += (_, _) => invocationCount++;
             var candidate = new ConfigFileEntry { Key = "TestKey", Value = " 99 " };
@@ -958,7 +953,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void ApplyBind_WhenPlanValueTypeMismatch_ThrowsArgumentException()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "\"s\"" };
-            var entry = new ConfigEntry<string>("General", model, "s");
+            var entry = CreateEntry("General", model, "s");
             // 构造一个 NewValue 类型与声明类型不一致的计划，模拟跨配置项错误复用。
             var wrongPlan = new EntryChangePlan(
                 entry, model, "s", model, 0, "\"0\"", 0, changed: true);
@@ -970,7 +965,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void ApplyBind_WithNullPlan_ThrowsArgumentNullException()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
 
             Assert.Throws<ArgumentNullException>(() => entry.ApplyBind(null));
         }
@@ -979,7 +974,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void PublishBind_WithNullPlan_ThrowsArgumentNullException()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
 
             Assert.Throws<ArgumentNullException>(() => entry.PublishBind(null));
         }
@@ -988,9 +983,104 @@ namespace UnityModBase.Test.HConfigSpace
         public void RollbackBind_WithNullPlan_ThrowsArgumentNullException()
         {
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
-            var entry = new ConfigEntry<int>("General", model, 0);
+            var entry = CreateEntry("General", model, 0);
 
             Assert.Throws<ArgumentNullException>(() => entry.RollbackBind(null));
+        }
+
+        [Fact]
+        public void RollbackBind_WhenPlanValueTypeMismatch_ThrowsArgumentException()
+        {
+            // 与 ApplyBind 的类型校验对称：OldValue 必须能还原为声明类型，否则回滚拒绝执行。
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "\"s\"" };
+            var entry = CreateEntry("General", model, "s");
+            var candidate = new ConfigFileEntry { Key = "TestKey", Value = "\"new\"" };
+            entry.PrepareBind(candidate, out var plan, out _);
+            entry.ApplyBind(plan);
+            // 篡改计划的 OldValue 为不兼容类型，模拟跨配置项错误复用。
+            var tamperedPlan = new EntryChangePlan(
+                entry, model, 0, candidate, "new", "\"new\"", plan.OldChangeVersion, changed: true);
+
+            Assert.Throws<ArgumentException>(() => entry.RollbackBind(tamperedPlan));
+        }
+
+        // ---- 等值候选项的事务提交：Changed=false 路径 ----
+        // 候选项值与当前等价时，PrepareBind 标记 Changed=false；ApplyBind 只替换绑定引用，
+        // 不写值、不递增版本；PublishBind 不发布事件。候选项原始文本（含多余空白）被保留。
+        // 该路径原由 RebindEntry 的等值短路覆盖，重构后改由公开事务协议方法验证。
+        [Fact]
+        public void ApplyBind_WhenPlanUnchanged_SwapsBindingWithoutEventOrValueChange()
+        {
+            var initialModel = new ConfigFileEntry { Key = "TestKey", Value = "42" };
+            var entry = CreateEntry("General", initialModel, 0);
+            var invocationCount = 0;
+            entry.OnValueChanged += (_, _) => invocationCount++;
+            // 候选项值等价但文本带空格，验证等值路径不会改写候选项文本。
+            var newModel = new ConfigFileEntry { Key = "TestKey", Value = "  42  " };
+
+            var prepared = entry.PrepareBind(newModel, out var plan, out _);
+            entry.ApplyBind(plan);
+            entry.PublishBind(plan);
+
+            Assert.True(prepared);
+            Assert.False(plan.Changed);
+            Assert.Same(newModel, entry.Entry);
+            Assert.Equal(42, entry.Value);
+            // 等值时不发布事件。
+            Assert.Equal(0, invocationCount);
+            // 等值短路沿用候选项原始文本，不被规范化。
+            Assert.Equal("  42  ", newModel.Value);
+        }
+
+        // ---- Value set 重入：处理器在通知期间再次赋值 ----
+        // 这是重构后新增的 _pendingValueChanges 队列逻辑：重入赋值不会递归穿插进当前通知轮次，
+        // 而是入队，由最外层赋值在当前轮结束后继续排空。因此每个入队值都会按顺序通知全部订阅者，
+        // 订阅者不会在处理同一个值时被嵌套调用打乱。
+        [Fact]
+        public void Value_WhenHandlerReassigns_QueuesAndPublishesInOrderAfterCurrentRound()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1" };
+            var entry = CreateEntry("General", model, 0);
+            var observedByFirst = new List<int>();
+            var observedBySecond = new List<int>();
+            entry.OnValueChanged += (_, value) =>
+            {
+                observedByFirst.Add(value);
+                // 第一个订阅者收到 10 时发起重入赋值；该赋值会把 20 入队，并在本轮（值 10）的两个订阅者都结束后再发布。
+                if (value == 10)
+                    entry.Value = 20;
+            };
+            entry.OnValueChanged += (_, value) => observedBySecond.Add(value);
+
+            entry.Value = 10;
+
+            // 值 10 先完整通知两个订阅者；随后队列中的 20 再完整通知两个订阅者，二者不被重入穿插。
+            Assert.Equal(new[] { 10, 20 }, observedByFirst);
+            Assert.Equal(new[] { 10, 20 }, observedBySecond);
+            // 最终值与文件项同步到重入值。
+            Assert.Equal(20, entry.Value);
+            Assert.Equal("20", model.Value);
+        }
+
+        // 多级重入：每轮赋值都触发下一轮，队列依次排空，最终按顺序发布全部变化。
+        [Fact]
+        public void Value_WhenMultipleReentrantAssignments_PublishesEachInOrder()
+        {
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "0" };
+            var entry = CreateEntry("General", model, 0);
+            var allValues = new List<int>();
+            entry.OnValueChanged += (_, value) =>
+            {
+                allValues.Add(value);
+                // 1->2->3，到 3 停止，避免无限递归。
+                if (value < 3)
+                    entry.Value = value + 1;
+            };
+
+            entry.Value = 1;
+
+            Assert.Equal(new[] { 1, 2, 3 }, allValues);
+            Assert.Equal(3, entry.Value);
         }
 
     }

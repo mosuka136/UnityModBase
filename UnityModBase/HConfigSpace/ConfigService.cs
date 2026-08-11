@@ -356,7 +356,7 @@ namespace UnityModBase.HConfigSpace
             var entryResult = FileSheet.GetEntry(tableKey, key);
             if (entryResult.Success)
             {
-                result = new ConfigEntry<T>(tableKey, entryResult.Value, defaultValue, entryName, description);
+                result = new ConfigEntry<T>(entryResult.Value, defaultValue, entryName, description);
             }
             else
             {
@@ -367,11 +367,9 @@ namespace UnityModBase.HConfigSpace
                         BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
                     throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
                 }
-                var newEntry = new ConfigFileEntry();
 
-                if (!ConfigFileEntry.IsValidKeyName(key))
+                if (!ConfigFileModel.IsValidKeyName(key))
                     throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
-                newEntry.Key = key;
 
                 var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
                 if (!valueResult.Success)
@@ -380,7 +378,13 @@ namespace UnityModBase.HConfigSpace
                         BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
                     throw new InvalidOperationException($"Failed to encode default value for config entry: {tableKey}.{key}. Errors: {string.Join(", ", valueResult.Errors)}");
                 }
-                newEntry.Value = valueResult.Value;
+
+                var newEntry = new ConfigFileEntry
+                {
+                    TableKey = tableKey,
+                    Key = key,
+                    Value = valueResult.Value,
+                };
 
                 var addEntryResult = tableResult.Value.AddEntry(newEntry);
                 if (!addEntryResult.Success)
@@ -390,7 +394,7 @@ namespace UnityModBase.HConfigSpace
                     throw new InvalidOperationException($"Failed to add config entry to table: {tableKey}.{key}.");
                 }
 
-                result = new ConfigEntry<T>(tableKey, newEntry, defaultValue, entryName, description);
+                result = new ConfigEntry<T>(newEntry, defaultValue, entryName, description);
             }
 
             result.OnValueChangedBase += OnConfigEntryChanged;

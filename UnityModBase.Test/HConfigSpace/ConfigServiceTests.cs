@@ -843,11 +843,6 @@ namespace UnityModBase.Test.HConfigSpace
                 BoxedValue = 2;
             }
 
-            public void RebindEntry(ConfigFileEntry entry)
-            {
-                // 此测试替身只通过事务协议参与重载，不覆盖单项直接重绑定入口。
-            }
-
             public bool PrepareBind(ConfigFileEntry candidate, out EntryChangePlan plan, out string errorMessage)
             {
                 // changed 传 false：本替身的 ApplyBind 必定抛出，不需要构造可提交的值变化。

@@ -59,14 +59,6 @@ namespace UnityModBase.HConfigSpace
         event EventHandler OnValueChangedBase;
 
         /// <summary>
-        /// 替换文件层绑定，并尝试从新文件项恢复当前强类型值。
-        /// 该入口等价于对单项依次执行 <see cref="PrepareBind"/>、<see cref="ApplyBind"/>、<see cref="PublishBind"/>，
-        /// 不提供跨配置项的原子性；批量场景应由 <see cref="ConfigService.Reload"/> 协调。
-        /// </summary>
-        /// <param name="entry">包含待恢复值的新文件项。</param>
-        void RebindEntry(ConfigFileEntry entry);
-
-        /// <summary>
         /// 事务协议第一阶段：在不切换当前绑定的前提下验证候选项，并构造可提交、可回滚的计划。
         /// 实现需在此阶段完成全部可能失败的解码与规范化编码，并向候选项补充运行时元数据；
         /// 但不得修改当前活动绑定、运行时值，也不得发布变化事件。

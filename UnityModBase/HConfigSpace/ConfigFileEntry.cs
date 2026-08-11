@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using UnityModBase.HTranslatorSpace;
 using static UnityModBase.HConfigSpace.ConfigFileModel;
@@ -16,16 +15,36 @@ namespace UnityModBase.HConfigSpace
     /// </summary>
     public class ConfigFileEntry
     {
+        private string _tableKey;
         private string _key;
 
         /// <summary>
         /// 写入配置文件的多语言名称注释；解析已有文件时当前不会从注释中恢复该值。
         /// </summary>
         public Translator Name { get; set; }
+
         /// <summary>
         /// 写入配置文件的多语言说明注释；解析已有文件时当前不会从注释中恢复该值。
         /// </summary>
         public Translator Description { get; set; }
+
+        /// <summary>
+        /// 所属配置表的键名，用于运行时重绑定校验候选项归属，不写入配置文件文本。
+        /// 解析已有文件时由 <see cref="ConfigFileTable.DecodeTable"/> 按所属表回填；赋值时按表名语法校验。
+        /// </summary>
+        /// <exception cref="ArgumentException">赋值不符合表名语法。</exception>
+        public string TableKey
+        {
+            get => _tableKey;
+            set
+            {
+                if (ConfigFileTable.IsValidTableName(value))
+                    _tableKey = value;
+                else
+                    throw new ArgumentException($"Invalid table name: {value}.");
+            }
+        }
+
         /// <summary>
         /// 配置项键名，只允许 Unicode 字母、数字和下划线，以避免与配置文件语法冲突。
         /// </summary>
@@ -42,23 +61,43 @@ namespace UnityModBase.HConfigSpace
                     throw new ArgumentException($"Invalid key name: {value}. Key names must be non-empty and can only contain letters, digits, and underscores.");
             }
         }
+
         /// <summary>
         /// 配置文件中的值文本，约定使用 <see cref="ConfigFileModel"/> 规则编码。
         /// 属性赋值本身不验证强类型格式；<see cref="ConfigEntry{T}"/> 在建立或替换运行时绑定时才按声明类型解码。
         /// </summary>
         public string Value { get; set; }
+
         /// <summary>
         /// 默认值的编码文本，用作配置文件注释，不参与运行时回退逻辑。
         /// </summary>
         public string DefaultValue { get; set; }
+
         /// <summary>
         /// 配置值类型的说明文本，用于帮助人工编辑配置文件。
         /// </summary>
         public string ValueType { get; set; }
+
         /// <summary>
         /// 可接受值的说明文本，通常由枚举成员名生成，仅用于人工编辑提示。
         /// </summary>
         public string AcceptableValues { get; set; }
+
+        /// <summary>
+        /// 创建空文件项，所有字符串字段初始化为空字符串、名称和说明初始化为空翻译。
+        /// 解析得到键和值后逐步填充；编码方法据此对未设置的元数据返回空注释而非抛出异常。
+        /// </summary>
+        public ConfigFileEntry()
+        {
+            _tableKey = string.Empty;
+            _key = string.Empty;
+            Name = new Translator();
+            Description = new Translator();
+            Value = string.Empty;
+            DefaultValue = string.Empty;
+            ValueType = string.Empty;
+            AcceptableValues = string.Empty;
+        }
 
         /// <summary>
         /// 将全部非空名称翻译编码到单行 <c># Name:</c> 注释中。
@@ -215,40 +254,6 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 判断键名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
-        /// </summary>
-        /// <param name="key">待检查的键名。</param>
-        /// <returns>键名是否可以安全写入键值行。</returns>
-        public static bool IsValidKeyName(string key)
-        {
-            return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
-        }
-
-        /// <summary>
-        /// 粗略判断一行是否可能是键值对。
-        /// 该检查只要求存在等号且不是注释，不校验键名和值；需要可靠结果时应调用 <see cref="DecodeKeyValuePair"/>。
-        /// </summary>
-        /// <param name="content">待分类的单行文本。</param>
-        /// <returns>该行是否应进入键值解析流程。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="content"/> 为 <c>null</c>。</exception>
-        public static bool IsKeyValuePair(string content)
-        {
-            content = content.Trim();
-            return content.Contains('=') && !content.StartsWith("#");
-        }
-
-        /// <summary>
-        /// 判断忽略行首空白后是否以井号开头。
-        /// </summary>
-        /// <param name="content">待分类的单行文本。</param>
-        /// <returns>该行是否为配置注释。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="content"/> 为 <c>null</c>。</exception>
-        public static bool IsComment(string content)
-        {
-            return content.TrimStart().StartsWith("#");
-        }
-
-        /// <summary>
         /// 使用 <see cref="ConfigFileModel"/> 的静态类型规则编码配置值。
         /// </summary>
         /// <typeparam name="T">配置值的声明类型。</typeparam>
@@ -257,81 +262,6 @@ namespace UnityModBase.HConfigSpace
         public static ConfigFileResult<string> EncodeValue<T>(T value)
         {
             return Encode(value);
-        }
-
-        /// <summary>
-        /// 按泛型声明类型生成人工可读的类型提示。
-        /// </summary>
-        /// <typeparam name="T">配置值的声明类型。</typeparam>
-        /// <returns>类型提示，或不受支持的类型诊断。</returns>
-        public static ConfigFileResult<string> EncodeValueType<T>()
-        {
-            return EncodeValueType(typeof(T));
-        }
-
-        /// <summary>
-        /// 按运行时类型生成人工可读的配置值类型提示。
-        /// 集合会在元素类型提示后追加 <c>[]</c>；当前实现不会传播嵌套元素类型的失败结果，不受支持的泛型元素可能退化为空类型提示 <c>[]</c>。
-        /// </summary>
-        /// <param name="type">配置值声明类型；适配器类型必须提供可访问的无参构造函数。</param>
-        /// <returns>内置类型、枚举、集合或适配器的类型提示；非集合的其他类型返回失败结果。</returns>
-        /// <exception cref="NullReferenceException"><paramref name="type"/> 为空，或集合元素类型无法识别。</exception>
-        public static ConfigFileResult<string> EncodeValueType(Type type)
-        {
-            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
-            {
-                try
-                {
-                    var adapterInstance = (IConfigEntryValue)Activator.CreateInstance(type);
-                    var result = adapterInstance.EncodeValueType();
-                    if (!result.Success)
-                        return ConfigFileResult<string>.Fail(result.Errors);
-
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, $"Failed to encode value type for {type.FullName}: {ex.Message}"));
-                }
-            }
-
-            switch (type)
-            {
-                case Type t when t == typeof(string):
-                    return "String";
-                case Type t when t == typeof(sbyte):
-                    return "Int8";
-                case Type t when t == typeof(short):
-                    return "Int16";
-                case Type t when t == typeof(int):
-                    return "Int32";
-                case Type t when t == typeof(long):
-                    return "Int64";
-                case Type t when t == typeof(byte):
-                    return "UInt8";
-                case Type t when t == typeof(ushort):
-                    return "UInt16";
-                case Type t when t == typeof(uint):
-                    return "UInt32";
-                case Type t when t == typeof(ulong):
-                    return "UInt64";
-                case Type t when t == typeof(float):
-                    return "Float";
-                case Type t when t == typeof(double):
-                    return "Double";
-                case Type t when t == typeof(bool):
-                    return "Boolean";
-                default:
-                    break;
-            }
-
-            if (type.IsEnum)
-                return $"Enum {type.Name}";
-
-            if (typeof(IEnumerable).IsAssignableFrom(type))
-                return $"{EncodeValueType(GetCollectionElementType(type))}[]";
-
-            return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Unsupported type: {type.FullName}"));
         }
 
         /// <summary>
@@ -361,47 +291,6 @@ namespace UnityModBase.HConfigSpace
             var enumNames = Enum.GetNames(type);
             var acceptableValues = string.Join(", ", enumNames);
             return acceptableValues;
-        }
-
-        /// <summary>
-        /// 从强类型当前值和默认值创建文件项，并生成名称、说明及类型元数据。
-        /// 当前实现不自动填充 <see cref="AcceptableValues"/>，枚举绑定会由 <see cref="ConfigEntry{T}"/> 补充该提示。
-        /// </summary>
-        /// <typeparam name="T">配置值的声明类型。</typeparam>
-        /// <param name="key">配置项键名。</param>
-        /// <param name="value">当前值。</param>
-        /// <param name="defaultValue">声明默认值。</param>
-        /// <param name="name">多语言展示名称。</param>
-        /// <param name="description">多语言说明。</param>
-        /// <returns>初始化完成的文件项，或首个编码/校验诊断。</returns>
-        public static ConfigFileResult<ConfigFileEntry> CreateEntry<T>(string key, T value, T defaultValue, Translator name, Translator description)
-        {
-            if (!IsValidKeyName(key))
-                return ConfigFileResult<ConfigFileEntry>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidKeyName, $"Invalid key name: {key}"));
-
-            var encodedValueResult = EncodeValue(value);
-            if (!encodedValueResult.Success)
-                return ConfigFileResult<ConfigFileEntry>.Fail(encodedValueResult.Errors);
-
-            var encodedDefaultValueResult = EncodeValue(defaultValue);
-            if (!encodedDefaultValueResult.Success)
-                return ConfigFileResult<ConfigFileEntry>.Fail(encodedDefaultValueResult.Errors);
-
-            var encodedValueTypeResult = EncodeValueType<T>();
-            if (!encodedValueTypeResult.Success)
-                return ConfigFileResult<ConfigFileEntry>.Fail(encodedValueTypeResult.Errors);
-
-            var entry = new ConfigFileEntry
-            {
-                Name = name,
-                Description = description,
-                Key = key,
-                Value = encodedValueResult.Value,
-                DefaultValue = encodedDefaultValueResult.Value,
-                ValueType = encodedValueTypeResult.Value
-            };
-
-            return entry;
         }
 
         /// <summary>

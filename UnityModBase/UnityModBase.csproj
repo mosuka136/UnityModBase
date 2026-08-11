@@ -72,7 +72,13 @@
     <Compile Include="HConfigGUI\UiMetadataHelper.cs" />
     <Compile Include="BSpace\BConfigManager.cs" />
     <Compile Include="HConfigGUI\ValueProvider.cs" />
+    <Compile Include="HConfigSpace\ConfigEntry.2.cs" />
     <Compile Include="HConfigSpace\ConfigEntry.cs" />
+    <Compile Include="HConfigSpace\ConfigEntryValue.2.cs" />
+    <Compile Include="HConfigSpace\ConfigFileModelCollection.cs" />
+    <Compile Include="HConfigSpace\ConfigFileModelPrimitive.cs" />
+    <Compile Include="HConfigSpace\ConfigFileModelString.cs" />
+    <Compile Include="HConfigSpace\ConfigFileModelTuple.cs" />
     <Compile Include="HConfigSpace\EntryChangePlan.cs" />
     <Compile Include="HConfigSpace\IConfigEntry.cs" />
     <Compile Include="HConfigSpace\ConfigFileEntry.cs" />

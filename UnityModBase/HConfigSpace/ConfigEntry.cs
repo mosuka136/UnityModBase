@@ -11,7 +11,7 @@ namespace UnityModBase.HConfigSpace
     /// 一个强类型运行时配置项。
     /// 它把文件层面的 <see cref="ConfigFileEntry"/> 与业务代码使用的 <typeparamref name="T"/> 值绑定起来，并在值变化时同步文件项文本与触发事件。
     /// 该类不直接写文件；写回时机由 <see cref="ConfigService"/> 订阅变化事件后决定。
-    /// 批量重载时，它先生成不发布事件的可回滚计划，再由配置服务统一提交；单项重绑定不提供跨配置项原子性。
+    /// 初次绑定由构造函数内联完成，批量重载则先生成不发布事件的可回滚计划再由配置服务统一提交；两条路径都只覆盖单个配置项本身，不提供跨配置项的原子性。
     /// 实例不提供并发保护；赋值、重绑定和事件订阅应由调用方串行化。
     /// </summary>
     /// <typeparam name="T">配置项值类型。</typeparam>
@@ -78,7 +78,7 @@ namespace UnityModBase.HConfigSpace
         public Translator Description => Entry.Description;
 
         /// <inheritdoc/>
-        public string TableKey { get; private set; }
+        public string TableKey => Entry.TableKey;
 
         /// <summary>
         /// 当前绑定文件项的键名。
@@ -130,47 +130,26 @@ namespace UnityModBase.HConfigSpace
         public event EventHandler OnValueChangedBase;
 
         /// <summary>
-        /// 创建尚未绑定文件项的实例。
-        /// <see cref="Entry"/>、<see cref="TableKey"/> 和默认值元数据保持默认状态，绑定完成前不应作为正常配置项使用。
-        /// </summary>
-        public ConfigEntry()
-        {
-
-        }
-
-        /// <summary>
-        /// 使用文件项现有的名称和说明创建运行时绑定。
-        /// 文件中的当前值优先于 <paramref name="defaultValue"/>；默认值只写入元数据。
-        /// </summary>
-        /// <param name="tableKey">所属表键名，只允许 Unicode 字母、数字和下划线。</param>
-        /// <param name="entry">包含当前编码值的文件项。</param>
-        /// <param name="defaultValue">声明默认值。</param>
-        /// <exception cref="NullReferenceException"><paramref name="entry"/> 为 <c>null</c>；该重载会在委托构造前读取其元数据。</exception>
-        /// <exception cref="InvalidOperationException">键名、表名或值格式非法，或者类型/默认值无法编码。</exception>
-        public ConfigEntry(string tableKey, ConfigFileEntry entry, T defaultValue) :
-            this(tableKey, entry, defaultValue, entry.Name, entry.Description)
-        {
-        }
-
-        /// <summary>
         /// 创建运行时绑定，更新文件项的展示及类型元数据，并从文件项当前文本解码实际值。
+        /// 绑定过程复用重载事务三阶段：先 <see cref="PrepareBind"/> 完成可能失败的解码与规范化编码，
+        /// 成功后依次 <see cref="ApplyBind"/> 切换绑定、<see cref="PublishBind"/> 发布事件。
+        /// 所属表键名不在本构造函数校验，由 <paramref name="entry"/> 的 <see cref="ConfigFileEntry.TableKey"/> 随绑定带入。
         /// </summary>
-        /// <param name="tableKey">所属表键名，只允许 Unicode 字母、数字和下划线。</param>
-        /// <param name="entry">包含当前编码值的文件项。</param>
+        /// <param name="entry">包含当前编码值且已设置所属表键名的文件项。</param>
         /// <param name="defaultValue">声明默认值；不会覆盖文件项当前值。</param>
         /// <param name="name">写入文件注释并供 UI 使用的名称。</param>
         /// <param name="description">写入文件注释并供 UI 使用的说明。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
-        /// <exception cref="InvalidOperationException">键名、表名或值格式非法，或者类型/默认值无法编码。</exception>
-        public ConfigEntry(string tableKey, ConfigFileEntry entry, T defaultValue, Translator name, Translator description)
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/>、<paramref name="name"/> 或 <paramref name="description"/> 为 <c>null</c>。</exception>
+        /// <exception cref="InvalidOperationException">值类型提示、默认值无法编码，或文件项当前值无法解码为 <typeparamref name="T"/>。</exception>
+        public ConfigEntry(ConfigFileEntry entry, T defaultValue, Translator name, Translator description)
         {
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry));
 
-            entry.Name = name;
-            entry.Description = description;
+            entry.Name = name ?? throw new ArgumentNullException(nameof(name));
+            entry.Description = description ?? throw new ArgumentNullException(nameof(description));
 
-            var valueTypeResult = ConfigFileEntry.EncodeValueType<T>();
+            var valueTypeResult = ConfigFileModel.EncodeValueType<T>();
             if (!valueTypeResult.Success)
             {
                 foreach (var error in valueTypeResult.Errors)
@@ -192,39 +171,13 @@ namespace UnityModBase.HConfigSpace
             }
             entry.DefaultValue = defaultValueResult.Value;
 
-            if (!ConfigFileEntry.IsValidKeyName(entry.Key))
-                throw new InvalidOperationException($"Invalid key name: {entry.Key}");
-
-            if (!ConfigFileTable.IsValidTableName(tableKey))
-                throw new InvalidOperationException($"Invalid table name: {tableKey}");
-
-            TableKey = tableKey;
             DefaultValue = defaultValue;
-            RebindEntry(entry);
-        }
-
-        /// <summary>
-        /// 将配置项重新绑定到另一个文件项，并从文件项的文本值解码当前值。
-        /// 常用于重新读取配置文件后保留已有 <see cref="ConfigEntry{T}"/> 引用。
-        /// 解码、必要的规范化编码和元数据复制均在替换绑定之前完成，因此失败时原文件项和值保持不变；
-        /// 若解码值与当前值等价，只替换绑定并保留候选项的原始值文本，不触发变化事件。
-        /// </summary>
-        /// <param name="entry">新的文件项；为 <c>null</c> 时不做处理。</param>
-        /// <remarks>
-        /// 该入口只处理单个配置项，不提供多个配置项之间的原子性；批量重载应由 <see cref="ConfigService.Reload"/> 协调。
-        /// </remarks>
-        /// <exception cref="InvalidOperationException">文件项的值无法解码为 <typeparamref name="T"/>、解码值无法重新编码，或元数据复制失败。</exception>
-        public void RebindEntry(ConfigFileEntry entry)
-        {
-            if (entry == null)
-                return;
 
             if (!PrepareBind(entry, out var plan, out var errorMessage))
             {
                 BLog.Error(errorMessage, null, string.Empty, string.Empty, 0);
                 throw new InvalidOperationException(errorMessage);
             }
-
             ApplyBind(plan);
             PublishBind(plan);
         }
@@ -324,92 +277,13 @@ namespace UnityModBase.HConfigSpace
         /// </remarks>
         public static bool EqualBoxed(object a, object b)
         {
-            if (a == null && b == null)
-                return true;
-
-            if (a == null || b == null)
-                return false;
-
-            var type = a.GetType();
-
-            if (type != b.GetType())
-                return false;
-
-            if (type.IsPrimitive || type == typeof(string) || type.IsEnum)
-                return object.Equals(a, b);
-
-            if (type.IsArray)
-            {
-                var arrayA = a as Array;
-                var arrayB = b as Array;
-
-                if (arrayA == null || arrayB == null)
-                    return false;
-
-                if (arrayA.Length != arrayB.Length)
-                    return false;
-
-                for (int i = 0; i < arrayA.Length; i++)
-                {
-                    if (!EqualBoxed(arrayA.GetValue(i), arrayB.GetValue(i)))
-                        return false;
-                }
-
-                return true;
-            }
-
-            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
-            {
-                var valueA = a as IConfigEntryValue;
-                var valueB = b as IConfigEntryValue;
-
-                if (valueA == null || valueB == null)
-                    return false;
-
-                return valueA.Equals(valueB);
-            }
-
-            if (typeof(IEnumerable).IsAssignableFrom(type))
-            {
-                var enumA = (a as IEnumerable)?.GetEnumerator();
-                var enumB = (b as IEnumerable)?.GetEnumerator();
-
-                if (enumA == null || enumB == null)
-                    return false;
-
-                try
-                {
-                    while (true)
-                    {
-                        var hasNextA = enumA.MoveNext();
-                        var hasNextB = enumB.MoveNext();
-
-                        if (hasNextA != hasNextB)
-                            return false;
-
-                        if (!hasNextA)
-                            break;
-
-                        if (!EqualBoxed(enumA.Current, enumB.Current))
-                            return false;
-                    }
-
-                    return true;
-                }
-                finally
-                {
-                    (enumA as IDisposable)?.Dispose();
-                    (enumB as IDisposable)?.Dispose();
-                }
-            }
-
-            return false;
+            return ConfigFileModel.ValueEqual(a, b);
         }
 
         /// <inheritdoc/>
         /// <remarks>
         /// 配置服务批量重载时，候选项属于尚未生效的新文件模型，因此准备阶段可以向其复制当前运行时元数据；
-        /// 直接 <see cref="RebindEntry"/> 也复用该预检，但会立即应用返回的计划。活动绑定、当前值和变化事件在本阶段保持不变。
+        /// 构造函数也复用该预检建立首次绑定，并在成功后立即应用返回的计划。活动绑定、当前值和变化事件在本阶段保持不变。
         /// </remarks>
         public bool PrepareBind(ConfigFileEntry candidate, out EntryChangePlan plan, out string errorMessage)
         {
@@ -423,6 +297,23 @@ namespace UnityModBase.HConfigSpace
 
             try
             {
+                // 首次构造阶段 Entry 仍为 null，候选项即待绑定项，键必然一致；
+                // 重新绑定阶段校验候选项键与当前绑定键一致，避免跨配置项错误复用候选项。
+                if (Entry != null)
+                {
+                    if (candidate.TableKey != TableKey)
+                    {
+                        errorMessage = $"Candidate table key: {candidate.TableKey} does not match current table key: {TableKey}.";
+                        return false;
+                    }
+
+                    if (candidate.Key != Entry.Key)
+                    {
+                        errorMessage = $"Candidate key: {candidate.Key} does not match current key: {Entry.Key}.";
+                        return false;
+                    }
+                }
+
                 var decodeResult = ConfigFileEntry.DecodeValue<T>(candidate.Value);
                 if (!decodeResult.Success)
                 {

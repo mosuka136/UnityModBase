@@ -27,7 +27,7 @@ namespace UnityModBase.Test.HConfigSpace
             var value = new object();
 
             // Act
-            var result = ConfigFileModel.Encode(value, null);
+            var result = ConfigFileModel.Encode(null, value);
 
             // Assert
             Assert.False(result.Success);
@@ -43,7 +43,7 @@ namespace UnityModBase.Test.HConfigSpace
             var adapter = new FailingEncodeAdapter();
 
             // Act
-            var result = ConfigFileModel.Encode(adapter, typeof(FailingEncodeAdapter));
+            var result = ConfigFileModel.Encode(typeof(FailingEncodeAdapter), adapter);
 
             // Assert
             Assert.False(result.Success);
@@ -59,7 +59,7 @@ namespace UnityModBase.Test.HConfigSpace
             var adapter = new ThrowingEncodeAdapter();
 
             // Act
-            var result = ConfigFileModel.Encode(adapter, typeof(ThrowingEncodeAdapter));
+            var result = ConfigFileModel.Encode(typeof(ThrowingEncodeAdapter), adapter);
 
             // Assert
             Assert.False(result.Success);
@@ -83,7 +83,7 @@ namespace UnityModBase.Test.HConfigSpace
             var type = value.GetType();
 
             // Act
-            var result = ConfigFileModel.Encode(value, type);
+            var result = ConfigFileModel.Encode(type, value);
 
             // Assert
             Assert.True(result.Success);
@@ -98,7 +98,7 @@ namespace UnityModBase.Test.HConfigSpace
             var value = new UnsupportedEnumerable();
 
             // Act
-            var result = ConfigFileModel.Encode(value, typeof(UnsupportedEnumerable));
+            var result = ConfigFileModel.Encode(typeof(UnsupportedEnumerable), value);
 
             // Assert
             Assert.False(result.Success);
@@ -114,7 +114,7 @@ namespace UnityModBase.Test.HConfigSpace
             var value = new List<UnsupportedValueType> { new UnsupportedValueType() };
 
             // Act
-            var result = ConfigFileModel.Encode(value, typeof(List<UnsupportedValueType>));
+            var result = ConfigFileModel.Encode(typeof(List<UnsupportedValueType>), value);
 
             // Assert
             Assert.False(result.Success);
@@ -130,7 +130,7 @@ namespace UnityModBase.Test.HConfigSpace
             var value = new List<int> { 1, 2, 3 };
 
             // Act
-            var result = ConfigFileModel.Encode(value, typeof(List<int>));
+            var result = ConfigFileModel.Encode(typeof(List<int>), value);
 
             // Assert
             Assert.True(result.Success);
@@ -145,7 +145,7 @@ namespace UnityModBase.Test.HConfigSpace
             var value = new UnsupportedValueType();
 
             // Act
-            var result = ConfigFileModel.Encode(value, typeof(UnsupportedValueType));
+            var result = ConfigFileModel.Encode(typeof(UnsupportedValueType), value);
 
             // Assert
             Assert.False(result.Success);
@@ -184,7 +184,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_NullType_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("value", null);
+            var result = ConfigFileModel.Decode(null, "value");
 
             // Assert
             Assert.False(result.Success);
@@ -197,7 +197,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_AdapterReturnsFailure_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("value", typeof(FailingDecodeAdapter));
+            var result = ConfigFileModel.Decode(typeof(FailingDecodeAdapter), "value");
 
             // Assert
             Assert.False(result.Success);
@@ -210,7 +210,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_AdapterThrows_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("value", typeof(ThrowingDecodeAdapter));
+            var result = ConfigFileModel.Decode(typeof(ThrowingDecodeAdapter), "value");
 
             // Assert
             Assert.False(result.Success);
@@ -231,7 +231,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_SupportedPrimitiveTypes_ReturnsParsedValue(Type type, string value, string expectedTypeName, string expectedValue)
         {
             // Act
-            var result = ConfigFileModel.Decode(value, type);
+            var result = ConfigFileModel.Decode(type, value);
 
             // Assert
             Assert.True(result.Success);
@@ -254,7 +254,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_InvalidPrimitiveText_ReturnsFailure(Type type, string value, string expectedMessage)
         {
             // Act
-            var result = ConfigFileModel.Decode(value, type);
+            var result = ConfigFileModel.Decode(type, value);
 
             // Assert
             Assert.False(result.Success);
@@ -267,7 +267,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_InvalidEnumValue_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("Missing", typeof(SampleEnum));
+            var result = ConfigFileModel.Decode(typeof(SampleEnum), "Missing");
 
             // Assert
             Assert.False(result.Success);
@@ -280,7 +280,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_UnsupportedEnumerableType_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("[1,2]", typeof(UnsupportedEnumerable));
+            var result = ConfigFileModel.Decode(typeof(UnsupportedEnumerable), "[1,2]");
 
             // Assert
             Assert.False(result.Success);
@@ -293,20 +293,20 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_InvalidCollectionFormat_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("1,2", typeof(List<int>));
+            var result = ConfigFileModel.Decode(typeof(List<int>), "1,2");
 
             // Assert
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Collection string must start with '[' and end with ']'", error.Message);
+            Assert.Equal("Value must start with '[' and end with ']'", error.Message);
         }
 
         [Fact]
         public void Decode_CollectionContainsInvalidElement_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("[1,abc]", typeof(List<int>));
+            var result = ConfigFileModel.Decode(typeof(List<int>), "[1,abc]");
 
             // Assert
             Assert.False(result.Success);
@@ -319,7 +319,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_IntArray_ReturnsArray()
         {
             // Act
-            var result = ConfigFileModel.Decode("[1,2,3]", typeof(int[]));
+            var result = ConfigFileModel.Decode(typeof(int[]), "[1,2,3]");
 
             // Assert
             Assert.True(result.Success);
@@ -332,7 +332,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_ListOfInt_ReturnsList()
         {
             // Act
-            var result = ConfigFileModel.Decode("[1,2,3]", typeof(List<int>));
+            var result = ConfigFileModel.Decode(typeof(List<int>), "[1,2,3]");
 
             // Assert
             Assert.True(result.Success);
@@ -345,13 +345,427 @@ namespace UnityModBase.Test.HConfigSpace
         public void Decode_UnsupportedType_ReturnsFailure()
         {
             // Act
-            var result = ConfigFileModel.Decode("value", typeof(UnsupportedValueType));
+            var result = ConfigFileModel.Decode(typeof(UnsupportedValueType), "value");
 
             // Assert
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
             Assert.Equal("Decoding not implemented", error.Message);
+        }
+
+        // ---- Tuple 编解码 ----
+        // 以下覆盖本次重构新增的 ValueTuple 支持（ConfigFileModelTuple.cs）。
+        // 元组与集合共用 SplitCompositeString 词法，但外层定界符为圆括号；编解码按元素声明类型递归。
+        // 该功能已通过 Encode/Decode/EncodeValueType 的派发对全部配置项生效，但没有现成测试，这里补全。
+
+        [Theory]
+        [InlineData(typeof((int, string)), true)]
+        [InlineData(typeof(ValueTuple<int>), true)]
+        [InlineData(typeof((int, int, int, int, int, int, int)), true)]
+        [InlineData(typeof(int), false)]
+        [InlineData(typeof(List<int>), false)]
+        [InlineData(typeof(object), false)]
+        public void IsTupleType_DetectsValueTupleGenericsOnly(Type type, bool expected)
+        {
+            // Act
+            var result = ConfigFileModel.IsTupleType(type);
+
+            // Assert
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void IsTupleType_WithNull_ReturnsFalse()
+        {
+            // Act
+            var result = ConfigFileModel.IsTupleType(null);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void SplitTupleString_NullOrWhitespace_ReturnsFailure(string value)
+        {
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Tuple string cannot be null or empty", error.Message);
+        }
+
+        [Fact]
+        public void SplitTupleString_MissingOuterParens_ReturnsFailure()
+        {
+            // Arrange — 缺少圆括号包裹，底层 SplitCompositeString 拒绝。
+            var value = "1,2";
+
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Value must start with '(' and end with ')'", error.Message);
+        }
+
+        [Fact]
+        public void SplitTupleString_EmptyTuple_ReturnsEmptyArray()
+        {
+            // Arrange
+            var value = " ( ) ";
+
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Empty(result.Value);
+        }
+
+        [Fact]
+        public void SplitTupleString_TwoElements_ReturnsStrippedElements()
+        {
+            // Arrange
+            var value = "(1,2)";
+
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal(new[] { "1", "2" }, result.Value);
+        }
+
+        [Fact]
+        public void SplitTupleString_ContainsQuotedAndNestedContent_ReturnsTopLevelElements()
+        {
+            // 引号内的逗号、嵌套圆括号都不是顶层分隔符；与集合拆分规则一致。
+            // Arrange
+            var value = "(\"a,b\",(2,3),plain)";
+
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal(new[] { "\"a,b\"", "(2,3)", "plain" }, result.Value);
+        }
+
+        [Fact]
+        public void SplitTupleString_EmptyElementBetweenCommas_ReturnsFailure()
+        {
+            // Arrange
+            var value = "(1,)";
+
+            // Act
+            var result = ConfigFileModel.SplitTupleString(value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Composite value contains empty element", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTuple_NullType_ReturnsInvalidTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTuple(null, (1, "a"));
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidType, error.Code);
+            Assert.Equal("Type cannot be null", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTuple_NullValue_ReturnsInvalidValueFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTuple(typeof((int, string)), null);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Value cannot be null", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTuple_NonTupleType_ReturnsUnsupportedTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTuple(typeof(List<int>), new List<int>());
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Contains("is not a ValueTuple", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTuple_IntAndString_ReturnsParenthesizedTextWithStringQuoted()
+        {
+            // 字符串元素按基础类型规则加引号；数值直接写原文。
+            // Arrange
+            var value = (1, "a");
+
+            // Act
+            var result = ConfigFileModel.EncodeTuple(typeof((int, string)), value);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal("(1,\"a\")", result.Value);
+        }
+
+        [Fact]
+        public void EncodeTuple_ElementEncodingFails_PropagatesElementFailure()
+        {
+            // Arrange — 元组元素为不支持类型，递归 Encode 返回失败应逐层传播。
+            var value = (1, new UnsupportedValueType());
+
+            // Act
+            var result = ConfigFileModel.EncodeTuple(typeof((int, UnsupportedValueType)), value);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.UnsupportedType);
+        }
+
+        [Fact]
+        public void EncodeTuple_MoreThanSevenDirectElements_ReturnsUnsupportedTypeFailure()
+        {
+            // 8 元及以上 ValueTuple 把第 8 个泛型参数折叠为嵌套 Rest，本格式不展开。
+            // Arrange
+            var value = (1, 2, 3, 4, 5, 6, 7, 8);
+
+            // Act
+            var result = ConfigFileModel.EncodeTuple(value.GetType(), value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Equal("ValueTuple with more than 7 direct elements is not supported", error.Message);
+        }
+
+        [Fact]
+        public void DecodeTuple_NullType_ReturnsInvalidTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.DecodeTuple(null, "(1,\"a\")");
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidType, error.Code);
+            Assert.Equal("Type cannot be null", error.Message);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void DecodeTuple_NullOrWhitespaceValue_ReturnsFailure(string value)
+        {
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof((int, string)), value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Tuple value cannot be null or empty", error.Message);
+        }
+
+        [Fact]
+        public void DecodeTuple_NonTupleType_ReturnsUnsupportedTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof(List<int>), "[1,2]");
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Contains("is not a ValueTuple", error.Message);
+        }
+
+        [Fact]
+        public void DecodeTuple_IntAndString_ReturnsValueTupleWithDecodedElements()
+        {
+            // Arrange
+            var value = "(1,\"a\")";
+
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof((int, string)), value);
+
+            // Assert
+            Assert.True(result.Success);
+            var tuple = Assert.IsType<(int, string)>(result.Value);
+            Assert.Equal((1, "a"), tuple);
+        }
+
+        [Fact]
+        public void DecodeTuple_ElementCountMismatch_ReturnsFailure()
+        {
+            // Arrange — 文本 3 个元素，类型只声明 2 个。
+            var value = "(1,2,3)";
+
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof((int, int)), value);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
+            Assert.Equal("Tuple element count mismatch. Expected 2, actual 3", error.Message);
+        }
+
+        [Fact]
+        public void DecodeTuple_ElementDecodingFails_PropagatesElementFailure()
+        {
+            // Arrange — 第一个声明为 int，文本却是非数字。
+            var value = "(abc,\"a\")";
+
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof((int, string)), value);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.Contains(result.Errors, e => e.Code == ConfigFileErrorCode.InvalidValue && e.Message.Contains("Invalid int value"));
+        }
+
+        [Fact]
+        public void DecodeTuple_MoreThanSevenDirectElements_ReturnsUnsupportedTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.DecodeTuple(typeof((int, int, int, int, int, int, int, int)), "(1,2,3,4,5,6,7,8)");
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Equal("ValueTuple with more than 7 direct elements is not supported", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTupleType_NullType_ReturnsInvalidTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTupleType(null);
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.InvalidType, error.Code);
+            Assert.Equal("Type cannot be null", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTupleType_NonTupleType_ReturnsUnsupportedTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTupleType(typeof(List<int>));
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Contains("is not a ValueTuple", error.Message);
+        }
+
+        [Fact]
+        public void EncodeTupleType_IntAndString_ReturnsParenthesizedTypeHint()
+        {
+            // 元素类型提示按 EncodeValueType 递归，因此 int→Int32、string→String。
+            // Act
+            var result = ConfigFileModel.EncodeTupleType(typeof((int, string)));
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal("(Int32,String)", result.Value);
+        }
+
+        [Fact]
+        public void EncodeTupleType_MoreThanSevenDirectElements_ReturnsUnsupportedTypeFailure()
+        {
+            // Act
+            var result = ConfigFileModel.EncodeTupleType(typeof((int, int, int, int, int, int, int, int)));
+
+            // Assert
+            Assert.False(result.Success);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
+            Assert.Equal("ValueTuple with more than 7 direct elements is not supported", error.Message);
+        }
+
+        [Fact]
+        public void Encode_WithTupleValue_RoutesToTupleEncoder()
+        {
+            // 公共 Encode 派发：IsTupleType 为真时走 EncodeTuple，布尔按 InvariantCulture 写作 True。
+            // Arrange
+            var value = (42, true);
+
+            // Act
+            var result = ConfigFileModel.Encode(typeof((int, bool)), value);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal("(42,True)", result.Value);
+        }
+
+        [Fact]
+        public void Decode_WithTupleType_RoutesToTupleDecoder()
+        {
+            // 公共 Decode 派发：IsTupleType 为真时走 DecodeTuple，结果可转换为声明元组类型。
+            // Act
+            var result = ConfigFileModel.Decode<(int, bool)>("(42,True)");
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal((42, true), result.Value);
+        }
+
+        [Fact]
+        public void EncodeValueType_WithTupleType_ReturnsTupleTypeHint()
+        {
+            // 公共 EncodeValueType 派发到 EncodeTupleType。
+            // Act
+            var result = ConfigFileModel.EncodeValueType<(int, string)>();
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal("(Int32,String)", result.Value);
+        }
+
+        [Fact]
+        public void EncodeThenDecode_TupleWithQuotedString_RoundTripsValue()
+        {
+            // 端到端往返：含逗号与转义的字符串元素必须能无损还原。
+            // Arrange
+            var original = (1, "a,b\\c");
+
+            // Act
+            var encoded = ConfigFileModel.Encode(original);
+            var decoded = ConfigFileModel.Decode<(int, string)>(encoded.Value);
+
+            // Assert
+            Assert.True(encoded.Success);
+            Assert.True(decoded.Success);
+            Assert.Equal(original, decoded.Value);
         }
 
         [Fact]
@@ -489,10 +903,12 @@ namespace UnityModBase.Test.HConfigSpace
             var result = ConfigFileModel.SplitCollectionString(value);
 
             // Assert
+            // SplitCollectionString 在委托给 SplitCompositeString 前有独立的空白校验，
+            // 返回更明确的“Collection string cannot be empty”，而非底层 SplitCompositeString 的消息。
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Value cannot be null or whitespace", error.Message);
+            Assert.Equal("Collection string cannot be empty", error.Message);
         }
 
         [Fact]
@@ -508,7 +924,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Collection string must start with '[' and end with ']'", error.Message);
+            Assert.Equal("Value must start with '[' and end with ']'", error.Message);
         }
 
         [Fact]
@@ -586,7 +1002,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Unexpected closing bracket in collection", error.Message);
+            Assert.Equal("Unexpected closing delimiter ']'", error.Message);
         }
 
         [Fact]
@@ -602,7 +1018,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Collection contains empty element", error.Message);
+            Assert.Equal("Composite value contains empty element", error.Message);
         }
 
         [Fact]
@@ -618,7 +1034,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Collection contains empty element", error.Message);
+            Assert.Equal("Composite value contains empty element", error.Message);
         }
 
         [Fact]
@@ -634,7 +1050,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Unclosed quoted string in collection", error.Message);
+            Assert.Equal("Unclosed quoted string", error.Message);
         }
 
         [Fact]
@@ -650,7 +1066,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.InvalidValue, error.Code);
-            Assert.Equal("Unbalanced nested collection brackets", error.Message);
+            Assert.Equal("Unbalanced nested delimiters", error.Message);
         }
 
         [Fact]

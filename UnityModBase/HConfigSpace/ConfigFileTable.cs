@@ -223,6 +223,8 @@ namespace UnityModBase.HConfigSpace
                 var entryResult = ConfigFileEntry.DecodeEntry(content, ref index);
                 if (entryResult.Success)
                 {
+                    // 表键名不出现在配置文件文本中，解析得到键值后按所属表回填，供运行时重绑定校验候选项归属。
+                    entryResult.Value.TableKey = table.Key;
                     var entryAddResult = table.AddEntry(entryResult.Value);
                     if (!entryAddResult.Success)
                         result.AddError(entryAddResult.Errors);
