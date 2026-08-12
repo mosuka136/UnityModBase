@@ -63,7 +63,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 按绑定顺序追加配置项；<c>null</c> 输入会被忽略。
-        /// 该低级入口只修改运行时列表，不负责文件模型、自动保存订阅或重载能力；正常声明配置项应使用 <see cref="ConfigService.Bind{T}"/>。
+        /// 该低级入口只修改运行时列表，不负责创建文件项、订阅自动保存或验证事务重载协议；正常声明配置项应使用 <see cref="ConfigService"/> 的相应 <c>Bind</c> 重载。
         /// </summary>
         /// <param name="entry">待追加的运行时配置项。</param>
         public void Add(IConfigEntry entry)

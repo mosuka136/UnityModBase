@@ -7,10 +7,11 @@ namespace UnityModBase.HConfigSpace
     /// 双元素元组的配置值适配器，把 <see cref="Value1"/>、<see cref="Value2"/> 编码为形如 <c>v1,v2</c> 的顶层逗号分隔文本。
     /// 与 <see cref="ConfigFileModel"/> 原生 <see cref="ConfigFileModel.EncodeTuple(Type, object)"/> 的圆括号元组不同，本格式不使用外层定界符，
     /// 解码时以 <c>'\0'</c> 作为起止定界符调用 <see cref="ConfigFileModel.SplitCompositeString"/>，即按顶层逗号直接拆分。
+    /// 由于该格式无法区分内外层逗号，本类型通过 <see cref="IGenericConfigEntryValue"/> 标记禁止作为另一双元素配置项的直接元素类型。
     /// </summary>
     /// <typeparam name="T1">第一个元素的值类型。</typeparam>
     /// <typeparam name="T2">第二个元素的值类型。</typeparam>
-    public class ConfigEntryValue<T1, T2> : IConfigEntryValue
+    public class ConfigEntryValue<T1, T2> : IConfigEntryValue, IGenericConfigEntryValue
     {
         /// <summary>
         /// 第一个元素的值。

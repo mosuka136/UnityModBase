@@ -54,11 +54,46 @@ namespace UnityModBase.Test.HConfigSpace
         {
             var tempPath = CreateTempConfigPath();
 
-            var manager = new ConfigService(tempPath);
+            using var manager = new ConfigService(tempPath);
 
-            Assert.NotNull(manager.FileSheet);
-            Assert.NotNull(manager.Sheet);
             Assert.Equal(tempPath, manager.FilePath);
+            Assert.Empty(manager.FileSheet.Sheet);
+            Assert.Empty(manager.Sheet);
+        }
+
+        [Fact]
+        public void Constructor_WhenFilePathIsNull_ThrowsArgumentNullException()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => new ConfigService(null));
+
+            Assert.Equal("filePath", exception.ParamName);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("settings.cfg")]
+        public void Constructor_WhenFilePathIsInvalid_ThrowsArgumentException(string filePath)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => new ConfigService(filePath));
+
+            Assert.Equal("value", exception.ParamName);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("settings.cfg")]
+        public void FilePath_WhenInvalidValueAssigned_ThrowsAndKeepsPreviousPath(string invalidPath)
+        {
+            var originalPath = CreateTempConfigPath();
+            using var manager = new ConfigService(originalPath);
+
+            var exception = Assert.Throws<ArgumentException>(() => manager.FilePath = invalidPath);
+
+            Assert.Equal("value", exception.ParamName);
+            Assert.Equal(originalPath, manager.FilePath);
         }
 
         [Fact]
@@ -242,48 +277,91 @@ namespace UnityModBase.Test.HConfigSpace
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[ExistingTable]\n");
-            var manager = new ConfigService(tempPath);
+            using var manager = new ConfigService(tempPath);
             var tableName = new Translator("表名", "TableName");
             var description = new Translator("描述", "Description");
 
             manager.CreateTable("ExistingTable", tableName, description);
 
-            Assert.True(manager.Sheet.Contains("ExistingTable"));
-            Assert.Equal(1, manager.Sheet.Count);
+            var runtimeTable = Assert.Single(manager.Sheet.Values);
+            var fileTable = manager.FileSheet.GetTable("ExistingTable").Value;
+            Assert.Equal("ExistingTable", runtimeTable.Key);
+            Assert.Same(tableName, runtimeTable.Name);
+            Assert.Same(description, runtimeTable.Description);
+            Assert.Same(tableName, fileTable.Name);
+            Assert.Same(description, fileTable.Description);
         }
 
         [Fact]
-        public void CreateTable_WhenTableNameInvalid_ThrowsInvalidOperationException()
+        public void CreateTable_WhenTableKeyInvalid_ThrowsArgumentException()
         {
             var tempPath = CreateTempConfigPath();
             var manager = new ConfigService(tempPath);
             var tableName = new Translator("表名", "TableName");
             var invalidTableKey = "Invalid-Table!";
 
-            var exception = Assert.Throws<InvalidOperationException>(() =>
+            var exception = Assert.Throws<ArgumentException>(() =>
                 manager.CreateTable(invalidTableKey, tableName));
 
-            Assert.Contains("Failed to create config table", exception.Message);
+            Assert.Contains("Invalid table key name", exception.Message);
             Assert.Contains(invalidTableKey, exception.Message);
+            Assert.Equal("tableKey", exception.ParamName);
+            Assert.False(manager.FileSheet.GetTable(invalidTableKey).Success);
+            Assert.False(manager.Sheet.Contains(invalidTableKey));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void CreateTable_WhenTableKeyMissing_ThrowsArgumentNullException(string tableKey)
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                manager.CreateTable(tableKey, new Translator("表名", "TableName")));
+
+            Assert.Equal("tableKey", exception.ParamName);
+            Assert.Empty(manager.Sheet);
+            Assert.Empty(manager.FileSheet.Sheet.Keys);
         }
 
         [Fact]
-        public void Bind_WhenEntryExists_ReturnsBoundConfigEntry()
+        public void CreateTable_WhenTableNameIsNull_ThrowsWithoutAddingTable()
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                manager.CreateTable("TestTable", null));
+
+            Assert.Equal("tableName", exception.ParamName);
+            Assert.False(manager.FileSheet.GetTable("TestTable").Success);
+            Assert.False(manager.Sheet.Contains("TestTable"));
+        }
+
+        [Fact]
+        public void Bind_WhenEntryExists_UsesStoredValueAndDeclaredMetadata()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[TestTable]\nTestKey = 123\n");
             var manager = new ConfigService(tempPath);
             manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var name = new Translator("测试键", "TestKey");
+            var description = new Translator("描述", "Description");
 
-            var result = manager.Bind<int>("TestTable", "TestKey", 456, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+            var result = manager.Bind<int>("TestTable", "TestKey", 456, name, description);
 
-            Assert.NotNull(result);
             Assert.Equal("TestTable", result.TableKey);
             Assert.Equal("TestKey", result.Key);
+            Assert.Equal(123, result.Value);
+            Assert.Same(name, result.Name);
+            Assert.Same(description, result.Description);
+            Assert.Same(manager.FileSheet.GetEntry("TestTable", "TestKey").Value, result.Entry);
+            Assert.Contains(result, manager.Sheet["TestTable"]);
         }
 
         [Fact]
-        public void Bind_WhenEntryDoesNotExist_CreatesNewEntry()
+        public void Bind_WhenEntryDoesNotExist_CreatesNewEntryFromDefault()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[TestTable]\n");
@@ -292,16 +370,223 @@ namespace UnityModBase.Test.HConfigSpace
 
             var result = manager.Bind<string>("TestTable", "NewKey", "DefaultValue", new Translator("新键", "NewKey"), new Translator("描述", "Description"));
 
-            Assert.NotNull(result);
             Assert.Equal("TestTable", result.TableKey);
             Assert.Equal("NewKey", result.Key);
+            Assert.Equal("DefaultValue", result.Value);
+            Assert.Equal("\"DefaultValue\"", result.Entry.Value);
+            Assert.Same(manager.FileSheet.GetEntry("TestTable", "NewKey").Value, result.Entry);
+            Assert.Contains(result, manager.Sheet["TestTable"]);
+        }
+
+        [Fact]
+        public void BindTuple_WhenEntryExists_UsesStoredValuesAndRegistersFacade()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nRange = 10,20\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var name = new Translator("范围", "Range");
+            var snapshots = new List<IConfigEntry>();
+            manager.OnConfigChanged += () =>
+                snapshots.Add(Assert.Single(manager.Sheet["TestTable"]));
+
+            // Act
+            var result = manager.Bind<int, int>(
+                "TestTable",
+                "Range",
+                1,
+                2,
+                name,
+                new Translator("取值范围", "Value range"),
+                new Translator("下限", "Minimum"),
+                new Translator("上限", "Maximum"));
+
+            // Assert
+            Assert.Equal(10, result.Value1);
+            Assert.Equal(20, result.Value2);
+            Assert.Same(name, result.Name);
+            Assert.Same(manager.FileSheet.GetEntry("TestTable", "Range").Value, result.Entry);
+            Assert.Contains(result, manager.Sheet["TestTable"]);
+            Assert.Same(result, Assert.Single(snapshots));
+        }
+
+        [Fact]
+        public void BindTuple_WhenEntryDoesNotExist_CreatesEncodedEntryFromDefaults()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            // Act
+            var result = manager.Bind<int, string>(
+                "TestTable",
+                "Pair",
+                7,
+                "fallback",
+                new Translator("组合", "Pair"),
+                new Translator("组合值", "Pair value"),
+                new Translator("编号", "Number"),
+                new Translator("文本", "Text"));
+
+            // Assert
+            Assert.Equal(7, result.Value1);
+            Assert.Equal("fallback", result.Value2);
+            Assert.Equal("7,\"fallback\"", result.Entry.Value);
+            Assert.Same(manager.FileSheet.GetEntry("TestTable", "Pair").Value, result.Entry);
+            Assert.Contains(result, manager.Sheet["TestTable"]);
+        }
+
+        [Fact]
+        public void Reload_WhenTupleEntryIsBound_UpdatesBothValues()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nPair = 1,\"old\"\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int, string>(
+                "TestTable",
+                "Pair",
+                0,
+                "default",
+                new Translator("组合", "Pair"),
+                new Translator("组合值", "Pair value"),
+                new Translator("编号", "Number"),
+                new Translator("文本", "Text"));
+            File.WriteAllText(tempPath, "[TestTable]\nPair = 9,\"new\"\n");
+
+            // Act
+            var result = manager.Reload();
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal(9, entry.Value1);
+            Assert.Equal("new", entry.Value2);
+            Assert.Same(manager.FileSheet.GetEntry("TestTable", "Pair").Value, entry.Entry);
+        }
+
+        [Fact]
+        public void BindTuple_WhenValueChangesAndSaveOnConfigSetIsTrue_WritesBothValues()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nRange = 1,2\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int, int>(
+                "TestTable",
+                "Range",
+                0,
+                0,
+                new Translator("范围", "Range"),
+                new Translator("取值范围", "Value range"),
+                new Translator("下限", "Minimum"),
+                new Translator("上限", "Maximum"));
+
+            // Act
+            entry.Value2 = 9;
+
+            // Assert
+            Assert.Equal(1, entry.Value1);
+            Assert.Equal(9, entry.Value2);
+            Assert.Contains("Range = 1,9", File.ReadAllText(tempPath));
+        }
+
+        [Fact]
+        public void BindTuple_WhenDefaultElementTypeUnsupported_DoesNotAddEntry()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            // Act
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                manager.Bind<object, int>(
+                    "TestTable",
+                    "UnsupportedPair",
+                    new object(),
+                    1,
+                    new Translator("组合", "Pair"),
+                    new Translator("组合值", "Pair value"),
+                    new Translator("对象", "Object"),
+                    new Translator("编号", "Number")));
+
+            // Assert
+            Assert.Contains("Failed to encode default value", exception.Message);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", "UnsupportedPair").Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void BindTuple_WhenElementTypeIsNestedTuple_ThrowsWithoutAddingEntry(bool nestedTupleIsFirst)
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var key = nestedTupleIsFirst ? "NestedFirst" : "NestedSecond";
+
+            var exception = nestedTupleIsFirst
+                ? Assert.Throws<ArgumentException>(() =>
+                    manager.Bind<ConfigEntryValue<int, int>, string>(
+                        "TestTable",
+                        key,
+                        new ConfigEntryValue<int, int>(1, 2),
+                        "value",
+                        new Translator("组合", "Pair"),
+                        new Translator("组合值", "Pair value"),
+                        new Translator("嵌套", "Nested"),
+                        new Translator("文本", "Text")))
+                : Assert.Throws<ArgumentException>(() =>
+                    manager.Bind<string, ConfigEntryValue<int, int>>(
+                        "TestTable",
+                        key,
+                        "value",
+                        new ConfigEntryValue<int, int>(1, 2),
+                        new Translator("组合", "Pair"),
+                        new Translator("组合值", "Pair value"),
+                        new Translator("文本", "Text"),
+                        new Translator("嵌套", "Nested")));
+
+            Assert.Contains(typeof(ConfigEntryValue<int, int>).FullName, exception.Message);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", key).Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Fact]
+        public void BindTuple_WhenStoredValueCannotDecode_DoesNotRegisterFacade()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nPair = invalid\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                manager.Bind<int, string>(
+                    "TestTable",
+                    "Pair",
+                    1,
+                    "default",
+                    new Translator("组合", "Pair"),
+                    new Translator("组合值", "Pair value"),
+                    new Translator("编号", "Number"),
+                    new Translator("文本", "Text")));
+
+            Assert.Contains("decode", exception.Message);
+            Assert.Equal("invalid", manager.FileSheet.GetEntry("TestTable", "Pair").Value.Value);
+            Assert.Empty(manager.Sheet["TestTable"]);
         }
 
         [Fact]
         public void Bind_WhenTableDoesNotExist_ThrowsArgumentException()
         {
             var tempPath = CreateTempConfigPath();
-            var manager = new ConfigService(tempPath);
+            using var manager = new ConfigService(tempPath);
 
             var exception = Assert.Throws<ArgumentException>(() =>
                 manager.Bind<string>("NonExistentTable", "Key", "Value", new Translator("键", "Key"), new Translator("描述", "Description")));
@@ -309,6 +594,8 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Contains("Config table not found", exception.Message);
             Assert.Contains("NonExistentTable", exception.Message);
             Assert.Equal("tableKey", exception.ParamName);
+            Assert.Empty(manager.FileSheet.Sheet);
+            Assert.Empty(manager.Sheet);
         }
 
         [Fact]
@@ -325,73 +612,79 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Contains("Invalid key name", exception.Message);
             Assert.Contains("TestTable.Invalid-Key!", exception.Message);
             Assert.Equal("key", exception.ParamName);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", "Invalid-Key!").Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Theory]
+        [InlineData("tableKey")]
+        [InlineData("key")]
+        [InlineData("name")]
+        [InlineData("description")]
+        public void Bind_WhenRequiredArgumentMissing_ThrowsWithoutAddingEntry(string argumentName)
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var tableKey = argumentName == "tableKey" ? " " : "TestTable";
+            var key = argumentName == "key" ? " " : "Candidate";
+            var name = argumentName == "name" ? null : new Translator("候选项", "Candidate");
+            var description = argumentName == "description" ? null : new Translator("描述", "Description");
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                manager.Bind(tableKey, key, 1, name, description));
+
+            Assert.Equal(argumentName, exception.ParamName);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", "Candidate").Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Theory]
+        [InlineData("tableKey")]
+        [InlineData("key")]
+        [InlineData("name")]
+        [InlineData("description")]
+        [InlineData("valueDescription1")]
+        [InlineData("valueDescription2")]
+        public void BindTuple_WhenRequiredArgumentMissing_ThrowsWithoutAddingEntry(string argumentName)
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var tableKey = argumentName == "tableKey" ? " " : "TestTable";
+            var key = argumentName == "key" ? " " : "Candidate";
+            var name = argumentName == "name" ? null : new Translator("组合", "Pair");
+            var description = argumentName == "description" ? null : new Translator("组合值", "Pair value");
+            var valueDescription1 = argumentName == "valueDescription1" ? null : new Translator("编号", "Number");
+            var valueDescription2 = argumentName == "valueDescription2" ? null : new Translator("文本", "Text");
+
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                manager.Bind(
+                    tableKey,
+                    key,
+                    1,
+                    "default",
+                    name,
+                    description,
+                    valueDescription1,
+                    valueDescription2));
+
+            Assert.Equal(argumentName, exception.ParamName);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", "Candidate").Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
         }
 
         [Fact]
-        public void Constructor_CallsReadMethod()
+        public void Constructor_WhenFileExists_LoadsFileEntriesWithoutRuntimeBindings()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[TestTable]\nTestKey=TestValue\n");
 
-            var manager = new ConfigService(tempPath);
+            using var manager = new ConfigService(tempPath);
 
-            Assert.NotNull(manager.FileSheet);
-            Assert.NotNull(manager.Sheet);
-            var tableResult = manager.FileSheet.GetTable("TestTable");
-            Assert.True(tableResult.Success);
+            var entryResult = manager.FileSheet.GetEntry("TestTable", "TestKey");
+            Assert.True(entryResult.Success);
+            Assert.Equal("TestValue", entryResult.Value.Value);
+            Assert.Empty(manager.Sheet);
         }
-
-        [Fact]
-        public void Bind_WhenCreatingNewEntryWithComplexType_EncodesValue()
-        {
-            var tempPath = CreateTempConfigPath();
-            File.WriteAllText(tempPath, "[TestTable]\n");
-            var manager = new ConfigService(tempPath);
-            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
-
-            var result = manager.Bind<bool>("TestTable", "BoolKey", true, new Translator("布尔键", "BoolKey"), new Translator("描述", "Description"));
-
-            Assert.NotNull(result);
-            Assert.Equal("TestTable", result.TableKey);
-            Assert.Equal("BoolKey", result.Key);
-        }
-
-        [Fact]
-        public void Bind_AddsValueChangedHandler()
-        {
-            var tempPath = CreateTempConfigPath();
-            File.WriteAllText(tempPath, "[TestTable]\n");
-            var manager = new ConfigService(tempPath);
-            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
-
-            var result = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
-
-            Assert.NotNull(result);
-            Assert.True(manager.Sheet.Contains("TestTable"));
-            Assert.Contains(result, manager.Sheet["TestTable"]);
-        }
-
-        [Fact]
-        public void Reload_WhenCalledWithBoundEntries_UpdatesEntriesFromFile()
-        {
-            var tempPath = CreateTempConfigPath();
-            File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"OriginalValue\"\n");
-            var manager = new ConfigService(tempPath);
-            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
-            var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
-
-            File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"UpdatedValue\"\n");
-            var result = manager.Reload();
-
-            Assert.True(result);
-            Assert.Equal("UpdatedValue", entry.Value);
-        }
-
-        // 注：原 Reload_WhenSuccessful_RebindsFileTableAndPreservesTableMetadata 测试覆盖的
-        // 运行时表文件表引用切换（ConfigTable.FileTable）和重载时把运行时表名/说明同步回新文件表的行为，
-        // 已在本次重构中随 TableReloadPlan 与 ConfigTable.FileTable 一并移除，故删除该测试。
-        // 取而代之，下方用 Reload_WhenSuccessful_PreservesEntryMetadataAndReplacesFileSheet
-        // 验证重构后仍保留的行为：配置项级元数据随重载同步，且 FileSheet 被替换为新实例。
 
         [Fact]
         public void Reload_WhenSuccessful_PreservesEntryMetadataAndReplacesFileSheet()
@@ -678,6 +971,8 @@ namespace UnityModBase.Test.HConfigSpace
 
             Assert.Contains("Failed to encode default value", exception.Message);
             Assert.Contains("TestTable.UnsupportedKey", exception.Message);
+            Assert.False(manager.FileSheet.GetEntry("TestTable", "UnsupportedKey").Success);
+            Assert.Empty(manager.Sheet["TestTable"]);
         }
 
         [Fact]
@@ -685,14 +980,19 @@ namespace UnityModBase.Test.HConfigSpace
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[ExistingTable]\n");
-            var manager = new ConfigService(tempPath);
-            var tableName = new Translator("表名", "TableName");
+            using var manager = new ConfigService(tempPath);
+            var originalName = new Translator("原表名", "Original Name");
+            var originalDescription = new Translator("原描述", "Original Description");
+            var replacementName = new Translator("新表名", "Replacement Name");
+            var replacementDescription = new Translator("新描述", "Replacement Description");
 
-            manager.CreateTable("ExistingTable", tableName);
-            manager.CreateTable("ExistingTable", tableName);
+            manager.CreateTable("ExistingTable", originalName, originalDescription);
+            var originalTable = manager.Sheet["ExistingTable"];
+            manager.CreateTable("ExistingTable", replacementName, replacementDescription);
 
-            Assert.True(manager.Sheet.Contains("ExistingTable"));
-            Assert.Equal(1, manager.Sheet.Count);
+            Assert.Same(originalTable, Assert.Single(manager.Sheet.Values));
+            Assert.Same(originalName, originalTable.Name);
+            Assert.Same(originalDescription, originalTable.Description);
         }
 
         [Fact]

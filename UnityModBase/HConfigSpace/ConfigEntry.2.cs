@@ -11,10 +11,11 @@ namespace UnityModBase.HConfigSpace
     /// <typeparam name="T1">第一个元素的值类型。</typeparam>
     /// <typeparam name="T2">第二个元素的值类型。</typeparam>
     /// <remarks>
-    /// 构造函数会把内部 <c>_configEntry</c> 初始化为真实的 <see cref="ConfigEntry{T}"/>，
-    /// 因此构造完成后全部接口成员与事务方法均可正常委托执行。
-    /// 但 <see cref="ConfigService.Bind{T}"/> 当前只会产出单值 <see cref="ConfigEntry{T}"/>，
-    /// 没有任何调用方构造本门面类型，因此它尚未接入标准绑定与事务重载流程，属于预留实现。
+    /// <see cref="ConfigService"/> 的双元素 <c>Bind&lt;T1, T2&gt;</c> 重载会创建本类型并将门面登记到运行时配置表；
+    /// 自动保存事件和事务重载操作经由接口转发给内部配置项，因此与单值配置项遵循相同的生命周期。
+    /// 平铺编码无法保留嵌套 <see cref="ConfigEntryValue{T1, T2}"/> 的元素边界；配置服务会拒绝这种元素类型，
+    /// 直接调用构造函数时也应遵守相同约束。
+    /// 本类型及其内部配置项均不提供并发保护，整体值和分元素值的读写必须由调用方串行化。
     /// </remarks>
     public class ConfigEntry<T1, T2> : IConfigEntry
     {
@@ -36,8 +37,10 @@ namespace UnityModBase.HConfigSpace
         public ConfigFileEntry Entry => _configEntry.Entry;
 
         /// <summary>
-        /// 当前双元素元组值。赋值会复用底层 <see cref="ConfigEntry{T}"/> 的编码、文件项同步和事件流程。
+        /// 当前双元素值。与旧值不等价时，赋值会复用底层 <see cref="ConfigEntry{T}"/> 的编码、文件模型同步和事件流程。
+        /// 若本门面由 <see cref="ConfigService"/> 登记且启用自动保存，变化事件还会在当前线程同步写入整个配置文件。
         /// </summary>
+        /// <exception cref="InvalidOperationException">新值或其中任一元素无法按配置格式编码。</exception>
         public ConfigEntryValue<T1, T2> Value
         {
             get => _configEntry.Value;
@@ -45,10 +48,10 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 第一个元素。
-        /// <see cref="ConfigEntryValue{T1, T2}"/> 为不可变值，因此单元素赋值在检测到变化时构造一个新实例整体替换 <see cref="Value"/>，
+        /// 第一个元素的便捷访问。与现值等价的赋值会被忽略；只有变化时才构造新的 <see cref="ConfigEntryValue{T1, T2}"/> 整体替换 <see cref="Value"/>，
         /// 而非原地修改，以保证编码与变化事件按整体值触发。
         /// </summary>
+        /// <exception cref="InvalidOperationException">替换后的双元素值无法按配置格式编码。</exception>
         public T1 Value1
         {
             get => Value.Value1;
@@ -60,8 +63,9 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 第二个元素。赋值语义同 <see cref="Value1"/>：整体替换 <see cref="Value"/>。
+        /// 第二个元素的便捷访问。赋值语义同 <see cref="Value1"/>：忽略等价值，变化时整体替换 <see cref="Value"/>。
         /// </summary>
+        /// <exception cref="InvalidOperationException">替换后的双元素值无法按配置格式编码。</exception>
         public T2 Value2
         {
             get => Value.Value2;
@@ -104,11 +108,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="description">整体说明，与分元素说明拼接后写入内部配置项。</param>
         /// <param name="valueDescription1">第一个元素的说明。</param>
         /// <param name="valueDescription2">第二个元素的说明。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="name"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="description"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="valueDescription1"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="valueDescription2"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 或任一名称、说明参数为 <c>null</c>。</exception>
         /// <exception cref="InvalidOperationException">值类型提示、默认值无法编码，或文件项当前值无法解码。</exception>
         public ConfigEntry(
             ConfigFileEntry entry,

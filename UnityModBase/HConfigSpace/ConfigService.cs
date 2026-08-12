@@ -8,13 +8,15 @@ namespace UnityModBase.HConfigSpace
 {
     /// <summary>
     /// 管理单个配置文件与运行时配置表之间的绑定关系。
-    /// 该类型负责读取/写入文件、创建表项、把磁盘上的 <see cref="ConfigFileEntry"/> 重新绑定到运行时 <see cref="ConfigEntry{T}"/>。
-    /// 它不负责 UI 展示和具体配置项声明；这些职责分别由配置 GUI 与 <c>ConfigManager</c> 承担。
+    /// 该类型负责读取/写入文件、创建表项，以及把磁盘上的 <see cref="ConfigFileEntry"/> 绑定到单值或双元素运行时配置项。
+    /// 它不负责 UI 展示和具体配置项声明；这些职责分别由配置 GUI 与上层配置管理器承担。
     /// 重载的回滚边界止于事件发布前；配置项变化事件、配置模型变化事件及最终磁盘写入不属于可回滚范围。
     /// 文件模型、运行时模型和磁盘 IO 均不提供并发保护；创建、绑定、重载、保存及释放必须由调用方串行化。
     /// </summary>
     public class ConfigService : IDisposable
     {
+        private string _filePath;
+
         /// <summary>
         /// 文件模型成功读取、事务重载完成内存提交，以及运行时表或配置项声明成功后同步触发。
         /// 该事件表示配置模型可能需要重新投影，不表示每次 <see cref="ConfigEntry{T}.Value"/> 赋值；
@@ -50,18 +52,35 @@ namespace UnityModBase.HConfigSpace
         public ConfigSheet Sheet { get; private set; }
 
         /// <summary>
-        /// 配置文件路径。修改该路径不会自动迁移旧文件，下一次读写会使用新路径。
+        /// 配置文件路径，必须非空且包含目录部分，以便写入时在目标目录内创建临时文件和备份。
+        /// 修改该路径不会自动迁移旧文件，也不会重新绑定已声明的运行时配置项；后续读写使用新路径。
         /// </summary>
-        public string FilePath { get; set; }
+        /// <exception cref="ArgumentException">赋值为 <c>null</c>、空白字符串或不包含目录部分。</exception>
+        public string FilePath
+        {
+            get => _filePath;
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    throw new ArgumentException("FilePath cannot be null or whitespace.", nameof(value));
+
+                if (string.IsNullOrEmpty(Path.GetDirectoryName(value)))
+                    throw new ArgumentException("FilePath must contain a directory.", nameof(value));
+
+                _filePath = value;
+            }
+        }
 
         /// <summary>
         /// 创建配置文件管理器并立即尝试读取指定路径的配置。
         /// </summary>
-        /// <param name="filePath">配置文件路径；文件不存在时会创建空的内存模型，实际文件在写入时生成。</param>
-        /// <remarks>首次读取异常会转换为失败结果并记录，不会从构造函数抛出；此时 <see cref="FileSheet"/> 为 <c>null</c>。</remarks>
+        /// <param name="filePath">包含目录部分的配置文件路径；文件不存在时会创建空的内存模型，实际文件在写入时生成。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="filePath"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><paramref name="filePath"/> 为空白字符串或不包含目录部分。</exception>
+        /// <remarks>路径校验在首次读取前执行。通过校验后，首次读取的 IO 或解析异常会转换为失败结果并记录，不会从构造函数传播；此时 <see cref="FileSheet"/> 为 <c>null</c>。</remarks>
         public ConfigService(string filePath)
         {
-            FilePath = filePath;
+            FilePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
             Sheet = new ConfigSheet();
             Read();
         }
@@ -336,6 +355,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 绑定一个强类型配置项；如果文件中不存在该项，则使用默认值创建。
+        /// 文件中已存在的有效值优先于声明默认值；默认值只用于补齐缺失项和生成元数据。
         /// 每次调用都会在运行时表中追加一个新绑定并订阅自动保存，调用方应确保同一表键和配置项键只绑定一次。
         /// 调用前必须先通过 <see cref="CreateTable"/> 建立对应的运行时表。
         /// 新绑定加入运行时表后会同步触发 <see cref="OnConfigChanged"/>。
@@ -343,65 +363,171 @@ namespace UnityModBase.HConfigSpace
         /// <typeparam name="T">配置值类型，必须能被 <see cref="ConfigFileEntry"/> 编码和解码。</typeparam>
         /// <param name="tableKey">已有配置表键名。</param>
         /// <param name="key">配置项键名，只允许 Unicode 字母、数字和下划线。</param>
-        /// <param name="defaultValue">文件中缺失该项时写入的默认值。</param>
-        /// <param name="entryName">用于生成配置文件注释和 GUI 标签的名称。</param>
+        /// <param name="defaultValue">文件模型中缺失该项时使用的初始值。</param>
+        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称。</param>
         /// <param name="description">用于生成配置文件注释和 GUI 提示的描述。</param>
         /// <returns>可在运行时读写的强类型配置项。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或 <paramref name="description"/> 为 <c>null</c>。</exception>
         /// <exception cref="ArgumentException">表不存在或键名非法时抛出。</exception>
         /// <exception cref="InvalidOperationException">现有值无法解码、类型或默认值无法编码，或者文件模型无法接受新项。</exception>
-        /// <exception cref="NullReferenceException">文件表存在，但尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
-        public ConfigEntry<T> Bind<T>(string tableKey, string key, T defaultValue, Translator entryName, Translator description)
+        /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
+        /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
+        public ConfigEntry<T> Bind<T>(string tableKey, string key, T defaultValue, Translator name, Translator description)
         {
-            ConfigEntry<T> result = null;
+            if (string.IsNullOrWhiteSpace(tableKey))
+                throw new ArgumentNullException(nameof(tableKey));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentNullException(nameof(key));
+            if (name == null)
+                throw new ArgumentNullException(nameof(name));
+            if (description == null)
+                throw new ArgumentNullException(nameof(description));
+
+            var configFileEntry = GetOrCreateConfigFileEntry(tableKey, key, defaultValue);
+            var result = new ConfigEntry<T>(configFileEntry, defaultValue, name, description);
+            Bind(tableKey, result);
+            return result;
+        }
+
+        /// <summary>
+        /// 绑定一个以顶层逗号分隔文本存储的双元素配置项；文件中不存在该项时，使用两个声明默认值创建。
+        /// 文件中已有的有效值优先于默认值，两个元素说明会与整体说明按语言拼接后写入配置项元数据。
+        /// 返回的门面允许分别读写两个元素，但单元素写入仍会整体替换双元素值，从而复用统一的编码、事件和自动保存流程。
+        /// 每次调用都会追加新运行时绑定；调用方必须先通过 <see cref="CreateTable"/> 建立运行时表，并保证同一配置键只绑定一次。
+        /// </summary>
+        /// <typeparam name="T1">第一个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
+        /// <typeparam name="T2">第二个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
+        /// <param name="tableKey">已有配置表键名。</param>
+        /// <param name="key">配置项键名，只允许 Unicode 字母、数字和下划线。</param>
+        /// <param name="defaultValue1">文件中缺失该项时使用的第一个元素默认值。</param>
+        /// <param name="defaultValue2">文件中缺失该项时使用的第二个元素默认值。</param>
+        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称。</param>
+        /// <param name="description">双元素配置项的整体说明。</param>
+        /// <param name="valueDescription1">第一个元素的说明；仅用于文件注释和 GUI 提示，不参与取值校验。</param>
+        /// <param name="valueDescription2">第二个元素的说明；仅用于文件注释和 GUI 提示，不参与取值校验。</param>
+        /// <returns>可整体或按元素读写的双元素配置项门面。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或任一说明参数为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException">表不存在、键名非法，或任一元素类型会使双元素平铺格式产生嵌套分隔歧义。</exception>
+        /// <exception cref="InvalidOperationException">现有双元素文本无法解码、元素类型或默认值无法编码，或者文件模型无法接受新项。</exception>
+        /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
+        /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
+        public ConfigEntry<T1, T2> Bind<T1, T2>(
+            string tableKey,
+            string key,
+            T1 defaultValue1,
+            T2 defaultValue2,
+            Translator name,
+            Translator description,
+            Translator valueDescription1,
+            Translator valueDescription2)
+        {
+            if (string.IsNullOrWhiteSpace(tableKey))
+                throw new ArgumentNullException(nameof(tableKey));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentNullException(nameof(key));
+            if (name == null)
+                throw new ArgumentNullException(nameof(name));
+            if (description == null)
+                throw new ArgumentNullException(nameof(description));
+            if (valueDescription1 == null)
+                throw new ArgumentNullException(nameof(valueDescription1));
+            if (valueDescription2 == null)
+                throw new ArgumentNullException(nameof(valueDescription2));
+
+            // 双元素文本没有外层定界符；元素若再次使用相同平铺格式，其逗号会被外层误判为额外元素，导致无法逆向解码。
+            var genericType = typeof(IGenericConfigEntryValue);
+            if (genericType.IsAssignableFrom(typeof(T1)))
+                throw new ArgumentException($"Type {typeof(T1).FullName} is a generic ConfigEntryValue type and cannot be used as a direct element type in a dual-value config entry.");
+            if (genericType.IsAssignableFrom(typeof(T2)))
+                throw new ArgumentException($"Type {typeof(T2).FullName} is a generic ConfigEntryValue type and cannot be used as a direct element type in a dual-value config entry.");
+
+            var defaultValue = new ConfigEntryValue<T1, T2>(defaultValue1, defaultValue2);
+            var configFileEntry = GetOrCreateConfigFileEntry(tableKey, key, defaultValue);
+            var result = new ConfigEntry<T1, T2>(configFileEntry, defaultValue1, defaultValue2, name, description, valueDescription1, valueDescription2);
+            Bind(tableKey, result);
+            return result;
+        }
+
+        /// <summary>
+        /// 从文件模型取得指定项；仅在配置表存在且配置项缺失时，编码默认值并把新项追加到该表。
+        /// 已有项会原样返回，其值解码和名称、说明、类型等元数据同步由随后构造的运行时配置项负责。
+        /// 本方法只维护文件层模型，不会注册运行时项、订阅自动保存事件或触发 <see cref="OnConfigChanged"/>。
+        /// </summary>
+        /// <typeparam name="T">用于创建缺失项的默认值类型。</typeparam>
+        /// <param name="tableKey">目标文件表键名。</param>
+        /// <param name="key">目标配置项键名。</param>
+        /// <param name="defaultValue">缺失项的初始值。</param>
+        /// <returns>文件模型中已有或本次新建的配置项。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串。</exception>
+        /// <exception cref="ArgumentException">目标表不存在或待创建项的键名非法。</exception>
+        /// <exception cref="InvalidOperationException">默认值无法编码，或新项无法加入目标表。</exception>
+        /// <exception cref="NullReferenceException"><see cref="FileSheet"/> 尚未初始化或服务已释放。</exception>
+        private ConfigFileEntry GetOrCreateConfigFileEntry<T>(string tableKey, string key, T defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(tableKey))
+                throw new ArgumentNullException(nameof(tableKey));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentNullException(nameof(key));
+
             var entryResult = FileSheet.GetEntry(tableKey, key);
             if (entryResult.Success)
+                return entryResult.Value;
+
+            var tableResult = FileSheet.GetTable(tableKey);
+            if (!tableResult.Success)
             {
-                result = new ConfigEntry<T>(entryResult.Value, defaultValue, entryName, description);
-            }
-            else
-            {
-                var tableResult = FileSheet.GetTable(tableKey);
-                if (!tableResult.Success)
-                {
-                    foreach (var error in tableResult.Errors)
-                        BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                    throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
-                }
-
-                if (!ConfigFileModel.IsValidKeyName(key))
-                    throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
-
-                var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
-                if (!valueResult.Success)
-                {
-                    foreach (var error in valueResult.Errors)
-                        BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                    throw new InvalidOperationException($"Failed to encode default value for config entry: {tableKey}.{key}. Errors: {string.Join(", ", valueResult.Errors)}");
-                }
-
-                var newEntry = new ConfigFileEntry
-                {
-                    TableKey = tableKey,
-                    Key = key,
-                    Value = valueResult.Value,
-                };
-
-                var addEntryResult = tableResult.Value.AddEntry(newEntry);
-                if (!addEntryResult.Success)
-                {
-                    foreach (var error in addEntryResult.Errors)
-                        BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                    throw new InvalidOperationException($"Failed to add config entry to table: {tableKey}.{key}.");
-                }
-
-                result = new ConfigEntry<T>(newEntry, defaultValue, entryName, description);
+                foreach (var error in tableResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
             }
 
-            result.OnValueChangedBase += OnConfigEntryChanged;
+            if (!ConfigFileModel.IsValidKeyName(key))
+                throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
 
-            Sheet[tableKey].Add(result);
-            InvokeOnConfigChanged();
+            var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
+            if (!valueResult.Success)
+            {
+                foreach (var error in valueResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new InvalidOperationException($"Failed to encode default value for config entry: {tableKey}.{key}. Errors: {string.Join(", ", valueResult.Errors)}");
+            }
+
+            var result = new ConfigFileEntry
+            {
+                TableKey = tableKey,
+                Key = key,
+                Value = valueResult.Value,
+            };
+
+            var addEntryResult = tableResult.Value.AddEntry(result);
+            if (!addEntryResult.Success)
+            {
+                foreach (var error in addEntryResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                throw new InvalidOperationException($"Failed to add config entry to table: {tableKey}.{key}.");
+            }
+
             return result;
+        }
+
+        /// <summary>
+        /// 将已完成文件绑定和初始值校验的运行时配置项登记到现有运行时表，并接入自动保存事件。
+        /// 该低级步骤不检查重复键；登记成功后会同步触发一次 <see cref="OnConfigChanged"/>。
+        /// </summary>
+        /// <param name="tableKey">已通过 <see cref="CreateTable"/> 建立的运行时表键名。</param>
+        /// <param name="entry">待登记的运行时配置项。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 为空白字符串，或 <paramref name="entry"/> 为 <c>null</c>。</exception>
+        /// <exception cref="NullReferenceException"><see cref="Sheet"/> 已释放，或目标运行时表不存在。</exception>
+        private void Bind(string tableKey, IConfigEntry entry)
+        {
+            if (string.IsNullOrWhiteSpace(tableKey))
+                throw new ArgumentNullException(nameof(tableKey));
+            if (entry == null)
+                throw new ArgumentNullException(nameof(entry));
+
+            entry.OnValueChangedBase += OnConfigEntryChanged;
+            Sheet[tableKey].Add(entry);
+            InvokeOnConfigChanged();
         }
 
         /// <summary>
@@ -412,9 +538,19 @@ namespace UnityModBase.HConfigSpace
         /// <param name="tableKey">表键名，只允许 Unicode 字母、数字和下划线。</param>
         /// <param name="tableName">运行时展示名称。</param>
         /// <param name="description">写入配置文件的表说明，可为空。</param>
-        /// <exception cref="InvalidOperationException">表名非法，或新表无法加入文件模型。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 为空白字符串，或 <paramref name="tableName"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表键名语法。</exception>
+        /// <exception cref="InvalidOperationException">新表无法创建或加入文件模型。</exception>
+        /// <exception cref="NullReferenceException">服务已释放，或 <see cref="FileSheet"/> 首次读取失败。</exception>
         public void CreateTable(string tableKey, Translator tableName, Translator description = null)
         {
+            if (string.IsNullOrWhiteSpace(tableKey))
+                throw new ArgumentNullException(nameof(tableKey));
+            if (tableName == null)
+                throw new ArgumentNullException(nameof(tableName));
+            if (!ConfigFileModel.IsValidKeyName(tableKey))
+                throw new ArgumentException($"Invalid table key name: {tableKey}.", nameof(tableKey));
+
             var tableResult = FileSheet.GetTable(tableKey);
             if (tableResult.Success)
             {
