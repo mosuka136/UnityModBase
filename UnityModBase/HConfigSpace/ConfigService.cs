@@ -288,7 +288,7 @@ namespace UnityModBase.HConfigSpace
 
                 if (!preparationSucceeded)
                 {
-                    BLog.Error($"Failed to reload config from file: {FilePath}. See previous errors for details.");
+                    BLog.Error($"Config reload preparation failed. Path='{FilePath}', PreparedEntries={plans.Count}. See earlier diagnostics for rejected tables or entries.");
                     return false;
                 }
 
@@ -306,18 +306,18 @@ namespace UnityModBase.HConfigSpace
                 {
                     while (appliedPlans.Count > 0)
                     {
+                        var plan = appliedPlans.Pop();
                         try
                         {
-                            var plan = appliedPlans.Pop();
                             plan.ConfigEntry.RollbackBind(plan);
                         }
                         catch (Exception rollbackException)
                         {
-                            BLog.Error("Failed to roll back a config entry reload plan.", rollbackException);
+                            BLog.Error($"Failed to roll back config entry during reload. Entry='{plan.NewEntry.TableKey}.{plan.NewEntry.Key}', Path='{FilePath}'.", rollbackException);
                         }
                     }
 
-                    BLog.Error($"Failed to commit config reload: {FilePath}.", ex);
+                    BLog.Error($"Config reload commit failed; applied entries were rolled back where possible. Path='{FilePath}', PlannedEntries={plans.Count}.", ex);
                     return false;
                 }
 
@@ -333,7 +333,7 @@ namespace UnityModBase.HConfigSpace
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("Failed to publish a config entry reload event.", ex);
+                        BLog.Error($"Failed to publish config reload event for entry '{plan.NewEntry.TableKey}.{plan.NewEntry.Key}'. Path='{FilePath}'.", ex);
                         publishSucceeded = false;
                     }
                 }
@@ -344,7 +344,7 @@ namespace UnityModBase.HConfigSpace
             }
             catch (Exception ex)
             {
-                BLog.Error($"Failed to reload config file: {FilePath}.", ex);
+                BLog.Error($"Unexpected failure during config reload. Path='{FilePath}'.", ex);
                 return false;
             }
             finally
@@ -624,7 +624,7 @@ namespace UnityModBase.HConfigSpace
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Error invoking {nameof(OnConfigChanged)} handler.", ex);
+                    BLog.Error($"Config changed handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. Path='{FilePath}'; remaining handlers will continue.", ex);
                 }
             }
         }

@@ -122,11 +122,11 @@ namespace UnityModBase.HGuiSpace
                 _selectedUserKey = GetDefaultUserKey();
                 UserManager.OnUserRemoved += OnUserRemoved;
 
-                BLog.Debug($"[{WindowID}] GUI host created.");
+                BLog.Debug($"GUI host created. Type='{GetType().FullName}', WindowId={WindowID}, InitialUser='{_selectedUserKey}'.");
             }
             catch (Exception ex)
             {
-                BLog.Error($"[{WindowID}] Failed to create GUI host.", ex);
+                BLog.Error($"Failed to create GUI host. Type='{GetType().FullName}', WindowId={WindowID}.", ex);
                 Destroy(this);
             }
         }
@@ -138,7 +138,7 @@ namespace UnityModBase.HGuiSpace
         {
             if (UIHotkey?.WasPressedThisFrame() == true)
             {
-                BLog.Debug($"[{WindowID}] Config GUI toggle hotkey pressed.");
+                BLog.Debug($"GUI visibility hotkey triggered. WindowId={WindowID}, Host='{GetType().Name}', WasVisible={IsVisible}.");
                 ToggleVisibility();
             }
         }
@@ -212,7 +212,7 @@ namespace UnityModBase.HGuiSpace
             if (WindowRect.Contains(currentEvent.mousePosition))
                 return;
 
-            BLog.Debug($"[{WindowID}] GUI auto-hidden because focus was lost.");
+            BLog.Debug($"GUI auto-hidden after losing focus. WindowId={WindowID}, Host='{GetType().Name}', User='{SelectedUserKey}'.");
             Hide();
             GUI.FocusControl(null);
         }
@@ -228,7 +228,7 @@ namespace UnityModBase.HGuiSpace
             IsVisible = false;
             HasDraggedWindowSinceOpen = false;
 
-            BLog.Debug($"[{WindowID}] GUI hidden.");
+            BLog.Debug($"GUI hidden. WindowId={WindowID}, Host='{GetType().Name}', User='{SelectedUserKey}'.");
         }
 
         /// <summary>
@@ -241,7 +241,7 @@ namespace UnityModBase.HGuiSpace
             else
             {
                 IsVisible = true;
-                BLog.Debug($"[{WindowID}] GUI shown.");
+                BLog.Debug($"GUI shown. WindowId={WindowID}, Host='{GetType().Name}', User='{SelectedUserKey}'.");
             }
         }
 

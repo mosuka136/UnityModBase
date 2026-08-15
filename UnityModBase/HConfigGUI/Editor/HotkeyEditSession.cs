@@ -209,7 +209,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 // 同一轮同时出现两类有效设备输入时无法仅凭快照消歧，保留状态机此前选定的 WorkingChord。
                 if (PreviewGamepadChord.IsValid && PreviewKeyboardChord.IsValid)
                 {
-                    BLog.Warn($"Both gamepad and keyboard inputs are detected, which is ambiguous");
+                    BLog.Warn($"Hotkey capture is ambiguous because valid keyboard and gamepad chords were detected together. Keyboard='{PreviewKeyboardChord}', Gamepad='{PreviewGamepadChord}'; keeping the previously selected device.");
                 }
                 else if (PreviewGamepadChord.IsValid)
                 {

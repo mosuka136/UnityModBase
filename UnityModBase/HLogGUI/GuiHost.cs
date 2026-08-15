@@ -56,11 +56,11 @@ namespace UnityModBase.HLogGUI
                 float height = UnityGui.ScreenHeight * 0.5f;
                 WindowRect = new Rect((UnityGui.ScreenWidth - width) / 2f, (UnityGui.ScreenHeight - height) / 2f, width, height);
 
-                BLog.Debug($"Log GUI host created. WindowId={WindowID}");
+                BLog.Debug($"Log GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={width}x{height}.");
             }
             catch (Exception ex)
             {
-                BLog.Error("Failed to create Log GUI host.", ex);
+                BLog.Error($"Failed to initialize Log GUI host. WindowId={WindowID}, ContextKey='{GuiContextKey}'.", ex);
                 Destroy(this);
             }
         }

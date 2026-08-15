@@ -1,3 +1,4 @@
+using System;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HProvider;
 
@@ -25,14 +26,20 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         /// <param name="unityGui">用于绘制文本框的 IMGUI 提供器。</param>
         public NumberEditor(IUnityGuiProvider unityGui)
         {
-            UnityGui = unityGui;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui));
         }
 
         /// <inheritdoc/>
         public virtual bool CanEdit(IEntryBinding entry)
         {
+            if (entry == null)
+                return false;
+
             var type = entry.ValueType;
-            return type.IsPrimitive && type != typeof(bool) && type != typeof(char);
+            if (type.IsPrimitive && type != typeof(bool) && type != typeof(char) && entry.Metadata == null)
+                return true;
+            else
+                return false;
         }
 
         /// <inheritdoc/>

@@ -35,7 +35,7 @@ namespace UnityModBase
                     return;
 
                 UnityProvider.Instance.UnityQuitting += Dispose;
-                BLog.Debug("GameQuitManager initialized.");
+                BLog.Debug("Game quit manager initialized and subscribed to the Unity quitting event.");
 
                 _initialized = true;
             }
@@ -69,7 +69,7 @@ namespace UnityModBase
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Exception in OnGameQuit handler.", ex);
+                    BLog.Error($"Game quit handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed; remaining handlers will continue.", ex);
                 }
             }
         }

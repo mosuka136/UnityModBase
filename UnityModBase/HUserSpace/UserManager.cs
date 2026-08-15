@@ -120,7 +120,7 @@ namespace UnityModBase.HUserSpace
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error("Error invoking OnUserRegistered handler!", ex);
+                    BLog.Error($"User registered handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. UserId='{context.UserId}'; remaining handlers will continue.", ex);
                 }
             }
 
@@ -150,7 +150,7 @@ namespace UnityModBase.HUserSpace
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("Error invoking OnConfigChanged handler!", ex);
+                        BLog.Error($"User config changed handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. UserId='{_context.UserId}'; remaining handlers will continue.", ex);
                     }
                 }
             }
@@ -227,7 +227,7 @@ namespace UnityModBase.HUserSpace
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("Error invoking OnUserRemoved handler!", ex);
+                        BLog.Error($"User removed handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. UserId='{userId}'; remaining handlers will continue.", ex);
                     }
                 }
             }

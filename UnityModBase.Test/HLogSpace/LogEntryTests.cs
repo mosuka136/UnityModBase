@@ -66,7 +66,10 @@ namespace UnityModBase.Test.HLogSpace
             var result = entry.ToString();
 
             // Assert
-            var expected = "[5] 01:02:03.004 T2 F77 S=Town Notice | Hello (Player.cs:18 Update)" + Environment.NewLine + exception;
+            var expected =
+                "[2026-06-13 01:02:03.004] [NOTICE] [#5] [T2] [F77] [Scene:Town] Hello" + Environment.NewLine +
+                "    at Update (Player.cs:18)" + Environment.NewLine +
+                "    Exception: " + exception;
             Assert.Equal(expected, result);
         }
 
@@ -83,7 +86,7 @@ namespace UnityModBase.Test.HLogSpace
             var result = entry.ToString();
 
             // Assert
-            Assert.Equal("[9] 09:08:07.006 T4 F15 S=Menu Info | Ready", result);
+            Assert.Equal("[2026-06-13 09:08:07.006] [INFO] [#9] [T4] [F15] [Scene:Menu] Ready", result);
         }
 
         [Fact]
@@ -96,7 +99,41 @@ namespace UnityModBase.Test.HLogSpace
             var result = entry.ToString();
 
             // Assert
-            Assert.Equal("[1] 10:11:12.013 T6 F20 S=Map Debug | Trace (Trace.cs:3 Tick)", result);
+            var expected =
+                "[2026-06-13 10:11:12.013] [DEBUG] [#1] [T6] [F20] [Scene:Map] Trace" + Environment.NewLine +
+                "    at Tick (Trace.cs:3)";
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void ToString_WhenMessageIsMultilineAndRepeated_IndentsContinuationAndShowsSummary()
+        {
+            // Arrange
+            var entry = new LogEntry(
+                3,
+                new DateTime(2026, 6, 13, 10, 11, 12, 13),
+                6,
+                20,
+                "Map",
+                LogLevel.Warning,
+                "First line\nSecond line",
+                string.Empty,
+                0,
+                string.Empty,
+                null)
+            {
+                RepeatCount = 4,
+                LastRepeatTime = new DateTime(2026, 6, 13, 10, 11, 15, 16)
+            };
+
+            // Act
+            var result = entry.ToString();
+
+            // Assert
+            var expected =
+                "[2026-06-13 10:11:12.013] [WARNING] [#3] [T6] [F20] [Scene:Map] First line" + Environment.NewLine +
+                "    Second line [repeated x4, last at 2026-06-13 10:11:15.016]";
+            Assert.Equal(expected, result);
         }
     }
 }

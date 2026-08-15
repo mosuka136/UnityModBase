@@ -28,12 +28,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         [InlineData(typeof(bool), false)]
         [InlineData(typeof(char), false)]
         [InlineData(typeof(string), false)]
-        public void CanEdit_WhenEntryHasDifferentValueTypes_ReturnsExpectedResult(Type valueType, bool expected)
+        public void CanEdit_WhenEntryHasDifferentValueTypesAndNoMetadata_ReturnsExpectedResult(Type valueType, bool expected)
         {
             // Arrange
             var editor = CreateEditor();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.ValueType).Returns(valueType);
+            if (expected)
+                entryMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
 
             // Act
             var result = editor.CanEdit(entryMock.Object);
@@ -41,6 +43,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             // Assert
             Assert.Equal(expected, result);
             entryMock.VerifyGet(x => x.ValueType, Times.Once);
+            entryMock.VerifyGet(x => x.Metadata, expected ? Times.Once() : Times.Never());
         }
 
         [Theory]

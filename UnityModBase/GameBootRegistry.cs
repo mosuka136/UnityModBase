@@ -86,15 +86,19 @@ namespace UnityModBase
 
                 _gameBootInvoked = true;
 
+                int invokedHandlerCount = 0;
+                int failedHandlerCount = 0;
                 foreach (var handler in OnGameBoot.GetInvocationListOrEmpty())
                 {
+                    invokedHandlerCount++;
                     try
                     {
                         handler?.Invoke();
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("An error occurred while invoking OnGameBoot event.", ex);
+                        failedHandlerCount++;
+                        BLog.Error($"Game boot handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed; remaining handlers will continue.", ex);
                     }
                 }
 
@@ -102,7 +106,7 @@ namespace UnityModBase
                 // 启动后不再接受扫描所得扩展点，及时释放反射对象引用；下一周期会在重新初始化时建立新记录。
                 _scannedType.Clear();
                 _scannedMethod.Clear();
-                BLog.Debug("Game boot initialization completed.");
+                BLog.Debug($"Game boot initialization completed. Handlers={invokedHandlerCount}, Failed={failedHandlerCount}, CreatedObjects={_createdGameBootObjects.Count}.");
             }
         }
 
@@ -166,7 +170,7 @@ namespace UnityModBase
 
             if (_gameBootInvoked && (types.Length > 0 || methods.Length > 0))
             {
-                BLog.Warn($"Assembly {assembly.FullName} is loaded after game boot, any registered components or methods will not be invoked.");
+                BLog.Warn($"Assembly '{assembly.FullName}' loaded after game boot; skipped Components={types.Length}, Methods={methods.Length}.");
                 return;
             }
 
@@ -191,7 +195,7 @@ namespace UnityModBase
             }
 
             if (registeredComponentCount > 0 || registeredMethodCount > 0)
-                BLog.Debug($"Registered {registeredComponentCount} game boot components and {registeredMethodCount} game boot methods from assembly: {assembly.FullName}.");
+                BLog.Debug($"Game boot extensions registered. Assembly='{assembly.FullName}', Components={registeredComponentCount}, Methods={registeredMethodCount}.");
         }
 
         /// <summary>
@@ -216,12 +220,12 @@ namespace UnityModBase
 
                 if (!typeof(Component).IsAssignableFrom(type))
                 {
-                    BLog.Warn($"Type {type.FullName} is not a Component, cannot register for game boot.");
+                    BLog.Warn($"Game boot component registration rejected. Type='{type.FullName}', Reason='Type does not derive from UnityEngine.Component'.");
                     return false;
                 }
 
                 OnGameBoot += new GameBootComponentRegistration(type).Invoke;
-                BLog.Debug($"Register game boot component: {type.FullName}");
+                BLog.Debug($"Game boot component registered. Type='{type.FullName}'.");
                 return true;
             }
         }
@@ -249,7 +253,7 @@ namespace UnityModBase
                 }
 
                 var methodName = $"{method.DeclaringType.FullName}.{method.Name}";
-                BLog.Debug($"Register game boot method: {methodName}");
+                BLog.Debug($"Game boot method registered. Method='{methodName}'.");
                 OnGameBoot += new GameBootMethodRegistration(method, methodName).Invoke;
                 return true;
             }
@@ -307,7 +311,7 @@ namespace UnityModBase
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error("Failed to destroy game boot object.", ex);
+                    BLog.Error("Failed to destroy a game boot object during registry cleanup; cleanup will continue.", ex);
                 }
             }
         }
@@ -340,12 +344,12 @@ namespace UnityModBase
                     UnityEngine.Object.DontDestroyOnLoad(go);
                     go.AddComponent(_type);
                     RegisterCreatedGameBootObject(go);
-                    BLog.Debug($"Created game boot component: {_type.FullName}");
+                    BLog.Debug($"Game boot component created. Type='{_type.FullName}', Object='{go.name}'.");
                 }
                 catch (Exception ex)
                 {
                     DestroyGameBootObjects(new[] { go });
-                    BLog.Error($"Failed to create game boot component: {_type.FullName}", ex);
+                    BLog.Error($"Failed to create game boot component. Type='{_type.FullName}'.", ex);
                 }
             }
         }
@@ -368,15 +372,15 @@ namespace UnityModBase
                     // 校验放在执行端，确保反射发现的非法扩展点不会中断整批启动回调。
                     if (!IsValidGameBootMethod(_method))
                     {
-                        BLog.Error($"Invalid game boot method: {_methodName}. It must be a static method with no parameters and return void.");
+                        BLog.Error($"Game boot method validation failed. Method='{_methodName}', RequiredSignature='static void Method()'.");
                         return;
                     }
                     _method.Invoke(null, null);
-                    BLog.Debug($"Invoke game boot method: {_methodName}");
+                    BLog.Debug($"Game boot method invoked. Method='{_methodName}'.");
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Failed to invoke game boot method: {_methodName}", ex);
+                    BLog.Error($"Game boot method invocation failed. Method='{_methodName}'.", ex);
                 }
             }
 

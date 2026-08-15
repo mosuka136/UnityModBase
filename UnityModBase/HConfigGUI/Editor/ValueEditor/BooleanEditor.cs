@@ -1,3 +1,4 @@
+using System;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HProvider;
@@ -20,13 +21,16 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         /// <param name="unityGui">用于绘制开关控件的 IMGUI 提供器。</param>
         public BooleanEditor(IUnityGuiProvider unityGui)
         {
-            UnityGui = unityGui;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui));
         }
 
         /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
-            return entry.ValueType == typeof(bool);
+            if (entry != null && entry.ValueType == typeof(bool) && entry.Metadata == null)
+                return true;
+            else
+                return false;
         }
 
         /// <inheritdoc/>

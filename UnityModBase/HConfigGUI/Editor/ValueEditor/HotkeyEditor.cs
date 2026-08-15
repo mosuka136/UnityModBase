@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
@@ -37,14 +38,17 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         public HotkeyEditor(IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             Session = new HotkeyEditSession();
-            UnityGui = unityGui;
-            StyleProvider = styleProvider;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui));
+            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider));
         }
 
         /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
-            return typeof(Hotkey).IsAssignableFrom(entry.ValueType);
+            if (entry != null && typeof(Hotkey).IsAssignableFrom(entry.ValueType) && entry.Metadata == null)
+                return true;
+            else
+                return false;
         }
 
         /// <inheritdoc/>

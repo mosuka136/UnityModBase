@@ -1,3 +1,4 @@
+using System;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HProvider;
@@ -30,14 +31,21 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         public SliderEditor(IUnityGuiProvider unityGui, IUnityProvider unityService, StyleResource styleProvider)
             : base(unityGui)
         {
-            UnityService = unityService;
-            StyleProvider = styleProvider;
+            UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService));
+            StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider));
         }
 
         /// <inheritdoc/>
         public override bool CanEdit(IEntryBinding entry)
         {
-            return base.CanEdit(entry) && entry.Metadata is UiSliderMetadata;
+            if (entry == null)
+                return false;
+
+            var type = entry.ValueType;
+            return type.IsPrimitive &&
+                   type != typeof(bool) &&
+                   type != typeof(char) &&
+                   entry.Metadata is UiSliderMetadata;
         }
 
         /// <summary>

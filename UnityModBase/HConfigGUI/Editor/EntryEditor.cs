@@ -54,7 +54,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error($"Invalid GuiContext provided to {nameof(Draw)}.");
+                BLog.Error($"Config entry draw skipped because the GUI context is invalid. EntryProvided={entry != null}, Operation='{nameof(Draw)}'.");
                 return;
             }
 

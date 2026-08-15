@@ -70,7 +70,7 @@ namespace UnityModBase.HConfigGUI.Editor
             var guiContext = context as GuiContext ?? throw new ArgumentException($"The provided context is not of type {nameof(GuiContext)}.", nameof(context));
             if (!guiContext.IsValid)
             {
-                BLog.Error($"Invalid GuiContext provided to {nameof(SetStatusDirty)}.");
+                BLog.Error($"Config editor status was not invalidated because the GUI context is invalid. Operation='{nameof(SetStatusDirty)}'.");
                 return;
             }
 

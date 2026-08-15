@@ -125,7 +125,7 @@ namespace UnityModBase.HUserSpace
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error($"Failed to dispose child context with key '{childContext.Key}'.", ex);
+                        BLog.Error($"Failed to dispose child user context. UserId='{UserId}', ContextKey='{childContext.Key}', ContextType='{childContext.Value?.GetType().FullName ?? "<null>"}'.", ex);
                     }
                 }
                 Service?.Dispose();
@@ -133,7 +133,7 @@ namespace UnityModBase.HUserSpace
             }
             catch (Exception ex)
             {
-                BLog.Error("Failed to dispose user context.", ex);
+                BLog.Error($"Failed to dispose user context. UserId='{UserId}', RemainingChildContexts={_childrenContext.Count}.", ex);
             }
         }
     }

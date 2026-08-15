@@ -181,7 +181,7 @@ namespace UnityModBase.HConfigGUI
             }
             catch (Exception ex)
             {
-                BLog.Error("Failed to commit pending config edits while disposing GUI context.", ex);
+                BLog.Error($"Failed to commit pending config edits while disposing GUI context. SelectedGroup='{SelectedGroupKey}', RootKey='{UserData?.Key ?? "<none>"}'.", ex);
             }
             finally
             {

@@ -143,7 +143,7 @@ namespace UnityModBase.HConfigSpace
         /// <inheritdoc/>
         public void ApplyBind(EntryChangePlan plan)
         {
-            _configEntry.ApplyBind(plan);
+            _configEntry.ApplyBind(plan ?? throw new ArgumentNullException(nameof(plan)));
         }
 
         /// <inheritdoc/>
@@ -155,13 +155,13 @@ namespace UnityModBase.HConfigSpace
         /// <inheritdoc/>
         public void PublishBind(EntryChangePlan plan)
         {
-            _configEntry.PublishBind(plan);
+            _configEntry.PublishBind(plan ?? throw new ArgumentNullException(nameof(plan)));
         }
 
         /// <inheritdoc/>
         public void RollbackBind(EntryChangePlan plan)
         {
-            _configEntry.RollbackBind(plan);
+            _configEntry.RollbackBind(plan ?? throw new ArgumentNullException(nameof(plan)));
         }
     }
 }

@@ -225,16 +225,16 @@ namespace UnityModBase.BSpace
 
                     Config.SaveOnConfigSet = true;
                     if (!Config.Save())
-                        BLog.Error("Failed to save config file.");
+                        BLog.Error($"Failed to save UnityModBase config file. Path='{configFilePath}'.");
 
                     FrameUpdateManager.OnFrameUpdate += ReloadConfigOnUserOrder;
 
                     _initialized = true;
-                    BLog.Info($"Config manager initialized: {configFilePath}");
+                    BLog.Info($"Config manager initialized. Path='{configFilePath}', Language='{SetLanguage.Value}', FileLogging={EnableLog.Value}, MinimumLogLevel='{LogLevel.Value}'.");
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error("Failed to initialize config manager.", ex);
+                    BLog.Error($"Failed to initialize config manager. Path='{configFilePath}'.", ex);
                     Dispose();
                     throw;
                 }
@@ -276,9 +276,9 @@ namespace UnityModBase.BSpace
             lock (_lock)
             {
                 if (Config.Reload())
-                    BLog.Info("Config file reloaded.");
+                    BLog.Info($"Config file reloaded. Path='{Config.FilePath}'.");
                 else
-                    BLog.Error("Failed to reload config file.");
+                    BLog.Error($"Failed to reload config file. Path='{Config.FilePath}'. See earlier diagnostics for the failing stage.");
             }
         }
 
@@ -295,7 +295,7 @@ namespace UnityModBase.BSpace
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Unexpected error in {nameof(ReloadConfigOnUserOrder)}.", ex);
+                    BLog.Error($"Unexpected error while processing the config reload hotkey. Path='{Config?.FilePath ?? "<unavailable>"}'.", ex);
                 }
             }
         }

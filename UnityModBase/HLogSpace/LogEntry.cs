@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -10,6 +11,8 @@ namespace UnityModBase.HLogSpace
     /// <remarks>重复信息是可变状态且没有内部同步；并发更新时调用方需自行协调。</remarks>
     public class LogEntry
     {
+        private const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
+
         /// <summary>
         /// 数据库分配的进程内序号；直接构造条目时由调用方定义。
         /// </summary>
@@ -175,43 +178,53 @@ namespace UnityModBase.HLogSpace
         }
 
         /// <summary>
-        /// 格式化为单条日志文本。调用位置仅在成员名、文件名和正行号全部存在时追加；异常另起一行输出。
+        /// 格式化为易读的多行日志文本。首行包含时间、等级、序号和运行上下文；
+        /// 调用位置与异常分别缩进输出，重复事件在正文末尾附带次数和最近时间。
         /// </summary>
         /// <returns>可直接写入日志文件的文本。</returns>
         public override string ToString()
         {
             var sb = new StringBuilder(256);
 
-            sb.Append('[').Append(Id).Append("] ")
-              .Append(Timestamp.ToString("HH:mm:ss.fff"));
+            sb.Append('[').Append(Timestamp.ToString(TimestampFormat, CultureInfo.InvariantCulture)).Append("] [")
+              .Append(Level.ToString().ToUpperInvariant()).Append("] [#").Append(Id)
+              .Append("] [T").Append(ThreadId)
+              .Append("] [F").Append(Frame)
+              .Append("] [Scene:").Append(Scene).Append("] ");
+
+            AppendWithIndent(sb, Message, "    ");
 
             if (IsRepeated)
-                sb.Append('-').Append(LastRepeatTime.ToString("HH:mm:ss.fff"));
-
-            sb.Append(" T").Append(ThreadId)
-              .Append(" F").Append(Frame)
-              .Append(" S=").Append(Scene)
-              .Append(" ").Append(Level.ToString());
-
-            if (IsRepeated)
-                sb.Append(" x").Append(RepeatCount);
-
-            sb.Append(" | ").Append(Message);
+            {
+                sb.Append(" [repeated x").Append(RepeatCount)
+                  .Append(", last at ").Append(LastRepeatTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)).Append(']');
+            }
 
             if (!string.IsNullOrEmpty(Member) && !string.IsNullOrEmpty(Path.GetFileName(File)) && Line > 0)
             {
-                sb.Append(" (").Append(Path.GetFileName(File))
-                  .Append(':').Append(Line)
-                  .Append(" ").Append(Member).Append(')');
+                sb.AppendLine();
+                sb.Append("    at ").Append(Member)
+                  .Append(" (").Append(Path.GetFileName(File))
+                  .Append(':').Append(Line).Append(')');
             }
 
             if (Exception != null)
             {
                 sb.AppendLine();
-                sb.Append(Exception);
+                sb.Append("    Exception: ");
+                AppendWithIndent(sb, Exception.ToString(), "               ");
             }
 
             return sb.ToString();
+        }
+
+        private static void AppendWithIndent(StringBuilder builder, string value, string continuationIndent)
+        {
+            if (string.IsNullOrEmpty(value))
+                return;
+
+            var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n');
+            builder.Append(normalized.Replace("\n", Environment.NewLine + continuationIndent));
         }
     }
 }

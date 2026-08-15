@@ -70,11 +70,11 @@ namespace UnityModBase.HConfigGUI
                 float height = UnityGui.ScreenHeight * 0.7f;
                 WindowRect = new Rect((UnityGui.ScreenWidth - width) / 2f, (UnityGui.ScreenHeight - height) / 2f, width, height);
 
-                BLog.Debug($"Config GUI host created. WindowId={WindowID}");
+                BLog.Debug($"Config GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={width}x{height}.");
             }
             catch (Exception ex)
             {
-                BLog.Error("Failed to create Config GUI host.", ex);
+                BLog.Error($"Failed to initialize Config GUI host. WindowId={WindowID}, ContextKey='{GuiContextKey}'.", ex);
                 Destroy(this);
             }
         }
@@ -248,13 +248,14 @@ namespace UnityModBase.HConfigGUI
             catch (Exception ex)
             {
                 // 配置 setter 或变更订阅者失败不能阻止宿主离开已经失效或即将替换的上下文。
-                BLog.Error("Failed to commit pending config edits while changing GUI context.", ex);
+                BLog.Error($"Failed to commit pending config edits while changing GUI context. SelectedGroup='{context.SelectedGroupKey}'.", ex);
             }
         }
 
         private static void ClosePopup(GuiContext context)
         {
             var popup = context.Popup;
+            var popupTitle = popup.Title?.ToString() ?? "<none>";
             var closeAction = popup.IsOpen ? popup.CloseAction : null;
 
             // 先断开弹窗状态再进入外部回调，避免回调重入绘制流程时再次观察到过期的绑定和委托。
@@ -269,7 +270,7 @@ namespace UnityModBase.HConfigGUI
             }
             catch (Exception ex)
             {
-                BLog.Error("Failed to close config GUI popup while changing context.", ex);
+                BLog.Error($"Failed to run the config popup close callback while changing context. PopupTitle='{popupTitle}'.", ex);
             }
         }
     }

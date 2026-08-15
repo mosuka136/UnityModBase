@@ -24,12 +24,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
-        public void CanEdit_WhenEntryValueTypeIsString_ReturnsTrue()
+        public void CanEdit_WhenEntryValueTypeIsStringAndMetadataIsNull_ReturnsTrue()
         {
             // Arrange
             var editor = CreateEditor();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.ValueType).Returns(typeof(string));
+            entryMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
 
             // Act
             var result = editor.CanEdit(entryMock.Object);
@@ -37,6 +38,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             // Assert
             Assert.True(result);
             entryMock.VerifyGet(x => x.ValueType, Times.Once);
+            entryMock.VerifyGet(x => x.Metadata, Times.Once);
         }
 
         [Fact]

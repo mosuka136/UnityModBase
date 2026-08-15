@@ -145,7 +145,7 @@ namespace UnityModBase.Test.HUserSpace
             var content = File.ReadAllText(path);
             Assert.Contains("existing", content, StringComparison.Ordinal);
             Assert.Contains("future", content, StringComparison.Ordinal);
-            Assert.Contains("Info x2 | existing", content, StringComparison.Ordinal);
+            Assert.Contains("existing [repeated x2", content, StringComparison.Ordinal);
             Assert.Null(service.LogDatabase);
             Assert.Null(service.LogWriter);
             Assert.Null(service.Config);

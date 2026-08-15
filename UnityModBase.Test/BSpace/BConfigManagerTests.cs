@@ -103,9 +103,11 @@ namespace UnityModBase.Test.BSpace
 
             scope.ReloadConfig();
 
-            var log = Assert.Single(scope.LogDatabase.Logs.Where(log => log.Message == "Config file reloaded."));
+            var log = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{scope.ConfigFilePath}'."));
             Assert.Equal(LogLevel.Info, log.Level);
-            Assert.DoesNotContain(scope.LogDatabase.Logs, log => log.Message == "Failed to reload config file.");
+            Assert.DoesNotContain(scope.LogDatabase.Logs, log =>
+                log.Message.StartsWith("Failed to reload config file.", StringComparison.Ordinal));
         }
 
         [Fact]
@@ -117,9 +119,11 @@ namespace UnityModBase.Test.BSpace
 
             scope.ReloadConfig();
 
-            var log = Assert.Single(scope.LogDatabase.Logs.Where(log => log.Message == "Failed to reload config file."));
+            var log = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Failed to reload config file. Path='{scope.ConfigFilePath}'. See earlier diagnostics for the failing stage."));
             Assert.Equal(LogLevel.Error, log.Level);
-            Assert.DoesNotContain(scope.LogDatabase.Logs, log => log.Message == "Config file reloaded.");
+            Assert.DoesNotContain(scope.LogDatabase.Logs, log =>
+                log.Message.StartsWith("Config file reloaded.", StringComparison.Ordinal));
         }
 
         private sealed class BConfigManagerStateScope : IDisposable

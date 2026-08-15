@@ -229,7 +229,7 @@ namespace UnityModBase.HConfigSpace
                         }
                         catch (Exception ex)
                         {
-                            BLog.Error($"Exception in value changed event for key: {Key}, value: {publishedValue}.", ex);
+                            BLog.Error($"Config value handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. Entry='{TableKey}.{Key}', Value='{publishedValue}', Event='{nameof(OnValueChanged)}'.", ex);
                         }
                     }
 
@@ -241,7 +241,7 @@ namespace UnityModBase.HConfigSpace
                         }
                         catch (Exception ex)
                         {
-                            BLog.Error($"Exception in value changed event for key: {Key}, value: {publishedValue}.", ex);
+                            BLog.Error($"Config value handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed. Entry='{TableKey}.{Key}', Value='{publishedValue}', Event='{nameof(OnValueChangedBase)}'.", ex);
                         }
                     }
                 }

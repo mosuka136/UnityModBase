@@ -33,7 +33,7 @@ namespace UnityModBase
             /// </summary>
             private void Awake()
             {
-                BLog.Debug("Frame update dispatcher created.");
+                BLog.Debug($"Frame update dispatcher created. Component='{GetType().FullName}'.");
             }
 
             /// <summary>
@@ -51,11 +51,11 @@ namespace UnityModBase
                     {
                         // 该订阅已无法调用，立即移除可避免后续每帧重复失败和刷日志。
                         OnFrameUpdate -= handler;
-                        BLog.Warn($"Removed invalid OnFrameUpdate handler: {handler.Method.DeclaringType?.FullName}.{handler.Method.Name}");
+                        BLog.Warn($"Removed frame update handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' because its target method is no longer available.");
                     }
                     catch (Exception ex)
                     {
-                        BLog.Error("An error occurred while invoking OnFrameUpdate event.", ex);
+                        BLog.Error($"Frame update handler '{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}' failed; the handler remains registered.", ex);
                     }
                 }
             }

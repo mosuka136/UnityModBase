@@ -31,13 +31,16 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         /// <param name="unityGui">用于绘制枚举控件的 IMGUI 提供器。</param>
         public EnumEditor(IUnityGuiProvider unityGui)
         {
-            UnityGui = unityGui;
+            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui));
         }
 
         /// <inheritdoc/>
         public bool CanEdit(IEntryBinding entry)
         {
-            return entry.ValueType.IsEnum;
+            if (entry != null && entry.ValueType.IsEnum && entry.Metadata == null)
+                return true;
+            else
+                return false;
         }
 
         /// <inheritdoc/>

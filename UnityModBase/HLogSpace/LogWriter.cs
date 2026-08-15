@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -15,8 +16,10 @@ namespace UnityModBase.HLogSpace
     /// </remarks>
     public class LogWriter : IDisposable
     {
+        private const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz";
         private static readonly TimeSpan WriteInterval = TimeSpan.FromSeconds(1.5);
         private static readonly TimeSpan LongestDuration = TimeSpan.FromSeconds(5);
+        private static readonly string Separator = new string('=', 96);
 
         // 定时器与调用线程都可能触发汇总刷新，这些字段必须在 _lock 下成组读取和修改。
         private Timer _timer;
@@ -51,11 +54,14 @@ namespace UnityModBase.HLogSpace
                 if (!Directory.Exists(directory))
                     Directory.CreateDirectory(directory);
 
-                var fullPath = Path.Combine(directory, $"{Path.GetFileNameWithoutExtension(fileName)}-{DateTime.Now:yyyy-MM-dd-HH}.log");
+                var startedAt = DateTime.Now;
+                var fullPath = Path.Combine(directory, $"{Path.GetFileNameWithoutExtension(fileName)}-{startedAt:yyyy-MM-dd-HH}.log");
                 var fs = new FileStream(fullPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
                 _writer = new StreamWriter(fs, Encoding.UTF8) { AutoFlush = true };
 
-                _writer.WriteLine($"{new string('-', 50)}LOG-START-{DateTime.Now}{new string('-', 50)}");
+                _writer.WriteLine(Separator);
+                _writer.WriteLine($"LOG START | {FormatTimestamp(startedAt)} | Initial minimum level: {Level.ToString().ToUpperInvariant()}");
+                _writer.WriteLine(Separator);
 
                 _timer = new Timer(s => Flush(), null, WriteInterval, WriteInterval);
             }
@@ -149,8 +155,9 @@ namespace UnityModBase.HLogSpace
                 {
                     Flush(forced: true);
 
-                    _writer.WriteLine($"{new string('-', 50)}LOG-END-{DateTime.Now}{new string('-', 50)}");
-                    _writer.WriteLine();
+                    _writer.WriteLine(Separator);
+                    _writer.WriteLine($"LOG END   | {FormatTimestamp(DateTime.Now)}");
+                    _writer.WriteLine(Separator);
                     _writer.WriteLine();
 
                     _writer.Flush();
@@ -161,6 +168,11 @@ namespace UnityModBase.HLogSpace
                 {
                 }
             }
+        }
+
+        private static string FormatTimestamp(DateTime timestamp)
+        {
+            return timestamp.ToString(TimestampFormat, CultureInfo.InvariantCulture);
         }
     }
 }

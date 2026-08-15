@@ -35,9 +35,10 @@ namespace UnityModBase.Test.HLogSpace
 
             // Assert
             var content = ReadOnlyLogFile(directory);
-            Assert.Contains("LOG-START-", content, StringComparison.Ordinal);
+            Assert.Contains("LOG START |", content, StringComparison.Ordinal);
+            Assert.Contains("| Initial minimum level: DEBUG", content, StringComparison.Ordinal);
             Assert.Contains(log.ToString(), content, StringComparison.Ordinal);
-            Assert.Contains("LOG-END-", content, StringComparison.Ordinal);
+            Assert.Contains("LOG END   |", content, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -93,7 +94,7 @@ namespace UnityModBase.Test.HLogSpace
 
             // Assert
             var content = ReadOnlyLogFile(directory);
-            Assert.Contains("Info x3 | repeated-entry", content, StringComparison.Ordinal);
+            Assert.Contains("repeated-entry [repeated x3", content, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -113,8 +114,8 @@ namespace UnityModBase.Test.HLogSpace
 
             // Assert
             var content = ReadOnlyLogFile(directory);
-            var summaryIndex = content.IndexOf("Info x2 | repeated-entry", StringComparison.Ordinal);
-            var nextEntryIndex = content.IndexOf("Warning | next-entry", StringComparison.Ordinal);
+            var summaryIndex = content.IndexOf("repeated-entry [repeated x2", StringComparison.Ordinal);
+            var nextEntryIndex = content.IndexOf("[WARNING] [#2]", StringComparison.Ordinal);
             Assert.True(summaryIndex >= 0, "The repeat summary was not written.");
             Assert.True(nextEntryIndex > summaryIndex, "The next entry was written before the repeat summary.");
         }
@@ -183,7 +184,7 @@ namespace UnityModBase.Test.HLogSpace
             writer.Flush();
             writer.Dispose();
 
-            Assert.Contains("Info x2 | duration-entry", ReadOnlyLogFile(directory), StringComparison.Ordinal);
+            Assert.Contains("duration-entry [repeated x2", ReadOnlyLogFile(directory), StringComparison.Ordinal);
         }
 
         private string CreateTempDirectory()

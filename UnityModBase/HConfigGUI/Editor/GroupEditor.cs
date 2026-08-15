@@ -49,7 +49,7 @@ namespace UnityModBase.HConfigGUI.Editor
         private Vector2 _contentScrollPosition = Vector2.zero;
         private GroupBinding _currentRoot;
 
-        // 滑条也匹配通用数值类型，因此必须先注册滑条编辑器，确保带元数据的配置项采用专用控件。
+        // 专用编辑器保持在通用数值编辑器之前，确保控件选择规则扩展后仍优先采用更具体的实现。
         /// <summary>
         /// 创建分组编辑器并按“专用类型优先于通用数值”的顺序注册内置值编辑器。
         /// </summary>
@@ -88,7 +88,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error("Root config group is invalid.");
+                BLog.Error($"Config group draw skipped because the GUI context is invalid. SelectedGroup='{context.SelectedGroupKey}'.");
                 return;
             }
 
@@ -141,7 +141,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error($"Invalid GuiContext provided to {nameof(Update)}.");
+                BLog.Error($"Config editor update skipped because the GUI context is invalid. Operation='{nameof(Update)}', DeltaTime={deltaTime}.");
                 return;
             }
 
@@ -165,7 +165,7 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error($"Invalid GuiContext provided to {nameof(UpdateLayoutIfNeeded)}.");
+                BLog.Error($"Config layout update skipped because the GUI context is invalid. Operation='{nameof(UpdateLayoutIfNeeded)}'.");
                 return;
             }
 
@@ -388,7 +388,14 @@ namespace UnityModBase.HConfigGUI.Editor
         /// </summary>
         public void Dispose()
         {
-            EditorRegistry?.Dispose();
+            try
+            {
+                EditorRegistry?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                BLog.Error($"Failed to dispose the value editor registry owned by '{GetType().FullName}'.", ex);
+            }
         }
     }
 }
