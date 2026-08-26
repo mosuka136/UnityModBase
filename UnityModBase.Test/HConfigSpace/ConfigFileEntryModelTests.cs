@@ -876,7 +876,7 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         // TableKey 是本次重构新增的文件项属性：解析阶段由 ConfigFileTable.DecodeTable 按所属表回填，
-        // 运行时供 ConfigEntry.PrepareBind 校验候选项归属。其 setter 复用 ConfigFileTable.IsValidTableName 校验，
+        // 运行时供 ConfigEntry.PrepareBind 校验候选项归属。其 setter 复用 ConfigFileModel.IsValidTableKey 校验，
         // 与 Key setter 的校验模式对称，这里补齐等价的赋值/拒绝用例。
 
         [Fact]

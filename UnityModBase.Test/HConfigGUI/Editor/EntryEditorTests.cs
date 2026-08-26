@@ -10,17 +10,24 @@ using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
+    /// <summary>
+    /// 值编辑器选择依赖全进程共享的静态注册表；每个测试开始前先释放并清空，
+    /// 保证 Draw 选中的编辑器一定是本测试注册的编辑器。
+    /// </summary>
     public class EntryEditorTests
     {
-        [Fact]
-        public void Constructor_ValidDependencies_StoresDependenciesWithoutContext()
+        public EntryEditorTests()
         {
-            var registry = new ValueEditorRegistry();
+            ValueEditorRegistry.Dispose();
+        }
+
+        [Fact]
+        public void Constructor_ValidUnityGui_StoresDependencyWithoutContext()
+        {
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
 
-            var editor = new EntryEditor(registry, unityGuiMock.Object);
+            var editor = new EntryEditor(unityGuiMock.Object);
 
-            Assert.Same(registry, editor.Registry);
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
         }
 
@@ -28,7 +35,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void Render_WhenEntryIsNull_ThrowsArgumentNullException()
         {
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EntryEditor(new ValueEditorRegistry(), unityGuiMock.Object);
+            var editor = new EntryEditor(unityGuiMock.Object);
 
             var exception = Assert.Throws<ArgumentNullException>(() => editor.Draw(null, new GuiContext()));
 
@@ -39,9 +46,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         [Fact]
         public void Constructor_WhenUnityGuiIsNull_ThrowsArgumentNullException()
         {
-            var registry = new ValueEditorRegistry();
-
-            var exception = Assert.Throws<ArgumentNullException>(() => new EntryEditor(registry, null));
+            var exception = Assert.Throws<ArgumentNullException>(() => new EntryEditor(null));
 
             Assert.Equal("unity", exception.ParamName);
         }
@@ -49,13 +54,12 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         [Fact]
         public void Render_WhenContextIsInvalid_ReturnsWithoutDrawing()
         {
-            var registry = new ValueEditorRegistry();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             var valueEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
             valueEditorMock.Setup(x => x.CanEdit(entryMock.Object)).Returns(true);
-            registry.RegisterEditor(valueEditorMock.Object);
+            ValueEditorRegistry.RegisterEditor(valueEditorMock.Object);
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
-            var editor = new EntryEditor(registry, unityGuiMock.Object);
+            var editor = new EntryEditor(unityGuiMock.Object);
 
             editor.Draw(entryMock.Object, GuiContext.InvalidGuiContext);
 
@@ -76,8 +80,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             valueEditor
                 .Setup(x => x.DrawValue(entry.Object, It.IsAny<GuiContext>()))
                 .Throws(new InvalidOperationException("value editor failed"));
-            var registry = new ValueEditorRegistry();
-            registry.RegisterEditor(valueEditor.Object);
+            ValueEditorRegistry.RegisterEditor(valueEditor.Object);
             GUILayoutOption width = null;
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
@@ -87,7 +90,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 (GUIContent)null,
                 It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], width))));
             unityGui.Setup(x => x.EndHorizontal());
-            var editor = new EntryEditor(registry, unityGui.Object);
+            var editor = new EntryEditor(unityGui.Object);
             var context = new GuiContext();
 
             var exception = Assert.Throws<InvalidOperationException>(() => editor.Draw(entry.Object, context));

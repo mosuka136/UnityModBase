@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityModBase.BSpace;
 using UnityModBase.HConfigSpace;
-using UnityModBase.HLogSpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HUserSpace

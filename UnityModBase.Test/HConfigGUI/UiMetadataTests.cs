@@ -35,5 +35,31 @@ namespace UnityModBase.Test.HConfigGUI
             Assert.Equal(step, metadata.Step);
         }
 
+        [Fact]
+        public void UiConfigMetadata_WhenAccessed_ReturnsUiConfigMetadataType()
+        {
+            // Arrange
+            var metadata = new UiConfigMetadata(new IUiMetadata[] { new UiSliderMetadata(0f, 1f, 0.5f) });
+
+            // Act
+            var result = metadata.MetadataType;
+
+            // Assert
+            Assert.Equal(typeof(UiConfigMetadata), result);
+        }
+
+        [Fact]
+        public void UiConfigMetadata_WhenConstructed_PreservesMetadataArrayReference()
+        {
+            // Arrange：组合元数据只承载聚合结果，应原样保留传入数组（含未识别声明的 null 槽位）。
+            var metadatas = new IUiMetadata[] { new UiSliderMetadata(0f, 1f, 0.5f), null };
+
+            // Act
+            var metadata = new UiConfigMetadata(metadatas);
+
+            // Assert
+            Assert.Same(metadatas, metadata.Metadatas);
+        }
+
     }
 }

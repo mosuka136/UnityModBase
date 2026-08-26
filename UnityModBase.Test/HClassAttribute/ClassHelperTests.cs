@@ -1,228 +1,265 @@
+using System.Linq;
+using Moq;
 using UnityModBase.HClassAttribute;
+using UnityModBase.HConfigSpace;
 
 namespace UnityModBase.Test.HClassAttribute
 {
     public class ClassHelperTests
     {
-        // Test helper class with properties for testing
-        private class TestClass
+        // GetConfigGuiAttributes 按“静态运行时声明 + TableKey/Key 匹配”查找属性并返回其全部特性；
+        // 静态属性的值在首次访问时创建，模拟生产环境中“运行时声明 + 文件项绑定”的查找方式。
+        private class StaticConfigDeclarationHost
         {
             [ConfigSlider(0f, 100f, 1f)]
-            public float SliderProperty { get; set; }
+            public static IConfigEntry VolumeEntry { get; } = CreateConfigEntry("Settings", "Volume").Object;
 
             [ConfigSlider(10f, 50f, 0.5f)]
-            public float AnotherSliderProperty { get; set; }
+            public static IConfigEntry SpeedEntry { get; } = CreateConfigEntry("Movement", "Speed").Object;
+        }
 
-            [Obsolete("This is obsolete")]
-            public string ObsoleteProperty { get; set; }
+        private class InstanceConfigDeclarationHost
+        {
+            [ConfigSlider(0f, 100f, 1f)]
+            public IConfigEntry VolumeEntry => CreateConfigEntry("Settings", "Volume").Object;
+        }
 
-            public string PropertyWithoutAttribute { get; set; }
+        private class NonEntryStaticDeclarationHost
+        {
+            [ConfigSlider(0f, 1f, 0.1f)]
+            public static float SliderValueWithoutEntry { get; set; }
+        }
+
+        private class MultiAttributeDeclarationHost
+        {
+            [ConfigSlider(0f, 10f, 1f)]
+            [TestMarker]
+            public static IConfigEntry VolumeEntry { get; } = CreateConfigEntry("Settings", "Volume").Object;
+        }
+
+        private class UnmarkedDeclarationHost
+        {
+            public static IConfigEntry VolumeEntry { get; } = CreateConfigEntry("Settings", "Volume").Object;
+        }
+
+        private class RenamedDeclarationHost
+        {
+            [ConfigSlider(0f, 100f, 1f)]
+            public static IConfigEntry ExposedAsDifferentName { get; } = CreateConfigEntry("Settings", "ActualEntryKey").Object;
+        }
+
+        private class NullValueDeclarationHost
+        {
+            [ConfigSlider(0f, 100f, 1f)]
+            public static IConfigEntry NullValueEntry => null;
+        }
+
+        private static Mock<IConfigEntry> CreateConfigEntry(string tableKey, string key)
+        {
+            var entryMock = new Mock<IConfigEntry>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.TableKey).Returns(tableKey);
+            entryMock.SetupGet(x => x.Key).Returns(key);
+            return entryMock;
         }
 
         [Fact]
-        public void GetAttribute_WhenPropertyHasAttribute_ReturnsAttribute()
+        public void GetConfigGuiAttributes_WhenEntryMatchesStaticDeclaration_ReturnsItsSliderAttribute()
         {
             // Arrange
-            var propertyName = "SliderProperty";
+            var entryMock = CreateConfigEntry("Settings", "Volume");
 
             // Act
-            var result = ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
 
             // Assert
-            Assert.NotNull(result);
-            Assert.Equal(0f, result.Min);
-            Assert.Equal(100f, result.Max);
-            Assert.Equal(1f, result.Step);
+            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            Assert.Equal(0f, slider.Min);
+            Assert.Equal(100f, slider.Max);
+            Assert.Equal(1f, slider.Step);
         }
 
         [Fact]
-        public void GetAttribute_WhenPropertyDoesNotHaveAttribute_ReturnsNull()
+        public void GetConfigGuiAttributes_WhenEntryMatchesDifferentStaticDeclaration_ReturnsItsOwnValues()
         {
             // Arrange
-            var propertyName = "PropertyWithoutAttribute";
+            var entryMock = CreateConfigEntry("Movement", "Speed");
 
             // Act
-            var result = ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
+
+            // Assert
+            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            Assert.Equal(10f, slider.Min);
+            Assert.Equal(50f, slider.Max);
+            Assert.Equal(0.5f, slider.Step);
+        }
+
+        [Fact]
+        public void GetConfigGuiAttributes_WhenEntryTableKeyDoesNotMatchAnyDeclaration_ReturnsNull()
+        {
+            // Arrange：表键不一致时短路比较，不应读取配置键。
+            var entryMock = CreateConfigEntry("OtherTable", "Volume");
+
+            // Act
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
+
+            // Assert
+            Assert.Null(result);
+            entryMock.VerifyGet(x => x.Key, Times.Never);
+        }
+
+        [Fact]
+        public void GetConfigGuiAttributes_WhenEntryKeyDoesNotMatchAnyDeclaration_ReturnsNull()
+        {
+            // Arrange：表键一致但配置键不同，说明匹配确实进行过却未命中。
+            var entryMock = CreateConfigEntry("Settings", "OtherKey");
+
+            // Act
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
+
+            // Assert
+            Assert.Null(result);
+            entryMock.VerifyGet(x => x.Key, Times.Once);
+        }
+
+        [Fact]
+        public void GetConfigGuiAttributes_WhenMarkedDeclarationIsInstanceProperty_ReturnsNull()
+        {
+            // Arrange：配置特性标记在实例属性上，运行时声明扫描只覆盖静态属性。
+            var entryMock = CreateConfigEntry("Settings", "Volume");
+
+            // Act
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(InstanceConfigDeclarationHost), entryMock.Object);
 
             // Assert
             Assert.Null(result);
         }
 
         [Fact]
-        public void GetAttribute_WhenPropertyDoesNotExist_ThrowsArgumentException()
+        public void GetConfigGuiAttributes_WhenStaticDeclarationValueIsNotConfigEntry_ReturnsNull()
         {
-            // Arrange
-            var propertyName = "NonExistentProperty";
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentException>(() =>
-                ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName));
-            Assert.Contains("Property 'NonExistentProperty' not found", exception.Message);
-            Assert.Contains("UnityModBase.Test.HClassAttribute.ClassHelperTests+TestClass", exception.Message);
-        }
-
-        [Fact]
-        public void GetAttribute_WhenCalledTwiceForSameProperty_ReturnsCachedValue()
-        {
-            // Arrange
-            var propertyName = "SliderProperty";
+            // Arrange：标记了滑条特性的静态属性不是 IConfigEntry，应被跳过而不是按属性名匹配。
+            var entryMock = CreateConfigEntry("Settings", "Volume");
 
             // Act
-            var result1 = ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName);
-            var result2 = ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName);
-
-            // Assert
-            Assert.Same(result1, result2);
-        }
-
-        [Fact]
-        public void GetAttribute_WhenPropertyHasDifferentAttributeType_ReturnsCorrectAttribute()
-        {
-            // Arrange
-            var propertyName = "ObsoleteProperty";
-
-            // Act
-            var result = ClassHelper.GetAttribute<ObsoleteAttribute>(typeof(TestClass), propertyName);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal("This is obsolete", result.Message);
-        }
-
-        [Fact]
-        public void GetAttribute_WhenPropertyHasAttributeButRequestingDifferentType_ReturnsNull()
-        {
-            // Arrange
-            var propertyName = "SliderProperty";
-
-            // Act
-            var result = ClassHelper.GetAttribute<ObsoleteAttribute>(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(NonEntryStaticDeclarationHost), entryMock.Object);
 
             // Assert
             Assert.Null(result);
         }
 
         [Fact]
-        public void GetAttribute_WhenPropertyNameIsNull_ThrowsArgumentNullException()
+        public void GetConfigGuiAttributes_WhenMatchedDeclarationHasMultipleAttributes_ReturnsAllOfThem()
         {
-            // Arrange
-            string propertyName = null;
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentNullException>(() =>
-                ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName));
-            Assert.Contains("name", exception.Message);
-        }
-
-        [Fact]
-        public void GetAttribute_WhenPropertyNameIsEmpty_ThrowsArgumentException()
-        {
-            // Arrange
-            var propertyName = string.Empty;
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentException>(() =>
-                ClassHelper.GetAttribute<ConfigSliderAttribute>(typeof(TestClass), propertyName));
-            Assert.Contains("Property '' not found", exception.Message);
-        }
-
-        [Fact]
-        public void GetSliderInfo_WhenPropertyHasSliderAttribute_ReturnsSliderInfo()
-        {
-            // Arrange
-            var propertyName = "SliderProperty";
+            // Arrange：返回值是匹配属性上的全部特性而非仅第一个；反射不保证特性间顺序，按类型断言。
+            var entryMock = CreateConfigEntry("Settings", "Volume");
 
             // Act
-            var result = ClassHelper.GetSliderInfo(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(MultiAttributeDeclarationHost), entryMock.Object);
+
+            // Assert
+            Assert.Equal(2, result.Length);
+            Assert.Contains(result, attribute => attribute is ConfigSliderAttribute);
+            Assert.Contains(result, attribute => attribute is TestMarkerAttribute);
+        }
+
+        [Fact]
+        public void GetConfigGuiAttributes_WhenMatchedDeclarationHasNoAttributes_ReturnsEmptyArray()
+        {
+            // Arrange：命中属性但未标记任何特性时返回空数组，与“未命中返回 null”区分。
+            var entryMock = CreateConfigEntry("Settings", "Volume");
+
+            // Act
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(UnmarkedDeclarationHost), entryMock.Object);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(0f, result.Value.Min);
-            Assert.Equal(100f, result.Value.Max);
-            Assert.Equal(1f, result.Value.Step);
+            Assert.Empty(result);
         }
 
         [Fact]
-        public void GetSliderInfo_WhenPropertyHasDifferentSliderValues_ReturnsCorrectValues()
+        public void GetConfigGuiAttributes_WhenPropertyNameDiffersFromEntryKey_MatchesByValue()
         {
-            // Arrange
-            var propertyName = "AnotherSliderProperty";
+            // Arrange：定位依据是静态属性的当前值（TableKey + Key）而非属性名，属性名与配置键不同也应命中。
+            var entryMock = CreateConfigEntry("Settings", "ActualEntryKey");
 
             // Act
-            var result = ClassHelper.GetSliderInfo(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(RenamedDeclarationHost), entryMock.Object);
 
             // Assert
-            Assert.NotNull(result);
-            Assert.Equal(10f, result.Value.Min);
-            Assert.Equal(50f, result.Value.Max);
-            Assert.Equal(0.5f, result.Value.Step);
+            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            Assert.Equal(0f, slider.Min);
+            Assert.Equal(100f, slider.Max);
         }
 
         [Fact]
-        public void GetSliderInfo_WhenPropertyDoesNotHaveSliderAttribute_ReturnsNull()
+        public void GetConfigGuiAttributes_WhenStaticDeclarationValueIsNull_SkipsProperty()
         {
-            // Arrange
-            var propertyName = "PropertyWithoutAttribute";
+            // Arrange：静态属性取值为 null 时无法参与匹配，应被跳过而不是按属性名或抛出空引用。
+            var entryMock = CreateConfigEntry("Settings", "NullValueEntry");
 
             // Act
-            var result = ClassHelper.GetSliderInfo(typeof(TestClass), propertyName);
+            var result = ClassHelper.GetEntryDeclarationAttributes(typeof(NullValueDeclarationHost), entryMock.Object);
 
             // Assert
             Assert.Null(result);
         }
 
-        [Fact]
-        public void GetSliderInfo_WhenPropertyHasDifferentAttributeType_ReturnsNull()
-        {
-            // Arrange
-            var propertyName = "ObsoleteProperty";
-
-            // Act
-            var result = ClassHelper.GetSliderInfo(typeof(TestClass), propertyName);
-
-            // Assert
-            Assert.Null(result);
-        }
-
-        [Fact]
-        public void GetSliderInfo_WhenPropertyDoesNotExist_ThrowsArgumentException()
-        {
-            // Arrange
-            var propertyName = "NonExistentProperty";
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentException>(() =>
-                ClassHelper.GetSliderInfo(typeof(TestClass), propertyName));
-            Assert.Contains("Property 'NonExistentProperty' not found", exception.Message);
-        }
-
-        [Fact]
-        public void GetSliderInfo_WhenPropertyNameIsNull_ThrowsArgumentNullException()
-        {
-            // Arrange
-            string propertyName = null;
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentNullException>(() =>
-                ClassHelper.GetSliderInfo(typeof(TestClass), propertyName));
-            Assert.Contains("name", exception.Message);
-        }
-
-        [Fact]
-        public void GetSliderInfo_WhenPropertyNameIsEmpty_ThrowsArgumentException()
-        {
-            // Arrange
-            var propertyName = string.Empty;
-
-            // Act & Assert
-            var exception = Assert.Throws<ArgumentException>(() =>
-                ClassHelper.GetSliderInfo(typeof(TestClass), propertyName));
-            Assert.Contains("not found", exception.Message);
-        }
-
-        [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+        [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property)]
         private sealed class TestMarkerAttribute : Attribute
         {
+        }
+
+        private class PropertyAttributeContainer
+        {
+            [TestMarker]
+            public static string MarkedPublicStaticProperty { get; private set; }
+
+            [TestMarker]
+            private static string MarkedPrivateStaticProperty { get; set; }
+
+            [TestMarker]
+            public string MarkedInstanceProperty { get; set; }
+
+            public static string UnmarkedStaticProperty { get; set; }
+        }
+
+        [Fact]
+        public void GetProperties_WhenClassHasMarkedStaticProperties_ReturnsOnlyMarkedStatics()
+        {
+            // Arrange：静态约定是扫描契约，实例属性即使带特性也不参与配置声明。
+            var classType = typeof(PropertyAttributeContainer);
+
+            // Act
+            var result = ClassHelper.GetProperties<TestMarkerAttribute>(classType);
+
+            // Assert
+            Assert.Contains(result, property => property.Name == nameof(PropertyAttributeContainer.MarkedPublicStaticProperty));
+            Assert.Contains(result, property => property.Name == "MarkedPrivateStaticProperty");
+            Assert.DoesNotContain(result, property => property.Name == nameof(PropertyAttributeContainer.MarkedInstanceProperty));
+            Assert.DoesNotContain(result, property => property.Name == nameof(PropertyAttributeContainer.UnmarkedStaticProperty));
+        }
+
+        [Fact]
+        public void GetProperties_WhenClassHasNoMarkedProperties_ReturnsEmptyArray()
+        {
+            // Arrange
+            var classType = typeof(MarkedClassA);
+
+            // Act
+            var result = ClassHelper.GetProperties<TestMarkerAttribute>(classType);
+
+            // Assert
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void GetProperties_WhenClassTypeIsNull_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                ClassHelper.GetProperties<TestMarkerAttribute>(null));
+            Assert.Equal("classType", exception.ParamName);
         }
 
         [TestMarker]
@@ -327,6 +364,24 @@ namespace UnityModBase.Test.HClassAttribute
 
             // Assert
             Assert.Empty(result);
+        }
+
+        [Fact]
+        public void GetClasses_WhenAssemblyIsNull_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                ClassHelper.GetClasses<TestMarkerAttribute>(null));
+            Assert.Equal("assembly", exception.ParamName);
+        }
+
+        [Fact]
+        public void GetMethods_WhenAssemblyIsNull_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            var exception = Assert.Throws<ArgumentNullException>(() =>
+                ClassHelper.GetMethods<TestMarkerAttribute>(null));
+            Assert.Equal("assembly", exception.ParamName);
         }
 
         [Fact]

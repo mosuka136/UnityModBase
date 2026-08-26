@@ -9,7 +9,7 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 配置文件值的编码/解码工具。
     /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合用方括号、元组用圆括号并以逗号分隔元素，数字使用不随系统区域变化的格式。
-    /// 它只处理单个值、集合与元组；<see cref="IsKeyValuePair"/>、<see cref="IsComment"/>、<see cref="IsValidKeyName"/> 仅提供行分类与键名校验，
+    /// 它只处理单个值、集合与元组；<see cref="IsKeyValuePair"/>、<see cref="IsComment"/>、<see cref="IsValidEntryKey"/>、<see cref="IsValidTableKey"/> 仅提供行分类与键名/表名校验，
     /// 键值行和表结构的解析由 <see cref="ConfigFileEntry"/>、<see cref="ConfigFileTable"/> 负责。
     /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryValue"/> 实现代码，其线程安全和副作用由适配器自行保证。
     /// </summary>
@@ -424,11 +424,21 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
+        /// 判断表名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
+        /// </summary>
+        /// <param name="key">待检查的表名。</param>
+        /// <returns>表名是否可以安全写入方括号表头。</returns>
+        public static bool IsValidTableKey(string key)
+        {
+            return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
+        }
+
+        /// <summary>
         /// 判断键名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
         /// </summary>
         /// <param name="key">待检查的键名。</param>
         /// <returns>键名是否可以安全写入键值行。</returns>
-        public static bool IsValidKeyName(string key)
+        public static bool IsValidEntryKey(string key)
         {
             return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
         }

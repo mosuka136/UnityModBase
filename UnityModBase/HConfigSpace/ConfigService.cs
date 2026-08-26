@@ -25,7 +25,7 @@ namespace UnityModBase.HConfigSpace
         /// <remarks>
         /// <see cref="Read"/> 在替换 <see cref="FileSheet"/> 后触发，但不会自动重绑定现有 <see cref="Sheet"/>；
         /// <see cref="Reload"/> 在全部计划提交和单项事件发布后、最终写盘前触发。
-        /// <see cref="CreateTable"/> 成功返回时始终触发，包括运行时表已经存在且未新增结构的情况。
+        /// <see cref="CreateTable"/> 每个成功路径都会触发；运行时表已存在时不再静默复用原表，而是抛出异常。
         /// 构造函数中的首次 <see cref="Read"/> 在实例可供外部订阅前完成，不能用作服务创建通知。
         /// 订阅者在发起操作的线程上按登记顺序同步执行；单个订阅者异常只记录日志，不影响调用操作的成功状态。
         /// </remarks>
@@ -356,7 +356,7 @@ namespace UnityModBase.HConfigSpace
         /// <summary>
         /// 绑定一个强类型配置项；如果文件中不存在该项，则使用默认值创建。
         /// 文件中已存在的有效值优先于声明默认值；默认值只用于补齐缺失项和生成元数据。
-        /// 每次调用都会在运行时表中追加一个新绑定并订阅自动保存，调用方应确保同一表键和配置项键只绑定一次。
+        /// 每次调用都会在运行时表中追加一个新绑定并订阅自动保存；同一表键和配置项键重复绑定会在登记阶段抛出异常，由服务保证唯一性。
         /// 调用前必须先通过 <see cref="CreateTable"/> 建立对应的运行时表。
         /// 新绑定加入运行时表后会同步触发 <see cref="OnConfigChanged"/>。
         /// </summary>
@@ -369,7 +369,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>可在运行时读写的强类型配置项。</returns>
         /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或 <paramref name="description"/> 为 <c>null</c>。</exception>
         /// <exception cref="ArgumentException">表不存在或键名非法时抛出。</exception>
-        /// <exception cref="InvalidOperationException">现有值无法解码、类型或默认值无法编码，或者文件模型无法接受新项。</exception>
+        /// <exception cref="InvalidOperationException">现有值无法解码、类型或默认值无法编码，文件模型无法接受新项，或同一表键和配置项键已存在运行时绑定。</exception>
         /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
         /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
         public ConfigEntry<T> Bind<T>(string tableKey, string key, T defaultValue, Translator name, Translator description)
@@ -393,7 +393,7 @@ namespace UnityModBase.HConfigSpace
         /// 绑定一个以顶层逗号分隔文本存储的双元素配置项；文件中不存在该项时，使用两个声明默认值创建。
         /// 文件中已有的有效值优先于默认值，两个元素说明会与整体说明按语言拼接后写入配置项元数据。
         /// 返回的门面允许分别读写两个元素，但单元素写入仍会整体替换双元素值，从而复用统一的编码、事件和自动保存流程。
-        /// 每次调用都会追加新运行时绑定；调用方必须先通过 <see cref="CreateTable"/> 建立运行时表，并保证同一配置键只绑定一次。
+        /// 每次调用都会追加新运行时绑定；调用前必须先通过 <see cref="CreateTable"/> 建立运行时表，同一配置键重复绑定会在登记阶段抛出异常。
         /// </summary>
         /// <typeparam name="T1">第一个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
         /// <typeparam name="T2">第二个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
@@ -408,7 +408,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>可整体或按元素读写的双元素配置项门面。</returns>
         /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或任一说明参数为 <c>null</c>。</exception>
         /// <exception cref="ArgumentException">表不存在、键名非法，或任一元素类型会使双元素平铺格式产生嵌套分隔歧义。</exception>
-        /// <exception cref="InvalidOperationException">现有双元素文本无法解码、元素类型或默认值无法编码，或者文件模型无法接受新项。</exception>
+        /// <exception cref="InvalidOperationException">现有双元素文本无法解码、元素类型或默认值无法编码，文件模型无法接受新项，或同一表键和配置项键已存在运行时绑定。</exception>
         /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
         /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
         public ConfigEntry<T1, T2> Bind<T1, T2>(
@@ -458,16 +458,16 @@ namespace UnityModBase.HConfigSpace
         /// <param name="key">目标配置项键名。</param>
         /// <param name="defaultValue">缺失项的初始值。</param>
         /// <returns>文件模型中已有或本次新建的配置项。</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串。</exception>
-        /// <exception cref="ArgumentException">目标表不存在或待创建项的键名非法。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 或 <paramref name="key"/> 不符合键名语法（含 <c>null</c> 或空白），或目标表不存在。</exception>
         /// <exception cref="InvalidOperationException">默认值无法编码，或新项无法加入目标表。</exception>
         /// <exception cref="NullReferenceException"><see cref="FileSheet"/> 尚未初始化或服务已释放。</exception>
+        /// <remarks>键名格式校验先于任何文件查询执行，非法键在读取已有项之前即被拒绝。</remarks>
         private ConfigFileEntry GetOrCreateConfigFileEntry<T>(string tableKey, string key, T defaultValue)
         {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
-            if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentNullException(nameof(key));
+            if (!ConfigFileModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
+            if (!ConfigFileModel.IsValidEntryKey(key))
+                throw new ArgumentException($"Invalid entry key: {tableKey}.{key}.", nameof(key));
 
             var entryResult = FileSheet.GetEntry(tableKey, key);
             if (entryResult.Success)
@@ -480,9 +480,6 @@ namespace UnityModBase.HConfigSpace
                     BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
                 throw new ArgumentException($"Config table not found: {tableKey}.", nameof(tableKey));
             }
-
-            if (!ConfigFileModel.IsValidKeyName(key))
-                throw new ArgumentException($"Invalid key name for config entry: {tableKey}.{key}.", nameof(key));
 
             var valueResult = ConfigFileEntry.EncodeValue(defaultValue);
             if (!valueResult.Success)
@@ -512,50 +509,57 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 将已完成文件绑定和初始值校验的运行时配置项登记到现有运行时表，并接入自动保存事件。
-        /// 该低级步骤不检查重复键；登记成功后会同步触发一次 <see cref="OnConfigChanged"/>。
+        /// 该低级步骤会通过 <see cref="ConfigTable.Contains"/> 拒绝向运行时表重复登记同一配置键；登记成功后会同步触发一次 <see cref="OnConfigChanged"/>。
         /// </summary>
         /// <param name="tableKey">已通过 <see cref="CreateTable"/> 建立的运行时表键名。</param>
         /// <param name="entry">待登记的运行时配置项。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 为空白字符串，或 <paramref name="entry"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表键名语法（含 <c>null</c> 或空白）。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
+        /// <exception cref="InvalidOperationException">同一表键和配置项键已存在运行时绑定。</exception>
         /// <exception cref="NullReferenceException"><see cref="Sheet"/> 已释放，或目标运行时表不存在。</exception>
         private void Bind(string tableKey, IConfigEntry entry)
         {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
+            if (!ConfigFileModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry));
 
+            var table = Sheet[tableKey] ?? throw new NullReferenceException($"Config table not found in runtime sheet: {tableKey}.");
+
+            if (table.Contains(entry))
+                throw new InvalidOperationException($"Config entry already exists in runtime table: {tableKey}.{entry.Key}.");
+
             entry.OnValueChangedBase += OnConfigEntryChanged;
-            Sheet[tableKey].Add(entry);
+            table.Add(entry);
             InvokeOnConfigChanged();
         }
 
         /// <summary>
-        /// 声明一个配置表；文件中不存在时会创建对应表结构。
-        /// 已存在于运行时模型的表会直接保留原元数据；只存在于文件模型的表会在首次声明时建立运行时绑定并同步本次元数据。
+        /// 声明一个配置表；文件中不存在时会创建对应表结构，只存在于文件模型的表会在首次声明时建立运行时绑定并同步本次元数据。
+        /// 运行时模型中已存在同键表时不再静默复用原表，而是抛出异常；重复声明无法用于刷新表元数据。
         /// 成功路径均会同步触发 <see cref="OnConfigChanged"/>，因此调用方不能把该事件次数等同于新增表数量。
         /// </summary>
         /// <param name="tableKey">表键名，只允许 Unicode 字母、数字和下划线。</param>
         /// <param name="tableName">运行时展示名称。</param>
         /// <param name="description">写入配置文件的表说明，可为空。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 为空白字符串，或 <paramref name="tableName"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表键名语法。</exception>
-        /// <exception cref="InvalidOperationException">新表无法创建或加入文件模型。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表键名语法（含 <c>null</c> 或空白）。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="tableName"/> 为 <c>null</c>。</exception>
+        /// <exception cref="InvalidOperationException">运行时表中已存在同键表，新表无法创建，或新表无法加入文件模型。</exception>
         /// <exception cref="NullReferenceException">服务已释放，或 <see cref="FileSheet"/> 首次读取失败。</exception>
         public void CreateTable(string tableKey, Translator tableName, Translator description = null)
         {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
+            if (!ConfigFileModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
             if (tableName == null)
                 throw new ArgumentNullException(nameof(tableName));
-            if (!ConfigFileModel.IsValidKeyName(tableKey))
-                throw new ArgumentException($"Invalid table key name: {tableKey}.", nameof(tableKey));
 
             var tableResult = FileSheet.GetTable(tableKey);
             if (tableResult.Success)
             {
-                if (!Sheet.Contains(tableKey))
-                    Sheet.Add(tableKey, new ConfigTable(tableKey, tableResult.Value, tableName, description));
+                if (Sheet.Contains(tableKey))
+                    throw new InvalidOperationException($"Config table already exists in runtime sheet: {tableKey}.");
+
+                Sheet.Add(tableKey, new ConfigTable(tableKey, tableResult.Value, tableName, description));
                 InvokeOnConfigChanged();
                 return;
             }

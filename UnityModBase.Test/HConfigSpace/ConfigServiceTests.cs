@@ -303,7 +303,7 @@ namespace UnityModBase.Test.HConfigSpace
             var exception = Assert.Throws<ArgumentException>(() =>
                 manager.CreateTable(invalidTableKey, tableName));
 
-            Assert.Contains("Invalid table key name", exception.Message);
+            Assert.Contains("Invalid table key", exception.Message);
             Assert.Contains(invalidTableKey, exception.Message);
             Assert.Equal("tableKey", exception.ParamName);
             Assert.False(manager.FileSheet.GetTable(invalidTableKey).Success);
@@ -314,11 +314,11 @@ namespace UnityModBase.Test.HConfigSpace
         [InlineData(null)]
         [InlineData("")]
         [InlineData("   ")]
-        public void CreateTable_WhenTableKeyMissing_ThrowsArgumentNullException(string tableKey)
+        public void CreateTable_WhenTableKeyMissing_ThrowsArgumentException(string tableKey)
         {
             using var manager = new ConfigService(CreateTempConfigPath());
 
-            var exception = Assert.Throws<ArgumentNullException>(() =>
+            var exception = Assert.Throws<ArgumentException>(() =>
                 manager.CreateTable(tableKey, new Translator("表名", "TableName")));
 
             Assert.Equal("tableKey", exception.ParamName);
@@ -609,11 +609,26 @@ namespace UnityModBase.Test.HConfigSpace
             var exception = Assert.Throws<ArgumentException>(() =>
                 manager.Bind<string>("TestTable", "Invalid-Key!", "Value", new Translator("键", "Key"), new Translator("描述", "Description")));
 
-            Assert.Contains("Invalid key name", exception.Message);
+            Assert.Contains("Invalid entry key", exception.Message);
             Assert.Contains("TestTable.Invalid-Key!", exception.Message);
             Assert.Equal("key", exception.ParamName);
             Assert.False(manager.FileSheet.GetEntry("TestTable", "Invalid-Key!").Success);
             Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Fact]
+        public void Bind_WhenKeyNameInvalidOnMissingTable_RejectsKeyBeforeTableLookup()
+        {
+            // Arrange：键名格式校验先于任何文件查询执行，非法键应先于“表不存在”诊断被拒绝，
+            // 用于锁定 GetOrCreateConfigFileEntry 中校验顺序不被回退到“先查表后验键”。
+            using var manager = new ConfigService(CreateTempConfigPath());
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                manager.Bind<string>("NonExistentTable", "Invalid-Key!", "Value", new Translator("键", "Key"), new Translator("描述", "Description")));
+
+            Assert.Contains("Invalid entry key", exception.Message);
+            Assert.Contains("NonExistentTable.Invalid-Key!", exception.Message);
+            Assert.Equal("key", exception.ParamName);
         }
 
         [Theory]
@@ -976,23 +991,40 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void CreateTable_WhenTableAlreadyExistsInSheet_DoesNotAddDuplicateTable()
+        public void CreateTable_WhenTableAlreadyExistsInSheet_ThrowsInvalidOperationExceptionAndKeepsOriginalTable()
         {
             var tempPath = CreateTempConfigPath();
             File.WriteAllText(tempPath, "[ExistingTable]\n");
             using var manager = new ConfigService(tempPath);
             var originalName = new Translator("原表名", "Original Name");
             var originalDescription = new Translator("原描述", "Original Description");
-            var replacementName = new Translator("新表名", "Replacement Name");
-            var replacementDescription = new Translator("新描述", "Replacement Description");
-
             manager.CreateTable("ExistingTable", originalName, originalDescription);
             var originalTable = manager.Sheet["ExistingTable"];
-            manager.CreateTable("ExistingTable", replacementName, replacementDescription);
 
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                manager.CreateTable("ExistingTable", new Translator("新表名", "Replacement Name"), new Translator("新描述", "Replacement Description")));
+
+            Assert.Contains("ExistingTable", exception.Message);
             Assert.Same(originalTable, Assert.Single(manager.Sheet.Values));
             Assert.Same(originalName, originalTable.Name);
             Assert.Same(originalDescription, originalTable.Description);
+        }
+
+        [Fact]
+        public void Bind_WhenEntryAlreadyBoundToSameTableAndKey_ThrowsInvalidOperationException()
+        {
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\n");
+            using var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var first = manager.Bind<string>("TestTable", "TestKey", "First", new Translator("键", "Key"), new Translator("描述", "Description"));
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                manager.Bind<string>("TestTable", "TestKey", "Second", new Translator("键", "Key"), new Translator("描述", "Description")));
+
+            Assert.Contains("TestTable.TestKey", exception.Message);
+            Assert.Same(first, Assert.Single(manager.Sheet["TestTable"].Table));
+            Assert.Equal("First", first.Value);
         }
 
         [Fact]

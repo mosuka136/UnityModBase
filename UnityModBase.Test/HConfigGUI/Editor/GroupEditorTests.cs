@@ -14,6 +14,15 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 {
     public class GroupEditorTests
     {
+        /// <summary>
+        /// 构造函数会向全进程共享的静态注册表注册内置编辑器；每个测试开始前先释放并清空，
+        /// 保证注册顺序和 Dispose 断言只反映本测试构造的编辑器。
+        /// </summary>
+        public GroupEditorTests()
+        {
+            ValueEditorRegistry.Dispose();
+        }
+
         [Fact]
         public void Constructor_ValidDependencies_InitializesDependenciesAndEditorsWithoutContext()
         {
@@ -32,16 +41,14 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.Same(unityProvider.Object, editor.UnityService);
             Assert.Same(unityGui.Object, editor.UnityGui);
             Assert.Same(styleResource, editor.StyleProvider);
-            Assert.NotNull(editor.EditorRegistry);
             Assert.NotNull(editor.EntryEditor);
-            Assert.Same(editor.EditorRegistry, editor.EntryEditor.Registry);
             Assert.Same(unityGui.Object, editor.EntryEditor.UnityGui);
-            Assert.IsType<BooleanEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(bool)).Object));
-            Assert.IsType<StringEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(string)).Object));
-            Assert.IsType<SliderEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(int), metadata: new UiSliderMetadata(0f, 10f, 1f)).Object));
-            Assert.IsType<NumberEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(float)).Object));
-            Assert.IsType<EnumEditor>(editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
-            Assert.Same(editor.HotkeyEditor, editor.EditorRegistry.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
+            Assert.IsType<BooleanEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(bool)).Object));
+            Assert.IsType<StringEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(string)).Object));
+            Assert.IsType<SliderEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(int), metadata: new UiSliderMetadata(0f, 10f, 1f)).Object));
+            Assert.IsType<NumberEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(float)).Object));
+            Assert.IsType<EnumEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
+            Assert.Same(editor.HotkeyEditor, ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
         }
 
         [Fact]
@@ -268,7 +275,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void Dispose_WhenHotkeySessionIsRecording_ClearsSessionAndRestoresValidity()
+        public void Dispose_WhenHotkeySessionIsRecording_ClearsSessionRestoresValidityAndSharedRegistry()
         {
             var editor = CreateEditor(out _, out _);
             var originalValue = new Hotkey();
@@ -289,6 +296,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 Assert.Equal(HotkeyEditState.Idle, editor.HotkeyEditor.Session.State);
                 Assert.Null(editor.HotkeyEditor.Session.WorkingValue);
                 Assert.Null(editor.HotkeyEditor.Session.WorkingChord);
+                Assert.Same(UnsupportedEditor.Default, ValueEditorRegistry.GetEditor(entry.Object));
             }
             finally
             {

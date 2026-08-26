@@ -385,6 +385,46 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result);
         }
 
+        // ---- 键名校验 ----
+        // IsValidTableKey 由 ConfigFileTable.IsValidTableName 迁移而来，IsValidEntryKey 由 IsValidKeyName 更名；
+        // 两者共享“非空且仅字母、数字、下划线”的语法约束，直接测试其边界输入。
+
+        [Theory]
+        [InlineData("Table_1", true)]
+        [InlineData("表1", true)]
+        [InlineData(null, false)]
+        [InlineData("", false)]
+        [InlineData("   ", false)]
+        [InlineData("Invalid-Table", false)]
+        [InlineData("Invalid Table", false)]
+        [InlineData("InvalidTable!", false)]
+        public void IsValidTableKey_AcceptsOnlyWordCharacters(string tableKey, bool expected)
+        {
+            // Act
+            var result = ConfigFileModel.IsValidTableKey(tableKey);
+
+            // Assert
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData("Entry_1", true)]
+        [InlineData("键1", true)]
+        [InlineData(null, false)]
+        [InlineData("", false)]
+        [InlineData("   ", false)]
+        [InlineData("Invalid-Key", false)]
+        [InlineData("Invalid Key", false)]
+        [InlineData("InvalidKey!", false)]
+        public void IsValidEntryKey_AcceptsOnlyWordCharacters(string key, bool expected)
+        {
+            // Act
+            var result = ConfigFileModel.IsValidEntryKey(key);
+
+            // Assert
+            Assert.Equal(expected, result);
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("")]

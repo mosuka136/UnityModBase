@@ -55,4 +55,37 @@ namespace UnityModBase.HConfigGUI
             Step = step;
         }
     }
+
+    /// <summary>
+    /// 组合元数据：聚合同一个配置属性上打包声明的多个 UI 元数据，
+    /// 对应 <see cref="T:UnityModBase.HClassAttribute.ConfigGuiAttribute"/> 的展开结果。
+    /// 本类型只承载聚合结果，不解释元素含义；值编辑器按需从中查找自己识别的子元数据。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Metadatas"/> 的下标由各子声明通过
+    /// <see cref="T:UnityModBase.HClassAttribute.ConfigSliderAttribute"/> 的索引指定，
+    /// 数组长度对应组合声明的元素数；没有子声明提供有效索引或类型不受识别的槽位为 <c>null</c>，消费方须容忍。
+    /// 构造函数不校验数组及其元素。
+    /// </remarks>
+    public class UiConfigMetadata : IUiMetadata
+    {
+        /// <summary>
+        /// 获取当前实现对应的元数据运行时类型。
+        /// </summary>
+        public Type MetadataType => typeof(UiConfigMetadata);
+
+        /// <summary>
+        /// 获取聚合的子元数据数组，下标对应组合声明中的槽位索引，可能含 <c>null</c> 元素。
+        /// </summary>
+        public IUiMetadata[] Metadatas { get; }
+
+        /// <summary>
+        /// 创建组合元数据。
+        /// </summary>
+        /// <param name="metadatas">按槽位索引组织好的子元数据数组，长度对应组合声明的元素数。</param>
+        public UiConfigMetadata(IUiMetadata[] metadatas)
+        {
+            Metadatas = metadatas;
+        }
+    }
 }

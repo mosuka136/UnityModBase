@@ -8,12 +8,19 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
 {
     public class EntryBindingTests
     {
+        // 滑条元数据按“静态运行时声明 + TableKey/Key 匹配”解析；静态属性的值模拟已绑定的配置项。
         private class TestConfig
         {
             [ConfigSlider(-1f, 20f, 0.1f)]
-            public float SetLootDropRatio { get; set; }
+            public static IConfigEntry SetLootDropRatio { get; } = CreateDeclaredEntry("SetLootDropRatio").Object;
+        }
 
-            public bool EnableUnityModBase { get; set; }
+        private static Mock<IConfigEntry> CreateDeclaredEntry(string key)
+        {
+            var entryMock = new Mock<IConfigEntry>();
+            entryMock.SetupGet(entry => entry.TableKey).Returns("Gameplay");
+            entryMock.SetupGet(entry => entry.Key).Returns(key);
+            return entryMock;
         }
 
         [Fact]
@@ -169,6 +176,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         {
             // Arrange
             var entryMock = CreateEntryMock();
+            entryMock.SetupGet(entry => entry.TableKey).Returns("Gameplay");
             entryMock.SetupGet(entry => entry.Key).Returns("SetLootDropRatio");
 
             // Act
@@ -185,8 +193,9 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         [Fact]
         public void Constructor_EntryWithExistingNonSliderKey_SetsEntryAndMetadataToNull()
         {
-            // Arrange
+            // Arrange：表键一致但配置键不同，绑定应创建且元数据回退为空。
             var entryMock = CreateEntryMock();
+            entryMock.SetupGet(entry => entry.TableKey).Returns("Gameplay");
             entryMock.SetupGet(entry => entry.Key).Returns("EnableUnityModBase");
 
             // Act
@@ -195,6 +204,24 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             // Assert
             Assert.Same(entryMock.Object, binding.Entry);
             Assert.Null(binding.Metadata);
+        }
+
+        [Fact]
+        public void Constructor_WhenClassTypeIsNull_ThrowsArgumentNullException()
+        {
+            var entryMock = CreateEntryMock();
+
+            var exception = Assert.Throws<ArgumentNullException>(() => new EntryBinding(null, entryMock.Object));
+
+            Assert.Equal("classType", exception.ParamName);
+        }
+
+        [Fact]
+        public void Constructor_WhenEntryIsNull_ThrowsArgumentNullException()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => new EntryBinding(typeof(TestConfig), null));
+
+            Assert.Equal("entry", exception.ParamName);
         }
 
         [Fact]

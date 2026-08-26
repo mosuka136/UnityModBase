@@ -51,21 +51,48 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void Add_NullEntry_IsIgnored()
+        public void Add_NullEntry_ThrowsArgumentNullException()
         {
             var table = CreateTable();
 
-            table.Add(null);
+            var exception = Assert.Throws<ArgumentNullException>(() => table.Add(null));
 
+            Assert.Equal("entry", exception.ParamName);
             Assert.Empty(table.Table);
+        }
+
+        [Fact]
+        public void Add_WhenEntryBelongsToDifferentTable_ThrowsArgumentException()
+        {
+            var table = CreateTable();
+            var foreignEntry = CreateEntryMock(tableKey: "OtherTable", key: "Entry").Object;
+
+            var exception = Assert.Throws<ArgumentException>(() => table.Add(foreignEntry));
+
+            Assert.Equal("entry", exception.ParamName);
+            Assert.Empty(table.Table);
+        }
+
+        [Fact]
+        public void Add_WhenEntryAlreadyExists_ThrowsArgumentException()
+        {
+            var table = CreateTable();
+            var entry = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
+            table.Add(entry);
+            var duplicate = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
+
+            var exception = Assert.Throws<ArgumentException>(() => table.Add(duplicate));
+
+            Assert.Equal("entry", exception.ParamName);
+            Assert.Equal(new[] { entry }, table.Table);
         }
 
         [Fact]
         public void Add_EntriesPreserveOrderForGenericAndNonGenericEnumeration()
         {
             var table = CreateTable();
-            var first = new Mock<IConfigEntry>().Object;
-            var second = new Mock<IConfigEntry>().Object;
+            var first = CreateEntryMock(tableKey: "Table", key: "First").Object;
+            var second = CreateEntryMock(tableKey: "Table", key: "Second").Object;
 
             table.Add(first);
             table.Add(second);
@@ -73,6 +100,56 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Equal(new[] { first, second }, table.Table);
             Assert.Equal(new[] { first, second }, table.ToArray());
             Assert.Equal(new object[] { first, second }, ((IEnumerable)table).Cast<object>().ToArray());
+        }
+
+        [Fact]
+        public void Contains_WhenEntryMatchesTableAndKey_ReturnsTrue()
+        {
+            var table = CreateTable();
+            var entry = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
+            table.Add(entry);
+
+            var lookup = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
+
+            Assert.True(table.Contains(lookup));
+        }
+
+        [Fact]
+        public void Contains_WhenKeyIsNotInTable_ReturnsFalse()
+        {
+            var table = CreateTable();
+            table.Add(CreateEntryMock(tableKey: "Table", key: "Entry").Object);
+
+            var lookup = CreateEntryMock(tableKey: "Table", key: "Missing").Object;
+
+            Assert.False(table.Contains(lookup));
+        }
+
+        [Fact]
+        public void Contains_WhenEntryBelongsToDifferentTable_ReturnsFalse()
+        {
+            var table = CreateTable();
+            table.Add(CreateEntryMock(tableKey: "Table", key: "Entry").Object);
+
+            var lookup = CreateEntryMock(tableKey: "OtherTable", key: "Entry").Object;
+
+            Assert.False(table.Contains(lookup));
+        }
+
+        [Fact]
+        public void Contains_WhenEntryIsNull_ReturnsFalse()
+        {
+            var table = CreateTable();
+
+            Assert.False(table.Contains(null));
+        }
+
+        private static Mock<IConfigEntry> CreateEntryMock(string tableKey, string key)
+        {
+            var entryMock = new Mock<IConfigEntry>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.TableKey).Returns(tableKey);
+            entryMock.SetupGet(x => x.Key).Returns(key);
+            return entryMock;
         }
 
         private static ConfigTable CreateTable()

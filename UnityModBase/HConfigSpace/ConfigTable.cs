@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigSpace
@@ -33,7 +34,7 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 表内已绑定配置项，顺序与绑定顺序一致。
-        /// 返回的是可变列表；直接修改会绕过 <see cref="Add"/> 对 <c>null</c> 的忽略规则，
+        /// 返回的是可变列表；直接修改会绕过 <see cref="Add"/> 的归属表与重复键校验，
         /// 也不会创建文件项或建立 <see cref="ConfigService"/> 的自动保存订阅。
         /// 自定义 <see cref="IConfigEntry"/> 实现还需正确实现事务协议方法，否则会使 <see cref="ConfigService.Reload"/> 预检或提交失败。
         /// </summary>
@@ -50,7 +51,7 @@ namespace UnityModBase.HConfigSpace
         /// <exception cref="NullReferenceException"><paramref name="table"/> 为 <c>null</c>。</exception>
         public ConfigTable(string key, ConfigFileTable table, Translator name, Translator description)
         {
-            if (!ConfigFileTable.IsValidTableName(key))
+            if (!ConfigFileModel.IsValidTableKey(key))
                 throw new ArgumentException($"Invalid config table name: {key}.", nameof(key));
             Key = key;
             Name = name ?? new Translator(string.Empty);
@@ -62,14 +63,31 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 按绑定顺序追加配置项；<c>null</c> 输入会被忽略。
+        /// 判断配置项是否已按“表键名 + 配置项键名”存在于本表中；不做引用比较，<c>null</c> 输入视为不存在。
+        /// 现为线性扫描，供 <see cref="Add"/> 与 <see cref="ConfigService"/> 的绑定入口做重复键检测。
+        /// </summary>
+        /// <param name="entry">待查询的运行时配置项，可为 <c>null</c>。</param>
+        /// <returns>存在同键配置项时返回 <c>true</c>。</returns>
+        public bool Contains(IConfigEntry entry)
+        {
+            return entry != null && Key == entry.TableKey && Table.Select(e => e.Key).Contains(entry.Key);
+        }
+
+        /// <summary>
+        /// 按绑定顺序追加配置项；输入为 <c>null</c>、配置项声明归属其他表或键名与本表已有项重复时抛出异常。
         /// 该低级入口只修改运行时列表，不负责创建文件项、订阅自动保存或验证事务重载协议；正常声明配置项应使用 <see cref="ConfigService"/> 的相应 <c>Bind</c> 重载。
         /// </summary>
-        /// <param name="entry">待追加的运行时配置项。</param>
+        /// <param name="entry">待追加的运行时配置项，其 <c>TableKey</c> 必须等于本表键名。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><paramref name="entry"/> 归属其他表，或其键名已存在于本表。</exception>
         public void Add(IConfigEntry entry)
         {
             if (entry == null)
-                return;
+                throw new ArgumentNullException(nameof(entry));
+            if (Key != entry.TableKey)
+                throw new ArgumentException($"Config entry {entry.Key} belongs to table {entry.TableKey}, not {Key}.", nameof(entry));
+            if (Contains(entry))
+                throw new ArgumentException($"Config entry {entry.Key} already exists in table {Key}.", nameof(entry));
             Table.Add(entry);
         }
 

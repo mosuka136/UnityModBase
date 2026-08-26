@@ -62,14 +62,14 @@ namespace UnityModBase.HConfigGUI.Bindings
         /// </summary>
         /// <param name="classType">声明配置字段及其 GUI 特性的配置管理器类型。</param>
         /// <param name="entry">要适配的底层配置项。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 null。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="classType"/> 或 <paramref name="entry"/> 为 null。</exception>
         public EntryBinding(Type classType, IConfigEntry entry)
         {
+            if (classType == null)
+                throw new ArgumentNullException(nameof(classType));
+
             Entry = entry ?? throw new ArgumentNullException(nameof(entry));
-            if (UiMetadataHelper.TryGetMetadata(classType, entry, out var metadata))
-                Metadata = metadata;
-            else
-                Metadata = null;
+            Metadata = UiMetadataHelper.GetMetadata(classType, entry);
             EditBuffer = new EntryEditBuffer();
         }
     }

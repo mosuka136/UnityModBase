@@ -38,7 +38,7 @@ namespace UnityModBase.HConfigSpace
             get => _tableKey;
             set
             {
-                if (ConfigFileTable.IsValidTableName(value))
+                if (ConfigFileModel.IsValidTableKey(value))
                     _tableKey = value;
                 else
                     throw new ArgumentException($"Invalid table name: {value}.");
@@ -55,7 +55,7 @@ namespace UnityModBase.HConfigSpace
 
             set
             {
-                if (IsValidKeyName(value))
+                if (IsValidEntryKey(value))
                     _key = value;
                 else
                     throw new ArgumentException($"Invalid key name: {value}. Key names must be non-empty and can only contain letters, digits, and underscores.");
@@ -176,7 +176,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>键值行，或键名/值非法诊断。</returns>
         public ConfigFileResult<string> EncodeKeyValuePair()
         {
-            if (!IsValidKeyName(_key))
+            if (!IsValidEntryKey(_key))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidKeyName, $"Invalid key name: {Key}"));
             if (string.IsNullOrWhiteSpace(Value))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Value cannot be empty for key: {Key}"));
@@ -319,7 +319,7 @@ namespace UnityModBase.HConfigSpace
             var key = parts[0].Trim();
             var value = parts[1].Trim();
 
-            if (!IsValidKeyName(key))
+            if (!IsValidEntryKey(key))
                 return ConfigFileResult<(string, string)>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidKeyName, $"Invalid key name: {key}"));
 
             if (string.IsNullOrWhiteSpace(value))

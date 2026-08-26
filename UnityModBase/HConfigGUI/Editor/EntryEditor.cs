@@ -7,15 +7,11 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HConfigGUI.Editor
 {
     /// <summary>
-    /// 绘制单个配置项的一行通用结构，并把具体值控件委托给注册表选出的 <see cref="ValueEditor.IValueEditor"/>。
+    /// 绘制单个配置项的一行通用结构，并把具体值控件委托给全局注册表 <see cref="ValueEditorRegistry"/> 选出的 <see cref="ValueEditor.IValueEditor"/>。
     /// 本类负责名称、说明、重置按钮和变更入口，不负责选择分组或推进延迟提交。
     /// </summary>
     public class EntryEditor
     {
-        /// <summary>
-        /// 获取按类型选择具体值编辑器的注册表。
-        /// </summary>
-        public ValueEditorRegistry Registry { get; }
         /// <summary>
         /// 获取配置行绘制所用的 IMGUI 提供器。
         /// </summary>
@@ -24,12 +20,10 @@ namespace UnityModBase.HConfigGUI.Editor
         /// <summary>
         /// 创建配置项行编辑器。
         /// </summary>
-        /// <param name="registry">用于选择值控件的编辑器注册表。</param>
         /// <param name="unity">用于绘制配置行的 IMGUI 提供器。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="registry"/> 或 <paramref name="unity"/> 为 null。</exception>
-        public EntryEditor(ValueEditorRegistry registry, IUnityGuiProvider unity)
+        /// <exception cref="ArgumentNullException"><paramref name="unity"/> 为 null。</exception>
+        public EntryEditor(IUnityGuiProvider unity)
         {
-            Registry = registry ?? throw new ArgumentNullException(nameof(registry), "Registry cannot be null.");
             UnityGui = unity ?? throw new ArgumentNullException(nameof(unity), "UnityGui cannot be null.");
         }
 
@@ -54,11 +48,11 @@ namespace UnityModBase.HConfigGUI.Editor
 
             if (!context.IsValid)
             {
-                BLog.Error($"Config entry draw skipped because the GUI context is invalid. EntryProvided={entry != null}, Operation='{nameof(Draw)}'.");
+                BLog.Error($"Config entry draw skipped because the GUI context is invalid. Operation='{nameof(Draw)}'.");
                 return;
             }
 
-            var editor = Registry.GetEditor(entry);
+            var editor = ValueEditorRegistry.GetEditor(entry);
 
             UnityGui.BeginHorizontal();
             try

@@ -12,6 +12,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// <summary>
     /// 负责配置绑定树的分组导航、递归内容绘制、布局尺寸缓存刷新和延迟值提交。
     /// 编辑器本身保存当前根节点及滚动位置，用户相关选择和尺寸缓存保存在 <see cref="GuiContext"/>；切换根节点会取消热键编辑会话。
+    /// 内置值编辑器保存在进程级共享的 <see cref="ValueEditorRegistry"/> 中，不属于本实例私有状态。
     /// </summary>
     /// <remarks>
     /// 分组树最终会进入可扩展的值编辑器和配置回调，因此每个已成功开启的 IMGUI 布局与滚动视图都在
@@ -33,15 +34,11 @@ namespace UnityModBase.HConfigGUI.Editor
         public StyleResource StyleProvider { get; }
 
         /// <summary>
-        /// 获取当前分组编辑器拥有的值编辑器注册表。
-        /// </summary>
-        public ValueEditorRegistry EditorRegistry { get; }
-        /// <summary>
         /// 获取单项配置行编辑器。
         /// </summary>
         public EntryEditor EntryEditor { get; }
         /// <summary>
-        /// 获取注册表中的热键编辑器及其录制会话。
+        /// 获取由本实例创建并登记到全局注册表的热键编辑器及其录制会话。
         /// </summary>
         public HotkeyEditor HotkeyEditor { get; }
 
@@ -51,28 +48,31 @@ namespace UnityModBase.HConfigGUI.Editor
 
         // 专用编辑器保持在通用数值编辑器之前，确保控件选择规则扩展后仍优先采用更具体的实现。
         /// <summary>
-        /// 创建分组编辑器并按“专用类型优先于通用数值”的顺序注册内置值编辑器。
+        /// 创建分组编辑器，并按“专用类型优先于通用数值”的顺序向全局注册表追加内置值编辑器。
         /// </summary>
         /// <param name="unityService">用于布局测量和数值运算的 Unity 服务。</param>
         /// <param name="unityGui">用于绘制分组和配置项的 IMGUI 提供器。</param>
         /// <param name="styleProvider">提供配置界面样式的资源。</param>
         /// <exception cref="ArgumentNullException">任一依赖为 null。</exception>
+        /// <remarks>
+        /// 注册目标是进程级共享的 <see cref="ValueEditorRegistry"/>：重复构造会向其中累积追加编辑器集合，
+        /// 查询取首个匹配者，匹配结果不受影响；但任一实例 <see cref="Dispose"/> 都会释放并清空整个全局注册表。
+        /// </remarks>
         public GroupEditor(IUnityProvider unityService, IUnityGuiProvider unityGui, StyleResource styleProvider)
         {
             UnityService = unityService ?? throw new ArgumentNullException(nameof(unityService), "UnityService cannot be null.");
             UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui), "UnityGui cannot be null.");
             StyleProvider = styleProvider ?? throw new ArgumentNullException(nameof(styleProvider), "StyleProvider cannot be null.");
 
-            EditorRegistry = new ValueEditorRegistry();
-            EditorRegistry.RegisterEditor(new BooleanEditor(unityGui));
-            EditorRegistry.RegisterEditor(new StringEditor(unityGui));
-            EditorRegistry.RegisterEditor(new SliderEditor(unityGui, unityService, styleProvider));
-            EditorRegistry.RegisterEditor(new NumberEditor(unityGui));
-            EditorRegistry.RegisterEditor(new EnumEditor(unityGui));
+            ValueEditorRegistry.RegisterEditor(new BooleanEditor(unityGui));
+            ValueEditorRegistry.RegisterEditor(new StringEditor(unityGui));
+            ValueEditorRegistry.RegisterEditor(new SliderEditor(unityGui, unityService, styleProvider));
+            ValueEditorRegistry.RegisterEditor(new NumberEditor(unityGui));
+            ValueEditorRegistry.RegisterEditor(new EnumEditor(unityGui));
             HotkeyEditor = new HotkeyEditor(unityGui, styleProvider);
-            EditorRegistry.RegisterEditor(HotkeyEditor);
+            ValueEditorRegistry.RegisterEditor(HotkeyEditor);
 
-            EntryEditor = new EntryEditor(EditorRegistry, unityGui);
+            EntryEditor = new EntryEditor(unityGui);
         }
 
         /// <summary>
@@ -384,17 +384,22 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
-        /// 释放值编辑器注册表；这也会清理热键录制状态，并按录制开始时的快照恢复相关有效开关。
+        /// 释放并清空进程级共享的值编辑器注册表；这也会结束热键录制会话，
+        /// 并按录制开始时的快照恢复原热键对象和全局开关。
         /// </summary>
+        /// <remarks>
+        /// 释放目标是全局注册表而非本实例私有资源：存在多个分组编辑器实例时，
+        /// 本调用会使其他实例后续查询值编辑器时回退到占位编辑器，直至重新构造并注册。
+        /// </remarks>
         public void Dispose()
         {
             try
             {
-                EditorRegistry?.Dispose();
+                ValueEditorRegistry.Dispose();
             }
             catch (Exception ex)
             {
-                BLog.Error($"Failed to dispose the value editor registry owned by '{GetType().FullName}'.", ex);
+                BLog.Error($"Failed to dispose the value editor registry.", ex);
             }
         }
     }

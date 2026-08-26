@@ -41,7 +41,7 @@ namespace UnityModBase.HConfigSpace
         /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表名语法。</exception>
         public ConfigFileTable(string tableKey, Translator description)
         {
-            if (IsValidTableName(tableKey))
+            if (ConfigFileModel.IsValidTableKey(tableKey))
                 Key = tableKey;
             else
                 throw new ArgumentException($"Invalid table name: {tableKey}", nameof(tableKey));
@@ -123,7 +123,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>表头文本，或表名非法诊断。</returns>
         public ConfigFileResult<string> EncodeTableHeader()
         {
-            if (!IsValidTableName(Key))
+            if (!ConfigFileModel.IsValidTableKey(Key))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidTableName, $"Invalid table name: {Key}"));
             return $"[{Key}]";
         }
@@ -172,20 +172,6 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 判断表名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
-        /// </summary>
-        /// <param name="tableKey">待检查的表名。</param>
-        /// <returns>表名是否可以安全写入方括号表头。</returns>
-        public static bool IsValidTableName(string tableKey)
-        {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                return false;
-            if (tableKey.All(c => char.IsLetterOrDigit(c) || c == '_'))
-                return true;
-            return false;
-        }
-
-        /// <summary>
         /// 验证表名并创建空文件表，不会自动加入任何 <see cref="ConfigFileSheet"/>。
         /// </summary>
         /// <param name="tableName">表键名。</param>
@@ -193,7 +179,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>新文件表，或表名非法诊断。</returns>
         public static ConfigFileResult<ConfigFileTable> Create(string tableName, Translator description)
         {
-            if (!IsValidTableName(tableName))
+            if (!ConfigFileModel.IsValidTableKey(tableName))
                 return ConfigFileResult<ConfigFileTable>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidTableName, $"Invalid table name: {tableName}"));
             var table = new ConfigFileTable(tableName, description);
             return table;
