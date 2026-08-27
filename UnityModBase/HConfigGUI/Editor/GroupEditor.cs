@@ -71,6 +71,7 @@ namespace UnityModBase.HConfigGUI.Editor
             ValueEditorRegistry.RegisterEditor(new EnumEditor(unityGui));
             HotkeyEditor = new HotkeyEditor(unityGui, styleProvider);
             ValueEditorRegistry.RegisterEditor(HotkeyEditor);
+            ValueEditorRegistry.RegisterEditor(new DualValueEditor(unityGui));
 
             EntryEditor = new EntryEditor(unityGui);
         }

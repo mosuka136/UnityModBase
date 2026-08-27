@@ -6,6 +6,7 @@ using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using Moq;
@@ -49,6 +50,8 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.IsType<NumberEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(float)).Object));
             Assert.IsType<EnumEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
             Assert.Same(editor.HotkeyEditor, ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
+            Assert.IsType<DualValueEditor>(ValueEditorRegistry.GetEditor(
+                CreateEntryBindingMock(typeof(ConfigEntryValue<int, string>)).Object));
         }
 
         [Fact]

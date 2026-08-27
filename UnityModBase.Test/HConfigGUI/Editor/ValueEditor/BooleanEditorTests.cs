@@ -2,6 +2,7 @@ using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HProvider;
 using Moq;
 using UnityEngine;
@@ -100,6 +101,39 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Toggle(currentValue, TranslatorResource.Off.ToString(), It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_DoesNotExpandToggleWidth()
+        {
+            // Arrange：复合条目由父编辑器占满值区域，布尔槽位只应占用 toggle 内容宽度。
+            const bool currentValue = true;
+            GUILayoutOption compactWidth = null;
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(false)).Returns(compactWidth);
+            unityGuiMock
+                .Setup(x => x.Toggle(
+                    currentValue,
+                    TranslatorResource.On.ToString(),
+                    It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))))
+                .Returns(currentValue);
+            var parentEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentEntry.SetupGet(x => x.ValueType).Returns(typeof(ConfigEntryValue<bool, int>));
+            parentEntry.SetupProperty(x => x.Value, new ConfigEntryValue<bool, int>(currentValue, 50));
+            parentEntry.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentEntry.Object, 0);
+            var editor = new BooleanEditor(unityGuiMock.Object);
+
+            // Act
+            editor.DrawValue(slot, new GuiStateStore());
+
+            // Assert
+            unityGuiMock.Verify(x => x.ExpandWidth(false), Times.Once);
+            unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Never);
+            unityGuiMock.Verify(x => x.Toggle(
+                currentValue,
+                TranslatorResource.On.ToString(),
+                It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))), Times.Once);
         }
 
         private static BooleanEditor CreateEditor()
