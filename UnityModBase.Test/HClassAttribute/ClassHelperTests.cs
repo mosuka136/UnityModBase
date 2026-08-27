@@ -11,28 +11,28 @@ namespace UnityModBase.Test.HClassAttribute
         // 静态属性的值在首次访问时创建，模拟生产环境中“运行时声明 + 文件项绑定”的查找方式。
         private class StaticConfigDeclarationHost
         {
-            [ConfigSlider(0f, 100f, 1f)]
+            [EntrySlider(0f, 100f, 1f)]
             public static IConfigEntry VolumeEntry { get; } = CreateConfigEntry("Settings", "Volume").Object;
 
-            [ConfigSlider(10f, 50f, 0.5f)]
+            [EntrySlider(10f, 50f, 0.5f)]
             public static IConfigEntry SpeedEntry { get; } = CreateConfigEntry("Movement", "Speed").Object;
         }
 
         private class InstanceConfigDeclarationHost
         {
-            [ConfigSlider(0f, 100f, 1f)]
+            [EntrySlider(0f, 100f, 1f)]
             public IConfigEntry VolumeEntry => CreateConfigEntry("Settings", "Volume").Object;
         }
 
         private class NonEntryStaticDeclarationHost
         {
-            [ConfigSlider(0f, 1f, 0.1f)]
+            [EntrySlider(0f, 1f, 0.1f)]
             public static float SliderValueWithoutEntry { get; set; }
         }
 
         private class MultiAttributeDeclarationHost
         {
-            [ConfigSlider(0f, 10f, 1f)]
+            [EntrySlider(0f, 10f, 1f)]
             [TestMarker]
             public static IConfigEntry VolumeEntry { get; } = CreateConfigEntry("Settings", "Volume").Object;
         }
@@ -44,13 +44,13 @@ namespace UnityModBase.Test.HClassAttribute
 
         private class RenamedDeclarationHost
         {
-            [ConfigSlider(0f, 100f, 1f)]
+            [EntrySlider(0f, 100f, 1f)]
             public static IConfigEntry ExposedAsDifferentName { get; } = CreateConfigEntry("Settings", "ActualEntryKey").Object;
         }
 
         private class NullValueDeclarationHost
         {
-            [ConfigSlider(0f, 100f, 1f)]
+            [EntrySlider(0f, 100f, 1f)]
             public static IConfigEntry NullValueEntry => null;
         }
 
@@ -72,7 +72,7 @@ namespace UnityModBase.Test.HClassAttribute
             var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
 
             // Assert
-            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            var slider = Assert.IsType<EntrySliderAttribute>(Assert.Single(result));
             Assert.Equal(0f, slider.Min);
             Assert.Equal(100f, slider.Max);
             Assert.Equal(1f, slider.Step);
@@ -88,7 +88,7 @@ namespace UnityModBase.Test.HClassAttribute
             var result = ClassHelper.GetEntryDeclarationAttributes(typeof(StaticConfigDeclarationHost), entryMock.Object);
 
             // Assert
-            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            var slider = Assert.IsType<EntrySliderAttribute>(Assert.Single(result));
             Assert.Equal(10f, slider.Min);
             Assert.Equal(50f, slider.Max);
             Assert.Equal(0.5f, slider.Step);
@@ -159,7 +159,7 @@ namespace UnityModBase.Test.HClassAttribute
 
             // Assert
             Assert.Equal(2, result.Length);
-            Assert.Contains(result, attribute => attribute is ConfigSliderAttribute);
+            Assert.Contains(result, attribute => attribute is EntrySliderAttribute);
             Assert.Contains(result, attribute => attribute is TestMarkerAttribute);
         }
 
@@ -187,7 +187,7 @@ namespace UnityModBase.Test.HClassAttribute
             var result = ClassHelper.GetEntryDeclarationAttributes(typeof(RenamedDeclarationHost), entryMock.Object);
 
             // Assert
-            var slider = Assert.IsType<ConfigSliderAttribute>(Assert.Single(result));
+            var slider = Assert.IsType<EntrySliderAttribute>(Assert.Single(result));
             Assert.Equal(0f, slider.Min);
             Assert.Equal(100f, slider.Max);
         }

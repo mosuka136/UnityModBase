@@ -2,6 +2,8 @@ using Moq;
 using UnityModBase.HClassAttribute;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigGUI.Bindings
@@ -11,7 +13,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         // 滑条元数据按“静态运行时声明 + TableKey/Key 匹配”解析；静态属性的值模拟已绑定的配置项。
         private class TestConfig
         {
-            [ConfigSlider(-1f, 20f, 0.1f)]
+            [EntrySlider(-1f, 20f, 0.1f)]
             public static IConfigEntry SetLootDropRatio { get; } = CreateDeclaredEntry("SetLootDropRatio").Object;
         }
 
@@ -109,6 +111,8 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             entryMock.SetupProperty(entry => entry.BoxedValue, 1);
             var binding = new EntryBinding(typeof(TestConfig), entryMock.Object);
 
+            Assert.IsAssignableFrom<IResettableEntryBinding>(binding);
+
             // Act
             binding.Value = 2;
 
@@ -184,7 +188,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
 
             // Assert
             Assert.Same(entryMock.Object, binding.Entry);
-            var metadata = Assert.IsType<global::UnityModBase.HConfigGUI.UiSliderMetadata>(binding.Metadata);
+            var metadata = Assert.IsType<UiSliderMetadata>(binding.Metadata);
             Assert.Equal(-1f, metadata.Min);
             Assert.Equal(20f, metadata.Max);
             Assert.Equal(0.1f, metadata.Step);

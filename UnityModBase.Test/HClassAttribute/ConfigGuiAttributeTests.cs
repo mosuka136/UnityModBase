@@ -11,7 +11,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WithPositiveCount_StoresCount(int count)
         {
             // Act
-            var attribute = new ConfigGuiAttribute(count);
+            var attribute = new EntryGuiAttribute(count);
 
             // Assert
             Assert.Equal(count, attribute.Count);
@@ -23,7 +23,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WhenCountIsNotPositive_ThrowsArgumentOutOfRangeException(int count)
         {
             // Act & Assert
-            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigGuiAttribute(count));
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new EntryGuiAttribute(count));
             Assert.Equal("count", exception.ParamName);
         }
 
@@ -33,7 +33,7 @@ namespace UnityModBase.Test.HClassAttribute
             // Arrange：组合声明只需一个 ConfigGuiAttribute 指明槽位数量，重复标记没有语义。
             // Act
             var usage = Attribute.GetCustomAttribute(
-                typeof(ConfigGuiAttribute),
+                typeof(EntryGuiAttribute),
                 typeof(AttributeUsageAttribute)) as AttributeUsageAttribute;
 
             // Assert

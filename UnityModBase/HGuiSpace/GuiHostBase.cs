@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HotkeyManager;
@@ -35,11 +34,13 @@ namespace UnityModBase.HGuiSpace
         /// 用户移除通知则会立即同步更新选择和上下文。
         /// </summary>
         protected string _selectedUserKey = string.Empty;
+
         /// <summary>
         /// 当前选中用户的标识。界面切换用户后，<see cref="CurrentContext"/> 会在本帧窗口绘制结束时同步更新；
         /// 当前用户被移除时会同步回退到剩余用户中的默认项，没有剩余用户时为空字符串。
         /// </summary>
         public string SelectedUserKey => _selectedUserKey;
+
         /// <summary>
         /// 存储在用户上下文中的子上下文键，由具体 GUI 模块在初始化时设置。
         /// </summary>
@@ -49,19 +50,23 @@ namespace UnityModBase.HGuiSpace
         /// 获取传给用户选择器的候选用户序列。本类不按模块上下文过滤该序列。
         /// </summary>
         public IEnumerable<UserContext> Users { get; protected set; }
+
         /// <summary>
         /// 获取当前选中用户在本 GUI 模块下的子上下文。
         /// 派生类初始化以及 <see cref="ChangeCurrentContext"/> 完成选择切换时会更新该引用。
         /// </summary>
         public IUserContext CurrentContext { get; protected set; }
+
         /// <summary>
         /// 获取负责用户选择和模块内容绘制的编辑器。
         /// </summary>
         public UserEditorBase UserEditor { get; protected set; }
+
         /// <summary>
         /// 获取短时提示消息编辑器。
         /// </summary>
         public ToastEditor ToastEditor { get; protected set; }
+
         /// <summary>
         /// 获取工具提示编辑器。
         /// </summary>
@@ -71,10 +76,12 @@ namespace UnityModBase.HGuiSpace
         /// 获取 Unity 运行时服务抽象。
         /// </summary>
         public IUnityProvider UnityService { get; protected set; }
+
         /// <summary>
         /// 获取 IMGUI 调用抽象。
         /// </summary>
         public IUnityGuiProvider UnityGui { get; protected set; }
+
         /// <summary>
         /// 获取当前模块提供的通用浮层样式资源。
         /// </summary>
@@ -85,6 +92,7 @@ namespace UnityModBase.HGuiSpace
         /// </summary>
         public bool IsVisible { get; protected set; } = false;
         // 拖动释放产生的鼠标事件可能落在新窗口区域之外，继续自动隐藏会把正常拖动误判为失焦。
+
         /// <summary>
         /// 指示本次打开期间窗口是否移动过。移动后会禁用点击窗外自动隐藏，直至窗口再次隐藏。
         /// </summary>
@@ -102,6 +110,26 @@ namespace UnityModBase.HGuiSpace
         /// 获取切换窗口显隐的运行时热键。
         /// </summary>
         public Hotkey UIHotkey { get; protected set; }
+
+        /// <summary>
+        /// 按屏幕比例设置居中的窗口矩形。
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">任一比例不在 (0, 1] 范围内。</exception>
+        protected void SetCenteredWindowRect(float widthRatio, float heightRatio)
+        {
+            if (widthRatio <= 0f || widthRatio > 1f)
+                throw new ArgumentOutOfRangeException(nameof(widthRatio));
+            if (heightRatio <= 0f || heightRatio > 1f)
+                throw new ArgumentOutOfRangeException(nameof(heightRatio));
+
+            var width = UnityGui.ScreenWidth * widthRatio;
+            var height = UnityGui.ScreenHeight * heightRatio;
+            WindowRect = new Rect(
+                (UnityGui.ScreenWidth - width) / 2f,
+                (UnityGui.ScreenHeight - height) / 2f,
+                width,
+                height);
+        }
 
         /// <summary>
         /// 获取运行时依赖、创建通用浮层编辑器、选择默认用户，并订阅用户移除通知。

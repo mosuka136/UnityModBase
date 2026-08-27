@@ -1,5 +1,7 @@
 using System;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigGUI.Bindings
@@ -8,22 +10,28 @@ namespace UnityModBase.HConfigGUI.Bindings
     /// 将 <see cref="IConfigEntry"/> 适配为配置 GUI 可编辑节点，并为其持有独立的暂存输入缓冲区。
     /// 本类不负责延迟提交或通知 UI；这些职责分别由 <see cref="EntryChangeSink"/> 和 GUI 上下文承担。
     /// </summary>
-    public class EntryBinding : IEntryBinding
+    public class EntryBinding : IResettableEntryBinding
     {
         /// <summary>
         /// 获取被适配的底层配置项。
         /// </summary>
         public IConfigEntry Entry { get; }
+
         /// <inheritdoc/>
         public string Key => Entry.Key;
+
         /// <inheritdoc/>
         public Translator Name => Entry.Name;
+
         /// <inheritdoc/>
         public Translator Description => Entry.Description;
+
         /// <inheritdoc/>
         public Type ValueType => Entry.ValueType;
+
         /// <inheritdoc/>
         public IUiMetadata Metadata { get; }
+
         /// <inheritdoc/>
         public EntryEditBuffer EditBuffer { get; }
 

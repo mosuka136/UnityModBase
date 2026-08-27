@@ -1,6 +1,6 @@
-using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HProvider;
 using Moq;
 

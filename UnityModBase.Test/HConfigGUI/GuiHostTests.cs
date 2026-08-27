@@ -4,6 +4,7 @@ using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;

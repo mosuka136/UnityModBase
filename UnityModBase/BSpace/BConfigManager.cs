@@ -45,6 +45,11 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<Hotkey> LogUIHotkey { get; private set; }
 
         /// <summary>
+        /// 打开实时控制界面的热键，默认值为 <c>F3</c>。
+        /// </summary>
+        internal static ConfigEntry<Hotkey> ControlUIHotkey { get; private set; }
+
+        /// <summary>
         /// 从磁盘重新加载配置的热键，默认值为 <c>Ctrl+R</c>。
         /// </summary>
         internal static ConfigEntry<Hotkey> ReloadConfigHotkey { get; set; }
@@ -146,8 +151,7 @@ namespace UnityModBase.BSpace
                                      "- Ctrl+F\n" +
                                      "- LeftCtrl+RightShift+F\n" +
                                      "- GamepadStart+GamepadA\n" +
-                                     "- Ctrl+Shift+F, GamepadStart+GamepadA"
-                        )
+                                     "- Ctrl+Shift+F, GamepadStart+GamepadA")
                         );
 
                     var unityService = UnityProvider.Instance;
@@ -159,8 +163,7 @@ namespace UnityModBase.BSpace
                         new Translator(chinese: "配置界面热键", english: "Config UI Hotkey"),
                         new Translator(
                             chinese: "打开配置界面的热键。默认是 F1。",
-                            english: "The hotkey to open config UI. Default is F1."
-                        )
+                            english: "The hotkey to open config UI. Default is F1.")
                         );
                     LogUIHotkey = Config.Bind(
                         SectionHotkey,
@@ -169,8 +172,16 @@ namespace UnityModBase.BSpace
                         new Translator(chinese: "日志界面热键", english: "Log UI Hotkey"),
                         new Translator(
                             chinese: "打开日志界面的热键。默认是 F2。",
-                            english: "The hotkey to open log UI. Default is F2."
-                        )
+                            english: "The hotkey to open log UI. Default is F2.")
+                        );
+                    ControlUIHotkey = Config.Bind(
+                        SectionHotkey,
+                        nameof(ControlUIHotkey),
+                        new Hotkey("F3", unityService),
+                        new Translator(chinese: "实时控制界面热键", english: "Live Controls UI Hotkey"),
+                        new Translator(
+                            chinese: "打开实时控制界面的热键。默认是 F3。",
+                            english: "The hotkey to open the live controls UI. Default is F3.")
                         );
                     ReloadConfigHotkey = Config.Bind(
                         SectionHotkey,
@@ -179,8 +190,7 @@ namespace UnityModBase.BSpace
                         new Translator(chinese: "重新加载配置热键", english: "Reload Config Hotkey"),
                         new Translator(
                             chinese: "重新加载配置的热键。默认值为 Ctrl+R。",
-                            english: "The hotkey to reload config. Default is Ctrl+R."
-                        )
+                            english: "The hotkey to reload config. Default is Ctrl+R.")
                         );
 
                     Config.CreateTable(
@@ -196,8 +206,7 @@ namespace UnityModBase.BSpace
                                      "The log level of logs and BepInEx log can be set separately.\n" +
                                      "If the log level is set to Info, it will log all messages.\n" +
                                      "If the log level is set to Warning, it will only log warning and error messages.\n" +
-                                     "If the log level is set to Error, it will only log error messages."
-                        )
+                                     "If the log level is set to Error, it will only log error messages.")
                         );
                     EnableLog = Config.Bind(
                         SectionLog,
@@ -206,8 +215,7 @@ namespace UnityModBase.BSpace
                         new Translator(chinese: "启用日志", english: "Enable Log"),
                         new Translator(
                             chinese: "启用日志。将在 logs 文件夹中生成日志文件。",
-                            english: "Enable log. It will generate a log file in logs folder."
-                        )
+                            english: "Enable log. It will generate a log file in logs folder.")
                         );
                     LogLevel = Config.Bind(
                         SectionLog,
@@ -216,8 +224,7 @@ namespace UnityModBase.BSpace
                         new Translator(chinese: "日志等级", english: "Log Level"),
                         new Translator(
                             chinese: "日志等级。默认值为 Info。",
-                            english: "The log level. Default is Info."
-                        )
+                            english: "The log level. Default is Info.")
                         );
 
                     SetLanguage.OnValueChanged += OnSetLanguageChanged;
@@ -259,6 +266,7 @@ namespace UnityModBase.BSpace
                 LogLevel = null;
                 ConfigUIHotkey = null;
                 LogUIHotkey = null;
+                ControlUIHotkey = null;
                 ReloadConfigHotkey = null;
                 SetLanguage = null;
 

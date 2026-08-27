@@ -2,6 +2,8 @@ using System.Reflection;
 using UnityModBase.BSpace;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
+using UnityModBase.HotkeyManager;
+using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
@@ -36,6 +38,7 @@ namespace UnityModBase.Test.BSpace
             var setLanguage = BConfigManager.SetLanguage;
             var configUiHotkey = BConfigManager.ConfigUIHotkey;
             var logUiHotkey = BConfigManager.LogUIHotkey;
+            var controlUiHotkey = BConfigManager.ControlUIHotkey;
             var reloadConfigHotkey = BConfigManager.ReloadConfigHotkey;
             var enableLog = BConfigManager.EnableLog;
             var logLevel = BConfigManager.LogLevel;
@@ -43,10 +46,11 @@ namespace UnityModBase.Test.BSpace
             Assert.True(scope.IsInitialized());
             Assert.True(config.SaveOnConfigSet);
             Assert.Equal(new[] { "General", "Hotkey", "Log" }, config.Sheet.Keys);
-            Assert.Equal(6, config.Sheet.Values.Sum(table => table.Count()));
+            Assert.Equal(7, config.Sheet.Values.Sum(table => table.Count()));
             Assert.Equal(LanguageType.English, setLanguage.Value);
             Assert.Equal("F1", configUiHotkey.Value.ToString());
             Assert.Equal("F2", logUiHotkey.Value.ToString());
+            Assert.Equal("F3", controlUiHotkey.Value.ToString());
             Assert.Equal("Ctrl+R", reloadConfigHotkey.Value.ToString());
             Assert.True(enableLog.Value);
             Assert.Equal(LogLevel.Info, logLevel.Value);
@@ -59,6 +63,7 @@ namespace UnityModBase.Test.BSpace
             Assert.Contains(nameof(BConfigManager.SetLanguage), persistedContent);
             Assert.Contains(nameof(BConfigManager.ConfigUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.LogUIHotkey), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ControlUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.ReloadConfigHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.EnableLog), persistedContent);
             Assert.Contains(nameof(BConfigManager.LogLevel), persistedContent);
@@ -72,6 +77,7 @@ namespace UnityModBase.Test.BSpace
             Assert.Same(setLanguage, BConfigManager.SetLanguage);
             Assert.Same(configUiHotkey, BConfigManager.ConfigUIHotkey);
             Assert.Same(logUiHotkey, BConfigManager.LogUIHotkey);
+            Assert.Same(controlUiHotkey, BConfigManager.ControlUIHotkey);
             Assert.Same(reloadConfigHotkey, BConfigManager.ReloadConfigHotkey);
             Assert.Same(enableLog, BConfigManager.EnableLog);
             Assert.Same(logLevel, BConfigManager.LogLevel);
@@ -89,6 +95,7 @@ namespace UnityModBase.Test.BSpace
             Assert.Null(BConfigManager.LogLevel);
             Assert.Null(BConfigManager.ConfigUIHotkey);
             Assert.Null(BConfigManager.LogUIHotkey);
+            Assert.Null(BConfigManager.ControlUIHotkey);
             Assert.Null(BConfigManager.ReloadConfigHotkey);
             Assert.Null(BConfigManager.SetLanguage);
             Assert.Equal(LanguageType.None, Translator.DefaultLanguage);
@@ -143,6 +150,7 @@ namespace UnityModBase.Test.BSpace
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogLevel)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigUIHotkey)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogUIHotkey)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlUIHotkey)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ReloadConfigHotkey)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.SetLanguage))
             };

@@ -1,7 +1,8 @@
 using System;
 using UnityEngine.InputSystem.LowLevel;
 using UnityModBase.BSpace;
-using UnityModBase.HConfigGUI.Bindings;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HotkeyManager;
 
 namespace UnityModBase.HConfigGUI.Editor

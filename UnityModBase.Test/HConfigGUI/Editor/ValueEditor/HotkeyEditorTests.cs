@@ -2,10 +2,11 @@ using Moq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityModBase.HConfigGUI;
-using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 

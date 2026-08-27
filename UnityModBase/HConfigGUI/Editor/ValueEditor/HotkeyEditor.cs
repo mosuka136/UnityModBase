@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
-using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
+using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 
@@ -52,7 +54,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         }
 
         /// <inheritdoc/>
-        public void DrawValue(IEntryBinding entry, GuiContext context)
+        public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
             if (!typeof(Hotkey).IsAssignableFrom(entry.ValueType))
                 return;
@@ -74,8 +76,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
         }
 
         /// <inheritdoc/>
-        public void DrawExtra(IEntryBinding entry, GuiContext context)
+        public void DrawExtra(IEntryBinding entry, EditableGuiContext context)
         {
+            var configContext = context as GuiContext;
+            if (configContext == null)
+                return;
+
             if (Session.Entry != entry)
                 return;
 
@@ -88,7 +94,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             UnityGui.BeginHorizontal();
             try
             {
-                UnityGui.Space(context.GetEntryLabelWidth(context.SelectedGroupKey));
+                UnityGui.Space(configContext.GetEntryLabelWidth(configContext.SelectedGroupKey));
                 UnityGui.BeginVertical(UnityGui.BoxStyle);
                 try
                 {
@@ -104,12 +110,12 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                             if (UnityGui.Button(TranslatorResource.Record, UnityGui.ExpandWidth(false)))
                             {
                                 chord.Clear();
-                                Session.SetWorkingChord(chord, context.ChangeSink);
-                                SetPopupWindow(context);
+                                Session.SetWorkingChord(chord, configContext.ChangeSink);
+                                SetPopupWindow(configContext);
                             }
 
                             if (value.Count > 1 && UnityGui.Button(TranslatorResource.Remove, UnityGui.ExpandWidth(false)))
-                                Session.RemoveChord(chord, context.ChangeSink);
+                                Session.RemoveChord(chord, configContext.ChangeSink);
                         }
                         finally
                         {
@@ -122,8 +128,8 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
                     {
                         if (UnityGui.Button(TranslatorResource.Add, UnityGui.ExpandWidth(true)))
                         {
-                            Session.AddChord(new HotkeyChord(value.UnityService), context.ChangeSink);
-                            SetPopupWindow(context);
+                            Session.AddChord(new HotkeyChord(value.UnityService), configContext.ChangeSink);
+                            SetPopupWindow(configContext);
                         }
                     }
                     finally

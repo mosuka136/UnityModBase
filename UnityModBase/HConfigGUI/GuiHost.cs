@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 using UnityModBase.BSpace;
 using UnityModBase.HClassAttribute;
 using UnityModBase.HConfigGUI.Bindings;
@@ -66,11 +65,9 @@ namespace UnityModBase.HConfigGUI
                 _uiHotkeyEntry.OnValueChanged += OnConfigUIHotkeyChanged;
 
                 Title = TranslatorResource.Title;
-                float width = UnityGui.ScreenWidth * 0.35f;
-                float height = UnityGui.ScreenHeight * 0.7f;
-                WindowRect = new Rect((UnityGui.ScreenWidth - width) / 2f, (UnityGui.ScreenHeight - height) / 2f, width, height);
+                SetCenteredWindowRect(0.35f, 0.7f);
 
-                BLog.Debug($"Config GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={width}x{height}.");
+                BLog.Debug($"Config GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={WindowRect.width}x{WindowRect.height}.");
             }
             catch (Exception ex)
             {
@@ -97,7 +94,7 @@ namespace UnityModBase.HConfigGUI
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "UserContext cannot be null.");
 
-            var guiContext = new GuiContext() { UserData = GroupBinding.CreateRoot(context) };
+            var guiContext = new GuiContext() { UserData = GroupBindingFactory.CreateRoot(context) };
             context.AddChildContext(GuiContextKey, guiContext);
             guiContext.SubscribeToastNotifications(ToastEditor);
         }
@@ -178,7 +175,7 @@ namespace UnityModBase.HConfigGUI
         /// <param name="nextContext">即将采用的上下文；仅用于判断是否发生实际切换。</param>
         /// <remarks>
         /// 用户移除通知发生在原用户上下文释放之后，因此由移除触发时，延迟输入通常已由
-        /// <see cref="GuiContext.Dispose"/> 提交。注册表为空时基类会直接清空宿主状态而不调用本方法；
+        /// <see cref="EditableGuiContext.Dispose"/> 提交。注册表为空时基类会直接清空宿主状态而不调用本方法；
         /// 该路径的资源释放依赖用户上下文的级联释放。
         /// </remarks>
         protected override void OnCurrentContextChanging(IUserContext currentContext, IUserContext nextContext)
@@ -234,7 +231,7 @@ namespace UnityModBase.HConfigGUI
                     (UserEditor as UserEditor)?.GroupEditor.HotkeyEditor.Session.CancelEdit();
                 }
 
-                context.UserData = GroupBinding.CreateRoot(userContext);
+                context.UserData = GroupBindingFactory.CreateRoot(userContext);
                 UserEditor?.SetStatusDirty(context);
             }
         }

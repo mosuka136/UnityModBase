@@ -36,6 +36,20 @@ namespace UnityModBase.Test.HUserSpace
             Assert.Equal("userId", exception.ParamName);
         }
 
+        [Fact]
+        public void Constructor_CreatesControlServiceAndDisposeReleasesIt()
+        {
+            var service = new UserService("user");
+            var control = service.Control;
+
+            Assert.NotNull(control);
+            service.Dispose();
+
+            Assert.Null(service.Control);
+            Assert.Throws<ObjectDisposedException>(() =>
+                control.CreateTable("Player", new Translator("玩家", "Player")));
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("")]

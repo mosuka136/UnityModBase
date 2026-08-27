@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HControlSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HProvider;
 
 namespace UnityModBase.HUserSpace
 {
     /// <summary>
-    /// 持有单个用户的内存日志数据库、可选文件写入器和可选配置服务，并协调日志转发、配置模型事件接线与资源释放。
+    /// 持有单个用户的内存日志数据库、实时控制服务、可选文件写入器和可选配置服务，并协调日志转发、配置模型事件接线与资源释放。
     /// 重复注册日志会释放旧写入器；重复注册配置会释放旧服务，并重新挂接经由本类型 <see cref="OnConfigChanged"/> 登记的处理器。
     /// 本类型不负责声明配置表或配置项，也不负责配置界面投影。
     /// </summary>
@@ -70,6 +71,11 @@ namespace UnityModBase.HUserSpace
         public ConfigService Config { get; private set; }
 
         /// <summary>
+        /// 当前用户的纯内存实时控制服务；构造用户服务时创建，释放后为 <c>null</c>。
+        /// </summary>
+        public ControlService Control { get; private set; }
+
+        /// <summary>
         /// 声明当前配置项的管理器类型。用于关联配置所有者，释放时不会复位该元数据。
         /// </summary>
         public Type ConfigManagerType { get; private set; }
@@ -86,6 +92,7 @@ namespace UnityModBase.HUserSpace
 
             UserId = userId;
             LogDatabase = new LogDatabase(UnityProvider.Instance);
+            Control = new ControlService();
         }
 
         /// <summary>
@@ -156,7 +163,7 @@ namespace UnityModBase.HUserSpace
         }
 
         /// <summary>
-        /// 解除日志数据库订阅并尽力释放日志数据库、文件写入器和当前配置服务。
+        /// 解除日志数据库订阅并尽力释放日志数据库、文件写入器、当前配置服务和实时控制服务。
         /// 当前配置服务会清空其模型变化订阅；配置服务创建前暂存的处理器列表和 <see cref="ConfigManagerType"/> 保留原值。
         /// 释放异常会被忽略。释放后的实例不应再次注册配置，否则暂存处理器会重新挂接。
         /// </summary>
@@ -173,6 +180,8 @@ namespace UnityModBase.HUserSpace
                 LogWriter = null;
                 Config?.Dispose();
                 Config = null;
+                Control?.Dispose();
+                Control = null;
             }
             catch { }
         }

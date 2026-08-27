@@ -1,8 +1,8 @@
 using Moq;
 using UnityModBase.HConfigGUI;
-using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 
@@ -22,10 +22,10 @@ namespace UnityModBase.Test.HConfigGUI
             Assert.Equal(string.Empty, context.ExpandedEnumKey);
             Assert.Equal(string.Empty, context.SelectedGroupKey);
             Assert.Equal(-1f, context.GroupButtonWidth);
-            Assert.Equal(-1f, context.ResetButtonWidth);
+            Assert.Equal(-1f, context.TrailingActionWidth);
             Assert.True(context.IsEntryLabelWidthDirty);
             Assert.True(context.IsGroupButtonWidthDirty);
-            Assert.True(context.IsResetButtonWidthDirty);
+            Assert.True(context.IsTrailingActionWidthDirty);
         }
 
         [Fact]
@@ -78,14 +78,14 @@ namespace UnityModBase.Test.HConfigGUI
             {
                 IsEntryLabelWidthDirty = false,
                 IsGroupButtonWidthDirty = false,
-                IsResetButtonWidthDirty = false,
+                IsTrailingActionWidthDirty = false,
             };
 
             context.SetLayoutDirtyFlags();
 
             Assert.True(context.IsEntryLabelWidthDirty);
             Assert.True(context.IsGroupButtonWidthDirty);
-            Assert.True(context.IsResetButtonWidthDirty);
+            Assert.True(context.IsTrailingActionWidthDirty);
         }
 
         [Fact]
@@ -96,11 +96,11 @@ namespace UnityModBase.Test.HConfigGUI
             context.SetLayoutDirtyFlags(
                 entryLabelWidthDirty: false,
                 groupButtonWidthDirty: true,
-                resetButtonWidthDirty: false);
+                trailingActionWidthDirty: false);
 
             Assert.False(context.IsEntryLabelWidthDirty);
             Assert.True(context.IsGroupButtonWidthDirty);
-            Assert.False(context.IsResetButtonWidthDirty);
+            Assert.False(context.IsTrailingActionWidthDirty);
         }
 
         [Fact]
@@ -125,7 +125,7 @@ namespace UnityModBase.Test.HConfigGUI
 
             context.ChangeSink.SetValue(entry.Object, "new");
 
-            Assert.Equal(TranslatorResource.Changed + name, toastEditor.Message);
+            Assert.Equal(global::UnityModBase.HGuiSpace.Resource.TranslatorResource.Changed + name, toastEditor.Message);
         }
 
         [Fact]
@@ -139,7 +139,7 @@ namespace UnityModBase.Test.HConfigGUI
 
             context.ChangeSink.ResetValue(entry.Object);
 
-            Assert.Equal(TranslatorResource.ResetDone + name, toastEditor.Message);
+            Assert.Equal(global::UnityModBase.HGuiSpace.Resource.TranslatorResource.ResetDone + name, toastEditor.Message);
             entry.Verify(x => x.ResetValue(), Times.Once);
         }
 
@@ -157,7 +157,7 @@ namespace UnityModBase.Test.HConfigGUI
             context.ChangeSink.SetValue(entry.Object, "new");
 
             Assert.Null(firstEditor.Message);
-            Assert.Equal(TranslatorResource.Changed + name, secondEditor.Message);
+            Assert.Equal(global::UnityModBase.HGuiSpace.Resource.TranslatorResource.Changed + name, secondEditor.Message);
         }
 
         [Fact]
@@ -232,9 +232,9 @@ namespace UnityModBase.Test.HConfigGUI
             return entry;
         }
 
-        private static Mock<IEntryBinding> CreateResettableEntry(Translator name)
+        private static Mock<IResettableEntryBinding> CreateResettableEntry(Translator name)
         {
-            var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var entry = new Mock<IResettableEntryBinding>(MockBehavior.Strict);
             entry.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
             entry.Setup(x => x.ResetValue());
             entry.SetupGet(x => x.Name).Returns(name);

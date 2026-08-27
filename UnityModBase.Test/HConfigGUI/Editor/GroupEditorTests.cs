@@ -2,28 +2,21 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityModBase.HConfigGUI;
-using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigGUI.Editor;
-using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HConfigGUI.Resource;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HGuiSpace;
+using UnityModBase.HGuiSpace.Bindings;
+using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using Moq;
+using DualValueEditor = UnityModBase.HGuiSpace.Editor.DualValueEditor;
 
 namespace UnityModBase.Test.HConfigGUI.Editor
 {
     public class GroupEditorTests
     {
-        /// <summary>
-        /// 构造函数会向全进程共享的静态注册表注册内置编辑器；每个测试开始前先释放并清空，
-        /// 保证注册顺序和 Dispose 断言只反映本测试构造的编辑器。
-        /// </summary>
-        public GroupEditorTests()
-        {
-            ValueEditorRegistry.Dispose();
-        }
-
         [Fact]
         public void Constructor_ValidDependencies_InitializesDependenciesAndEditorsWithoutContext()
         {
@@ -44,13 +37,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.Same(styleResource, editor.StyleProvider);
             Assert.NotNull(editor.EntryEditor);
             Assert.Same(unityGui.Object, editor.EntryEditor.UnityGui);
-            Assert.IsType<BooleanEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(bool)).Object));
-            Assert.IsType<StringEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(string)).Object));
-            Assert.IsType<SliderEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(int), metadata: new UiSliderMetadata(0f, 10f, 1f)).Object));
-            Assert.IsType<NumberEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(float)).Object));
-            Assert.IsType<EnumEditor>(ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
-            Assert.Same(editor.HotkeyEditor, ValueEditorRegistry.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
-            Assert.IsType<DualValueEditor>(ValueEditorRegistry.GetEditor(
+            Assert.IsType<BooleanEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(bool)).Object));
+            Assert.IsType<StringEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(string)).Object));
+            Assert.IsType<SliderEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(int), metadata: new UiSliderMetadata(0f, 10f, 1f)).Object));
+            Assert.IsType<NumberEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(float)).Object));
+            Assert.IsType<EnumEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
+            Assert.Same(editor.HotkeyEditor, editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
+            Assert.IsType<DualValueEditor>(editor.ValueEditors.GetEditor(
                 CreateEntryBindingMock(typeof(ConfigEntryValue<int, string>)).Object));
         }
 
@@ -103,7 +96,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 UserData = root,
                 IsEntryLabelWidthDirty = false,
                 IsGroupButtonWidthDirty = false,
-                IsResetButtonWidthDirty = false
+                IsTrailingActionWidthDirty = false
             };
             SetCurrentRoot(editor, root);
             var boxStyle = CreateUninitializedGuiStyle();
@@ -142,7 +135,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 UserData = root,
                 IsEntryLabelWidthDirty = false,
                 IsGroupButtonWidthDirty = false,
-                IsResetButtonWidthDirty = false
+                IsTrailingActionWidthDirty = false
             };
             SetCurrentRoot(editor, root);
             var boxStyle = CreateUninitializedGuiStyle();
@@ -222,10 +215,10 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var context = new GuiContext
             {
                 GroupButtonWidth = 121f,
-                ResetButtonWidth = 34f,
+                TrailingActionWidth = 34f,
                 IsEntryLabelWidthDirty = false,
                 IsGroupButtonWidthDirty = false,
-                IsResetButtonWidthDirty = false
+                IsTrailingActionWidthDirty = false
             };
             context.SetEntryLabelWidth("Group", 56f);
             var root = new GroupBinding("Root", null, null);
@@ -234,7 +227,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 
             Assert.Equal(56f, context.GetEntryLabelWidth("Group"));
             Assert.Equal(121f, context.GroupButtonWidth);
-            Assert.Equal(34f, context.ResetButtonWidth);
+            Assert.Equal(34f, context.TrailingActionWidth);
             unityGui.VerifyNoOtherCalls();
         }
 
@@ -248,7 +241,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             {
                 IsEntryLabelWidthDirty = true,
                 IsGroupButtonWidthDirty = false,
-                IsResetButtonWidthDirty = false
+                IsTrailingActionWidthDirty = false
             };
 
             editor.UpdateLayoutIfNeeded(root, context);
@@ -267,7 +260,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 GroupButtonWidth = -1f,
                 IsEntryLabelWidthDirty = false,
                 IsGroupButtonWidthDirty = true,
-                IsResetButtonWidthDirty = false
+                IsTrailingActionWidthDirty = false
             };
 
             editor.UpdateLayoutIfNeeded(new GroupBinding("Root", null, null), context);
@@ -278,7 +271,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
-        public void Dispose_WhenHotkeySessionIsRecording_ClearsSessionRestoresValidityAndSharedRegistry()
+        public void Dispose_WhenHotkeySessionIsRecording_ClearsSessionRestoresValidityAndOwnedRegistry()
         {
             var editor = CreateEditor(out _, out _);
             var originalValue = new Hotkey();
@@ -299,7 +292,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
                 Assert.Equal(HotkeyEditState.Idle, editor.HotkeyEditor.Session.State);
                 Assert.Null(editor.HotkeyEditor.Session.WorkingValue);
                 Assert.Null(editor.HotkeyEditor.Session.WorkingChord);
-                Assert.Same(UnsupportedEditor.Default, ValueEditorRegistry.GetEditor(entry.Object));
+                Assert.Same(UnsupportedEditor.Default, editor.ValueEditors.GetEditor(entry.Object));
             }
             finally
             {
@@ -340,7 +333,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
 
         private static void SetCurrentRoot(GroupEditor editor, GroupBinding root)
         {
-            var field = typeof(GroupEditor).GetField("_currentRoot", BindingFlags.Instance | BindingFlags.NonPublic);
+            var field = typeof(global::UnityModBase.HGuiSpace.Editor.GroupEditor).GetField("_currentRoot", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(field);
             field.SetValue(editor, root);
         }

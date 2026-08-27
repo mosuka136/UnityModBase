@@ -8,7 +8,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WithExplicitStep_StoresRangeAndStep()
         {
             // Act
-            var attribute = new ConfigSliderAttribute(-1f, 10f, 0.5f);
+            var attribute = new EntrySliderAttribute(-1f, 10f, 0.5f);
 
             // Assert
             Assert.Equal(-1f, attribute.Min);
@@ -20,7 +20,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WithoutStep_UsesNegativeStepSentinel()
         {
             // Act
-            var attribute = new ConfigSliderAttribute(0f, 100f);
+            var attribute = new EntrySliderAttribute(0f, 100f);
 
             // Assert
             Assert.Equal(0f, attribute.Min);
@@ -35,19 +35,19 @@ namespace UnityModBase.Test.HClassAttribute
             float max,
             float step)
         {
-            Assert.Throws<ArgumentException>(() => new ConfigSliderAttribute(min, max, step));
+            Assert.Throws<ArgumentException>(() => new EntrySliderAttribute(min, max, step));
         }
 
         [Fact]
         public void Constructor_WhenMinimumExceedsMaximum_ThrowsArgumentException()
         {
-            Assert.Throws<ArgumentException>(() => new ConfigSliderAttribute(10f, -1f, 0.5f));
+            Assert.Throws<ArgumentException>(() => new EntrySliderAttribute(10f, -1f, 0.5f));
         }
 
         [Fact]
         public void Constructor_WithEqualEndpointsAndZeroStep_StoresValues()
         {
-            var attribute = new ConfigSliderAttribute(5f, 5f, 0f);
+            var attribute = new EntrySliderAttribute(5f, 5f, 0f);
 
             Assert.Equal(5f, attribute.Min);
             Assert.Equal(5f, attribute.Max);
@@ -59,7 +59,7 @@ namespace UnityModBase.Test.HClassAttribute
         {
             // Arrange：单独声明滑条时不占用组合槽位，Index 保持 -1 哨兵值。
             // Act
-            var attribute = new ConfigSliderAttribute(0f, 100f, 1f);
+            var attribute = new EntrySliderAttribute(0f, 100f, 1f);
 
             // Assert
             Assert.Equal(-1, attribute.Index);
@@ -69,7 +69,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WithIndex_StoresIndexAlongsideRange()
         {
             // Act
-            var attribute = new ConfigSliderAttribute(1, 0f, 100f, 0.5f);
+            var attribute = new EntrySliderAttribute(1, 0f, 100f, 0.5f);
 
             // Assert
             Assert.Equal(1, attribute.Index);
@@ -82,7 +82,7 @@ namespace UnityModBase.Test.HClassAttribute
         public void Constructor_WithIndexButWithoutStep_UsesNegativeStepSentinel()
         {
             // Act
-            var attribute = new ConfigSliderAttribute(0, 0f, 100f);
+            var attribute = new EntrySliderAttribute(0, 0f, 100f);
 
             // Assert
             Assert.Equal(0, attribute.Index);
@@ -95,7 +95,7 @@ namespace UnityModBase.Test.HClassAttribute
             // Arrange：组合声明需要同一属性上打包多个带索引的滑条特性，AllowMultiple 必须为真。
             // Act
             var usage = Attribute.GetCustomAttribute(
-                typeof(ConfigSliderAttribute),
+                typeof(EntrySliderAttribute),
                 typeof(AttributeUsageAttribute)) as AttributeUsageAttribute;
 
             // Assert

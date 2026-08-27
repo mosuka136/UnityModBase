@@ -1,5 +1,6 @@
 using UnityModBase.HConfigGUI.Bindings;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 using System;
@@ -25,7 +26,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             var context = CreateUser();
 
             // Act
-            var result = GroupBinding.CreateRoot(context);
+            var result = GroupBindingFactory.CreateRoot(context);
 
             // Assert
             Assert.NotNull(result);
@@ -58,7 +59,7 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             context.Service.Config.CreateTable("SecondTable", secondTableName, secondTableDescription);
 
             // Act
-            var result = GroupBinding.CreateRoot(context);
+            var result = GroupBindingFactory.CreateRoot(context);
 
             // Assert
             Assert.NotNull(result);
