@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 using static UnityModBase.HConfigSpace.ConfigFileModel;
 
@@ -38,7 +39,7 @@ namespace UnityModBase.HConfigSpace
             get => _tableKey;
             set
             {
-                if (ConfigFileModel.IsValidTableKey(value))
+                if (EntryModel.IsValidTableKey(value))
                     _tableKey = value;
                 else
                     throw new ArgumentException($"Invalid table name: {value}.");
@@ -55,7 +56,7 @@ namespace UnityModBase.HConfigSpace
 
             set
             {
-                if (IsValidEntryKey(value))
+                if (EntryModel.IsValidEntryKey(value))
                     _key = value;
                 else
                     throw new ArgumentException($"Invalid key name: {value}. Key names must be non-empty and can only contain letters, digits, and underscores.");
@@ -176,7 +177,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>键值行，或键名/值非法诊断。</returns>
         public ConfigFileResult<string> EncodeKeyValuePair()
         {
-            if (!IsValidEntryKey(_key))
+            if (!EntryModel.IsValidEntryKey(_key))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidKeyName, $"Invalid key name: {Key}"));
             if (string.IsNullOrWhiteSpace(Value))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, $"Value cannot be empty for key: {Key}"));
@@ -283,7 +284,7 @@ namespace UnityModBase.HConfigSpace
         public static ConfigFileResult<string> EncodeAcceptableValues(Type type)
         {
             if (typeof(IEnumerable).IsAssignableFrom(type))
-                return EncodeAcceptableValues(GetCollectionElementType(type));
+                return EncodeAcceptableValues(EntryModel.GetCollectionElementType(type));
 
             if (!type.IsEnum)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, $"Type is not an enum: {type.FullName}"));
@@ -319,7 +320,7 @@ namespace UnityModBase.HConfigSpace
             var key = parts[0].Trim();
             var value = parts[1].Trim();
 
-            if (!IsValidEntryKey(key))
+            if (!EntryModel.IsValidEntryKey(key))
                 return ConfigFileResult<(string, string)>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidKeyName, $"Invalid key name: {key}"));
 
             if (string.IsNullOrWhiteSpace(value))

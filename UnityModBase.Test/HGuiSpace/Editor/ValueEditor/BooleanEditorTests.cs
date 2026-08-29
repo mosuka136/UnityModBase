@@ -118,8 +118,8 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
                     It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))))
                 .Returns(currentValue);
             var parentEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
-            parentEntry.SetupGet(x => x.ValueType).Returns(typeof(ConfigEntryValue<bool, int>));
-            parentEntry.SetupProperty(x => x.Value, new ConfigEntryValue<bool, int>(currentValue, 50));
+            parentEntry.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<bool, int>));
+            parentEntry.SetupProperty(x => x.Value, new EntryValue<bool, int>(currentValue, 50));
             parentEntry.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
             var slot = new DualValueSlotBinding(parentEntry.Object, 0);
             var editor = new BooleanEditor(unityGuiMock.Object);

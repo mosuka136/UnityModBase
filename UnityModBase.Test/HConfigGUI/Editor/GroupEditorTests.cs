@@ -44,7 +44,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.IsType<EnumEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
             Assert.Same(editor.HotkeyEditor, editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
             Assert.IsType<DualValueEditor>(editor.ValueEditors.GetEditor(
-                CreateEntryBindingMock(typeof(ConfigEntryValue<int, string>)).Object));
+                CreateEntryBindingMock(typeof(EntryValue<int, string>)).Object));
         }
 
         [Fact]

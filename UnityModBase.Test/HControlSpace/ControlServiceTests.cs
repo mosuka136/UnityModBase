@@ -35,6 +35,19 @@ namespace UnityModBase.Test.HControlSpace
             Assert.Equal("key", Assert.Throws<ArgumentException>(() => service.CreateTable(key, Name)).ParamName);
         }
 
+        [Fact]
+        public void CreateTable_WhenNameIsNull_UsesKeyDerivedTranslator()
+        {
+            using var service = new ControlService();
+
+            service.CreateTable("Player", null, Description);
+
+            var table = service.Sheet["Player"];
+            Assert.Equal("Player", table.Name.Chinese);
+            Assert.Equal("Player", table.Name.English);
+            Assert.Same(Description, table.Description);
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("")]
@@ -46,6 +59,19 @@ namespace UnityModBase.Test.HControlSpace
 
             Assert.Equal("key", Assert.Throws<ArgumentException>(() => service.Bind(
                 "Player", key, () => 10, ControlUpdatePolicy.Never, Name, Description)).ParamName);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData(" ")]
+        [InlineData("Player-Stats")]
+        public void Bind_WhenTableKeyViolatesSharedKeyRules_ThrowsArgumentException(string tableKey)
+        {
+            using var service = CreateServiceWithTable();
+
+            Assert.Equal("tableKey", Assert.Throws<ArgumentException>(() => service.Bind(
+                tableKey, "Health", () => 10, ControlUpdatePolicy.Never, Name, Description)).ParamName);
         }
 
         [Fact]
@@ -92,28 +118,29 @@ namespace UnityModBase.Test.HControlSpace
         }
 
         [Fact]
-        public void Bind_WhenGetterReturnsNull_ThrowsAndDoesNotAddEntry()
+        public void Bind_WhenGetterReturnsNull_CachesNullWithoutFailing()
         {
             using var service = CreateServiceWithTable();
 
-            Assert.Throws<ArgumentException>(() => service.Bind<string>(
+            var entry = service.Bind<string>(
                 "Player",
                 "Name",
                 () => null,
                 ControlUpdatePolicy.Never,
                 Name,
-                Description));
+                Description);
 
-            Assert.Empty(service.Sheet["Player"]);
+            Assert.Null(entry.Value);
+            Assert.Null(entry.BoxedValue);
+            Assert.Same(entry, Assert.Single(service.Sheet["Player"]));
         }
 
         [Theory]
-        [InlineData(typeof(char))]
         [InlineData(typeof(decimal))]
         [InlineData(typeof(object))]
-        [InlineData(typeof(Hotkey))]
-        public void Bind_WhenTypeHasNoControlEditor_ThrowsBeforeCallingGetter(Type valueType)
+        public void Bind_WhenValueTypeOutsideEntryModel_ThrowsBeforeCallingGetter(Type valueType)
         {
+            // 服务层按共享条目模型拒绝不受支持的值类型，getter 不应被调用。
             using var service = CreateServiceWithTable();
             var getterCalls = 0;
             var method = typeof(ControlServiceTests)
@@ -123,32 +150,75 @@ namespace UnityModBase.Test.HControlSpace
             var exception = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
                 method.Invoke(null, new object[] { service, (Action)(() => getterCalls++) }));
 
-            Assert.IsType<ArgumentException>(exception.InnerException);
+            var inner = Assert.IsType<ArgumentException>(exception.InnerException);
+            Assert.Equal("valueType", inner.ParamName);
             Assert.Equal(0, getterCalls);
+            Assert.Empty(service.Sheet["Player"]);
+        }
+
+        [Theory]
+        [InlineData(typeof(EntryValue<int, int>))]
+        [InlineData(typeof(MalformedMultipleValue<int, int>))]
+        public void Bind_WhenValueTypeIsMultipleValue_ThrowsBeforeCallingGetter(Type valueType)
+        {
+            // 多元素类型属于共享条目模型、能通过服务层类型检查，但实时控制只接受单值类型，由条目构造函数拒绝。
+            using var service = CreateServiceWithTable();
+            var getterCalls = 0;
+            var method = typeof(ControlServiceTests)
+                .GetMethod(nameof(BindUnsupported), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                .MakeGenericMethod(valueType);
+
+            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
+                method.Invoke(null, new object[] { service, (Action)(() => getterCalls++) }));
+
+            var inner = Assert.IsType<InvalidOperationException>(exception.InnerException);
+            Assert.Contains("not a supported single value type", inner.Message);
+            Assert.Equal(0, getterCalls);
+            Assert.Empty(service.Sheet["Player"]);
         }
 
         [Fact]
-        public void Bind_WithSliderAndDualMetadata_AcceptsSupportedShapes()
+        public void Bind_WithSliderMetadata_PreservesMetadataInstance()
         {
             using var service = CreateServiceWithTable();
             var slider = new UiSliderMetadata(0f, 100f, 1f);
-            var dualMetadata = new UiCompositeMetadata(new IUiMetadata[] { slider, null });
 
             var number = service.Bind(
                 "Player", "Health", () => 50, ControlUpdatePolicy.Never, Name, Description, slider);
-            var dual = service.Bind(
+
+            Assert.Same(slider, number.Metadata);
+            Assert.Equal(50, number.Value);
+        }
+
+        [Fact]
+        public void Bind_WhenMetadataOmitted_UsesKeyDerivedNameAndEmptyDescription()
+        {
+            using var service = CreateServiceWithTable();
+
+            var entry = service.Bind("Player", "Health", () => 10, ControlUpdatePolicy.Never, null, null);
+
+            Assert.Equal("Health", entry.Name.Chinese);
+            Assert.Equal("Health", entry.Name.English);
+            Assert.Equal(string.Empty, entry.Description.Chinese);
+            Assert.Equal(string.Empty, entry.Description.English);
+            Assert.Equal(10, entry.Value);
+        }
+
+        [Fact]
+        public void Bind_WhenValueTypeIsMultipleValue_ThrowsEvenWithCompositeMetadata()
+        {
+            using var service = CreateServiceWithTable();
+            var dualMetadata = new UiCompositeMetadata(new IUiMetadata[] { new UiSliderMetadata(0f, 100f, 1f), null });
+
+            Assert.Throws<InvalidOperationException>(() => service.Bind<EntryValue<int, string>>(
                 "Player",
                 "Position",
-                () => new ControlEntryValue<int, string>(7, "north"),
+                () => new EntryValue<int, string>(7, "north"),
                 ControlUpdatePolicy.Never,
                 Name,
                 Description,
-                dualMetadata);
-
-            Assert.Same(slider, number.Metadata);
-            Assert.Same(dualMetadata, dual.Metadata);
-            Assert.Equal(7, dual.Value.Value1);
-            Assert.Equal("north", dual.Value.Value2);
+                dualMetadata));
+            Assert.Empty(service.Sheet["Player"]);
         }
 
         [Fact]
@@ -196,6 +266,35 @@ namespace UnityModBase.Test.HControlSpace
         }
 
         [Fact]
+        public void GuiValueChange_WhenValueIsNull_ThrowsArgumentNullExceptionAndKeepsCache()
+        {
+            using var service = CreateServiceWithTable();
+            var entry = service.Bind("Player", "Health", () => 10, ControlUpdatePolicy.Never, Name, Description);
+            var eventCalls = 0;
+            entry.OnValueChanged += (_, _) => eventCalls++;
+
+            Assert.Throws<ArgumentNullException>(() => ((IControlEntryInternal)entry).SetBoxedValueFromGui(null));
+
+            Assert.Equal(10, entry.Value);
+            Assert.Equal(0, eventCalls);
+        }
+
+        [Fact]
+        public void GuiValueChange_WhenValueTypeIncompatible_ThrowsInvalidOperationExceptionAndKeepsCache()
+        {
+            using var service = CreateServiceWithTable();
+            var entry = service.Bind("Player", "Health", () => 10, ControlUpdatePolicy.Never, Name, Description);
+            var eventCalls = 0;
+            entry.OnValueChanged += (_, _) => eventCalls++;
+
+            Assert.Throws<InvalidOperationException>(() => ((IControlEntryInternal)entry).SetBoxedValueFromGui("not-a-number"));
+            Assert.Throws<InvalidOperationException>(() => ((IControlEntryInternal)entry).SetBoxedValueFromGui(new EntryValue<int, int>(1, 2)));
+
+            Assert.Equal(10, entry.Value);
+            Assert.Equal(0, eventCalls);
+        }
+
+        [Fact]
         public void EveryFrame_RefreshesEachUpdateWithoutPublishingGuiEvent()
         {
             using var service = CreateServiceWithTable();
@@ -214,18 +313,23 @@ namespace UnityModBase.Test.HControlSpace
         }
 
         [Fact]
-        public void Refresh_WhenDualGetterReturnsEquivalentNewInstance_PreservesCachedReference()
+        public void Refresh_WhenGetterReturnsEquivalentNewCollection_PreservesCachedReference()
         {
             using var service = CreateServiceWithTable();
-            var target = new ControlEntryValue<int, string>(1, "north");
+            var target = new[] { 1, 2 };
             var entry = service.Bind(
-                "Player", "Position", () => target, ControlUpdatePolicy.EveryFrame, Name, Description);
+                "Player", "Health", () => target, ControlUpdatePolicy.EveryFrame, Name, Description);
             var initial = entry.Value;
 
-            target = new ControlEntryValue<int, string>(1, "north");
+            target = new[] { 1, 2 };
             service.Update(0.1f, false);
 
             Assert.Same(initial, entry.Value);
+
+            target = new[] { 1, 3 };
+            service.Update(0.1f, false);
+
+            Assert.Equal(new[] { 1, 3 }, entry.Value);
         }
 
         [Fact]
@@ -428,6 +532,10 @@ namespace UnityModBase.Test.HControlSpace
                 ControlUpdatePolicy.Never,
                 Name,
                 Description);
+        }
+
+        private sealed class MalformedMultipleValue<T1, T2> : IEntryMultipleValue
+        {
         }
     }
 }

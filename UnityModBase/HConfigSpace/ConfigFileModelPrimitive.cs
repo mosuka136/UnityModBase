@@ -6,17 +6,6 @@ namespace UnityModBase.HConfigSpace
     public static partial class ConfigFileModel
     {
         /// <summary>
-        /// 判断类型是否属于本配置格式的基础类型。
-        /// 基础类型指 CLR 原始类型（数值、布尔）外加 <see cref="string"/>；它们共用同一套不随系统区域变化的文本编码规则。
-        /// </summary>
-        /// <param name="type">待判断类型。</param>
-        /// <returns>属于基础类型时返回 <c>true</c>；<paramref name="type"/> 为 <c>null</c> 时返回 <c>false</c>。</returns>
-        public static bool IsPrimitiveType(Type type)
-        {
-            return type != null && (type.IsPrimitive || type == typeof(string));
-        }
-
-        /// <summary>
         /// 将基础类型值编码为配置文本。
         /// 数值与布尔统一使用 <see cref="CultureInfo.InvariantCulture"/>，保证配置文件内容不随运行机器的系统区域设置变化；
         /// 字符串委托 <see cref="EncodeString(string, bool, bool, bool)"/> 加引号并转义。

@@ -21,7 +21,9 @@ namespace UnityModBase.HControlGUI
     [RegisterOnGameBoot]
     public class GuiHost : GuiHostBase
     {
+        // 保留配置项引用仅为在 OnDestroy 中退订热键变更；实时热键值存于基类 UIHotkey。
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
+        // 上一帧的窗口可见性，用于检测“刚由隐藏转为可见”的边沿并传给刷新调度。
         private bool _wasVisible;
 
         /// <inheritdoc/>
@@ -80,7 +82,8 @@ namespace UnityModBase.HControlGUI
         }
 
         /// <summary>
-        /// 先推进所有用户的延迟界面输入，再按策略刷新所有用户的实时控制项。
+        /// 对每个用户先推进延迟界面输入，再按更新策略刷新其实时控制项；两类推进在同一用户上依次执行。
+        /// 用户集合在遍历前先复制快照，注册表变化不会中断本帧调度。
         /// </summary>
         public override void Update()
         {
@@ -113,7 +116,11 @@ namespace UnityModBase.HControlGUI
             CommitPendingEdits(context);
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 在 Unity 销毁宿主时解除用户注册、语言和热键订阅，释放用户编辑器，
+        /// 再逐用户移除实时控制 GUI 子上下文并触发其提交剩余延迟输入。
+        /// </summary>
+        /// <remarks>覆盖该生命周期方法时必须调用基类实现，以解除进程级用户移除订阅。</remarks>
         protected override void OnDestroy()
         {
             base.OnDestroy();
@@ -137,6 +144,7 @@ namespace UnityModBase.HControlGUI
             }
         }
 
+        // 控制模型结构变化（新增表/条目）后：先提交旧树上的延迟输入，再整体重建绑定树并标记布局失效。
         private void OnControlStructureChanged(UserContext user)
         {
             var context = user?.GetChildContext(GuiContextKey) as GuiContext;
@@ -148,6 +156,7 @@ namespace UnityModBase.HControlGUI
             UserEditor?.SetStatusDirty(context);
         }
 
+        // 语言切换后文案长度变化，标记所有用户的布局缓存失效以重新测量标签和按钮宽度。
         private void OnDefaultLanguageChanged(object sender, LanguageType language)
         {
             foreach (var user in (Users ?? Array.Empty<UserContext>()).ToArray())

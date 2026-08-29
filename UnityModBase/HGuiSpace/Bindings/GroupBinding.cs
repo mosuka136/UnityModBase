@@ -28,18 +28,18 @@ namespace UnityModBase.HGuiSpace.Bindings
         public IReadOnlyList<INodeBinding> Children => _childrenView;
 
         /// <summary>
-        /// 创建分组。名称或说明为 null 时使用空翻译对象，子节点为 null 时创建空组。
+        /// 创建分组。名称为 null 时以键作为中英文默认名称，说明为 null 时使用空翻译对象，子节点为 null 时创建空组。
         /// </summary>
         /// <param name="key">分组的稳定键。</param>
-        /// <param name="name">分组显示名称；null 时使用空翻译对象。</param>
+        /// <param name="name">分组显示名称；null 时以键作为中英文默认名称。</param>
         /// <param name="description">分组说明；null 时使用空翻译对象。</param>
         /// <param name="children">可选初始子节点序列。</param>
         /// <exception cref="ArgumentNullException"><paramref name="key"/> 为 null。</exception>
-        public GroupBinding(string key, Translator name, Translator description, IEnumerable<INodeBinding> children = null)
+        public GroupBinding(string key, Translator name, Translator description = null, IEnumerable<INodeBinding> children = null)
         {
             _childrenView = _children.AsReadOnly();
             Key = key ?? throw new ArgumentNullException(nameof(key), "Key cannot be null.");
-            Name = name ?? new Translator();
+            Name = name ?? new Translator(key, key);
             Description = description ?? new Translator();
 
             if (children == null)

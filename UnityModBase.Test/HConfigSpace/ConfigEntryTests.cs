@@ -1,6 +1,7 @@
 using UnityModBase.HConfigSpace;
 using UnityModBase.HTranslatorSpace;
 using System.Collections;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.Test.HConfigSpace
 {
@@ -321,28 +322,36 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(null, 0, name, description));
         }
 
-        // 重构后构造函数对 name/description 增加了 null 校验（旧 CreateEntry 允许传入 null）。
-        // 这两个测试覆盖新增强约束，并与下方元数据回读测试互为补充。
+        // 构造函数对 null 元数据不再抛异常：名称回退为键名派生翻译，说明回退为空翻译。
+        // 这两个测试覆盖回退语义，并与下方元数据回读测试互为补充。
         [Fact]
-        public void Constructor_WhenNameIsNull_ThrowsArgumentNullException()
+        public void Constructor_WhenNameIsNull_UsesKeyDerivedTranslator()
         {
             // Arrange
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
             var description = new Translator(chinese: "描述", english: "Description");
 
-            // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(model, 0, null, description));
+            // Act
+            var entry = new ConfigEntry<int>(model, 0, null, description);
+
+            // Assert
+            Assert.Equal("TestKey", entry.Name.Chinese);
+            Assert.Equal("TestKey", entry.Name.English);
         }
 
         [Fact]
-        public void Constructor_WhenDescriptionIsNull_ThrowsArgumentNullException()
+        public void Constructor_WhenDescriptionIsNull_UsesEmptyTranslator()
         {
             // Arrange
             var model = new ConfigFileEntry { Key = "TestKey", Value = "42" };
             var name = new Translator(chinese: "名称", english: "Name");
 
-            // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int>(model, 0, name, null));
+            // Act
+            var entry = new ConfigEntry<int>(model, 0, name, null);
+
+            // Assert
+            Assert.Equal(string.Empty, entry.Description.Chinese);
+            Assert.Equal(string.Empty, entry.Description.English);
         }
 
         // 注：原 Constructor_WhenInvalidTableName_ThrowsInvalidOperationException 测试的是
@@ -1118,6 +1127,6 @@ namespace UnityModBase.Test.HConfigSpace
         public ConfigFileResult<string> Encode() => ConfigFileResult<string>.Ok(Content);
         public ConfigFileResult<object> Decode(string content) => ConfigFileResult<object>.Ok(new StubConfigEntryValue(content));
         public ConfigFileResult<string> EncodeValueType() => ConfigFileResult<string>.Ok(nameof(StubConfigEntryValue));
-        public bool Equals(IConfigEntryValue other) => other is StubConfigEntryValue v && v.Content == Content;
+        public bool Equals(IEntryValue other) => other is StubConfigEntryValue v && v.Content == Content;
     }
 }

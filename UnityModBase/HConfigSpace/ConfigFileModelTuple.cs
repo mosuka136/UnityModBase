@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.HConfigSpace
 {
@@ -20,24 +21,6 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 判断类型是否为 <see cref="System.ValueTuple"/> 元组。
-        /// 1 至 8 元的 ValueTuple 是各自独立的泛型类型定义，且没有公共的非泛型标记接口可供判断，
-        /// 因此这里按泛型定义的 FullName 前缀 <c>System.ValueTuple`</c> 统一识别。
-        /// </summary>
-        /// <param name="type">待判断类型。</param>
-        /// <returns>属于 ValueTuple 泛型时返回 <c>true</c>；<paramref name="type"/> 为 <c>null</c> 或非泛型时返回 <c>false</c>。</returns>
-        public static bool IsTupleType(Type type)
-        {
-            if (type == null || !type.IsGenericType)
-                return false;
-
-            var definition = type.GetGenericTypeDefinition();
-            var fullName = definition.FullName;
-
-            return fullName != null && fullName.StartsWith("System.ValueTuple`", StringComparison.Ordinal);
-        }
-
-        /// <summary>
         /// 将 ValueTuple 编码为形如 <c>(a,b)</c> 的元组文本，各元素按声明类型递归编码。
         /// 仅支持不超过 7 个直接元素的元组：8 元及以上的 ValueTuple 把第 8 个泛型参数设计为嵌套的 Rest 字段，
         /// 不存在 Item8 实例字段，本格式不展开该嵌套结构。
@@ -51,7 +34,7 @@ namespace UnityModBase.HConfigSpace
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Type cannot be null"));
             if (value == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null"));
-            if (!IsTupleType(type))
+            if (!EntryModel.IsTupleType(type))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Type {type.FullName} is not a ValueTuple"));
 
             var elementTypes = type.GetGenericArguments();
@@ -91,7 +74,7 @@ namespace UnityModBase.HConfigSpace
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Type cannot be null"));
             if (string.IsNullOrWhiteSpace(value))
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Tuple value cannot be null or empty"));
-            if (!IsTupleType(type))
+            if (!EntryModel.IsTupleType(type))
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Type {type.FullName} is not a ValueTuple"));
 
             var elementTypes = type.GetGenericArguments();
@@ -138,7 +121,7 @@ namespace UnityModBase.HConfigSpace
         {
             if (type == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Type cannot be null"));
-            if (!IsTupleType(type))
+            if (!EntryModel.IsTupleType(type))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Type {type.FullName} is not a ValueTuple"));
 
             var elementTypes = type.GetGenericArguments();

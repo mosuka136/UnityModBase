@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigSpace
@@ -38,7 +39,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>添加成功时携带原表实例；键非法、表为空或键重复时返回失败结果。</returns>
         public ConfigFileResult<ConfigFileTable> AddTable(string tableKey, ConfigFileTable table)
         {
-            if (!ConfigFileModel.IsValidTableKey(tableKey))
+            if (!EntryModel.IsValidTableKey(tableKey))
                 return ConfigFileResult<ConfigFileTable>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidTableName, $"Invalid table name: {tableKey}"));
             if (table == null)
                 return ConfigFileResult<ConfigFileTable>.Fail(new ConfigFileError(ConfigFileErrorCode.TableNotFound, "Table cannot be null"));

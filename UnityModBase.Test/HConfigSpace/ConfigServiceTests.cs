@@ -1,6 +1,7 @@
 using UnityModBase.HConfigSpace;
 using UnityModBase.HTranslatorSpace;
 using System.Reflection;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.Test.HConfigSpace
 {
@@ -104,7 +105,7 @@ namespace UnityModBase.Test.HConfigSpace
             using var manager = new ConfigService(tempPath);
             var observedEntryCounts = new List<int>();
             manager.OnConfigChanged += () =>
-                observedEntryCounts.Add(manager.Sheet["TestTable"].Table.Count);
+                observedEntryCounts.Add(manager.Sheet["TestTable"].Entries.Count);
 
             // Act
             manager.CreateTable("TestTable", new Translator("测试表", "Test Table"));
@@ -305,7 +306,7 @@ namespace UnityModBase.Test.HConfigSpace
 
             Assert.Contains("Invalid table key", exception.Message);
             Assert.Contains(invalidTableKey, exception.Message);
-            Assert.Equal("tableKey", exception.ParamName);
+            Assert.Equal("key", exception.ParamName);
             Assert.False(manager.FileSheet.GetTable(invalidTableKey).Success);
             Assert.False(manager.Sheet.Contains(invalidTableKey));
         }
@@ -321,22 +322,22 @@ namespace UnityModBase.Test.HConfigSpace
             var exception = Assert.Throws<ArgumentException>(() =>
                 manager.CreateTable(tableKey, new Translator("表名", "TableName")));
 
-            Assert.Equal("tableKey", exception.ParamName);
+            Assert.Equal("key", exception.ParamName);
             Assert.Empty(manager.Sheet);
             Assert.Empty(manager.FileSheet.Sheet.Keys);
         }
 
         [Fact]
-        public void CreateTable_WhenTableNameIsNull_ThrowsWithoutAddingTable()
+        public void CreateTable_WhenNameIsNull_UsesKeyDerivedName()
         {
             using var manager = new ConfigService(CreateTempConfigPath());
 
-            var exception = Assert.Throws<ArgumentNullException>(() =>
-                manager.CreateTable("TestTable", null));
+            manager.CreateTable("TestTable", null);
 
-            Assert.Equal("tableName", exception.ParamName);
-            Assert.False(manager.FileSheet.GetTable("TestTable").Success);
-            Assert.False(manager.Sheet.Contains("TestTable"));
+            Assert.True(manager.Sheet.Contains("TestTable"));
+            Assert.True(manager.FileSheet.GetTable("TestTable").Success);
+            Assert.Equal("TestTable", manager.Sheet["TestTable"].Name.Chinese);
+            Assert.Equal("TestTable", manager.Sheet["TestTable"].Name.English);
         }
 
         [Fact]
@@ -533,27 +534,27 @@ namespace UnityModBase.Test.HConfigSpace
 
             var exception = nestedTupleIsFirst
                 ? Assert.Throws<ArgumentException>(() =>
-                    manager.Bind<ConfigEntryValue<int, int>, string>(
+                    manager.Bind<EntryValue<int, int>, string>(
                         "TestTable",
                         key,
-                        new ConfigEntryValue<int, int>(1, 2),
+                        new EntryValue<int, int>(1, 2),
                         "value",
                         new Translator("组合", "Pair"),
                         new Translator("组合值", "Pair value"),
                         new Translator("嵌套", "Nested"),
                         new Translator("文本", "Text")))
                 : Assert.Throws<ArgumentException>(() =>
-                    manager.Bind<string, ConfigEntryValue<int, int>>(
+                    manager.Bind<string, EntryValue<int, int>>(
                         "TestTable",
                         key,
                         "value",
-                        new ConfigEntryValue<int, int>(1, 2),
+                        new EntryValue<int, int>(1, 2),
                         new Translator("组合", "Pair"),
                         new Translator("组合值", "Pair value"),
                         new Translator("文本", "Text"),
                         new Translator("嵌套", "Nested")));
 
-            Assert.Contains(typeof(ConfigEntryValue<int, int>).FullName, exception.Message);
+            Assert.Contains(typeof(EntryValue<int, int>).FullName, exception.Message);
             Assert.False(manager.FileSheet.GetEntry("TestTable", key).Success);
             Assert.Empty(manager.Sheet["TestTable"]);
         }
@@ -634,57 +635,74 @@ namespace UnityModBase.Test.HConfigSpace
         [Theory]
         [InlineData("tableKey")]
         [InlineData("key")]
-        [InlineData("name")]
-        [InlineData("description")]
-        public void Bind_WhenRequiredArgumentMissing_ThrowsWithoutAddingEntry(string argumentName)
+        public void Bind_WhenKeyViolatesSharedKeyRules_ThrowsWithoutAddingEntry(string argumentName)
         {
             using var manager = new ConfigService(CreateTempConfigPath());
             manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
             var tableKey = argumentName == "tableKey" ? " " : "TestTable";
             var key = argumentName == "key" ? " " : "Candidate";
-            var name = argumentName == "name" ? null : new Translator("候选项", "Candidate");
-            var description = argumentName == "description" ? null : new Translator("描述", "Description");
 
-            var exception = Assert.Throws<ArgumentNullException>(() =>
-                manager.Bind(tableKey, key, 1, name, description));
+            var exception = Assert.Throws<ArgumentException>(() =>
+                manager.Bind(tableKey, key, 1, new Translator("候选项", "Candidate"), new Translator("描述", "Description")));
 
             Assert.Equal(argumentName, exception.ParamName);
             Assert.False(manager.FileSheet.GetEntry("TestTable", "Candidate").Success);
             Assert.Empty(manager.Sheet["TestTable"]);
         }
 
+        [Fact]
+        public void Bind_WhenMetadataOmitted_UsesKeyDerivedNameAndEmptyDescription()
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            var entry = manager.Bind<int>("TestTable", "Candidate", 1, null, null);
+
+            Assert.Equal("Candidate", entry.Name.Chinese);
+            Assert.Equal("Candidate", entry.Name.English);
+            Assert.Equal(string.Empty, entry.Description.Chinese);
+            Assert.Equal(string.Empty, entry.Description.English);
+        }
+
         [Theory]
         [InlineData("tableKey")]
         [InlineData("key")]
-        [InlineData("name")]
-        [InlineData("description")]
-        [InlineData("valueDescription1")]
-        [InlineData("valueDescription2")]
-        public void BindTuple_WhenRequiredArgumentMissing_ThrowsWithoutAddingEntry(string argumentName)
+        public void BindTuple_WhenKeyViolatesSharedKeyRules_ThrowsWithoutAddingEntry(string argumentName)
         {
             using var manager = new ConfigService(CreateTempConfigPath());
             manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
             var tableKey = argumentName == "tableKey" ? " " : "TestTable";
             var key = argumentName == "key" ? " " : "Candidate";
-            var name = argumentName == "name" ? null : new Translator("组合", "Pair");
-            var description = argumentName == "description" ? null : new Translator("组合值", "Pair value");
-            var valueDescription1 = argumentName == "valueDescription1" ? null : new Translator("编号", "Number");
-            var valueDescription2 = argumentName == "valueDescription2" ? null : new Translator("文本", "Text");
 
-            var exception = Assert.Throws<ArgumentNullException>(() =>
+            var exception = Assert.Throws<ArgumentException>(() =>
                 manager.Bind(
                     tableKey,
                     key,
                     1,
                     "default",
-                    name,
-                    description,
-                    valueDescription1,
-                    valueDescription2));
+                    new Translator("组合", "Pair"),
+                    new Translator("组合值", "Pair value"),
+                    new Translator("编号", "Number"),
+                    new Translator("文本", "Text")));
 
             Assert.Equal(argumentName, exception.ParamName);
             Assert.False(manager.FileSheet.GetEntry("TestTable", "Candidate").Success);
             Assert.Empty(manager.Sheet["TestTable"]);
+        }
+
+        [Fact]
+        public void BindTuple_WhenMetadataOmitted_UsesKeyDerivedNameAndBlankDescriptions()
+        {
+            using var manager = new ConfigService(CreateTempConfigPath());
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            var entry = manager.Bind<int, string>("TestTable", "Candidate", 1, "default", null);
+
+            Assert.Equal("Candidate", entry.Name.Chinese);
+            Assert.Equal("Candidate", entry.Name.English);
+            // 整体说明为空总体说明与两个空分元素说明的换行拼接，裁剪后不含任何可见文本。
+            Assert.Equal(string.Empty, entry.Description.Chinese.Trim());
+            Assert.Equal(string.Empty, entry.Description.English.Trim());
         }
 
         [Fact]
@@ -1023,7 +1041,7 @@ namespace UnityModBase.Test.HConfigSpace
                 manager.Bind<string>("TestTable", "TestKey", "Second", new Translator("键", "Key"), new Translator("描述", "Description")));
 
             Assert.Contains("TestTable.TestKey", exception.Message);
-            Assert.Same(first, Assert.Single(manager.Sheet["TestTable"].Table));
+            Assert.Same(first, Assert.Single(manager.Sheet["TestTable"].Entries));
             Assert.Equal("First", first.Value);
         }
 
@@ -1130,7 +1148,7 @@ namespace UnityModBase.Test.HConfigSpace
 
             // 重载探测适配器的等值以 Content 为准：PrepareBind 通过 EqualBoxed 判断候选值是否变化，
             // 因此本实现必须把相同内容视为相等、不同内容视为不等，验证计数才成立。
-            public bool Equals(IConfigEntryValue other)
+            public bool Equals(IEntryValue other)
             {
                 return other is ReloadProbeAdapter adapter && adapter.Content == Content;
             }

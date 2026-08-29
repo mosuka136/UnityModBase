@@ -39,16 +39,15 @@ namespace UnityModBase.HUserSpace
         /// 创建用户资源作用域并初始化对应的用户服务；不会自动登记到 <see cref="UserManager"/>。
         /// </summary>
         /// <param name="userId">非空白的用户唯一标识。</param>
-        /// <param name="name">非空的可翻译显示名称；实例按引用保存，不会复制其文本或语言状态。</param>
+        /// <param name="name">可翻译显示名称；实例按引用保存，为 <c>null</c> 时以用户标识作为中英文默认名称。</param>
         /// <exception cref="ArgumentException"><paramref name="userId"/> 为 <c>null</c>、空字符串或仅空白时抛出。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="name"/> 为 <c>null</c> 时抛出。</exception>
         public UserContext(string userId, Translator name)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 throw new ArgumentException("User ID cannot be null or whitespace.", nameof(userId));
 
             UserId = userId;
-            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Name = name ?? new Translator(userId, userId);
             Service = new UserService(userId);
         }
 

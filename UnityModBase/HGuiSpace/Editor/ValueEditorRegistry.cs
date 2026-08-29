@@ -41,11 +41,15 @@ namespace UnityModBase.HGuiSpace.Editor
         /// <summary>
         /// 创建标准运行时值编辑器集合。附加编辑器位于通用简单类型之后、双元素编辑器之前。
         /// </summary>
+        /// <param name="unityService">供滑条编辑器做数值夹取、吸附和近似比较的 Unity 服务。</param>
+        /// <param name="unityGui">绘制各值控件使用的 IMGUI 提供器。</param>
+        /// <param name="styleProvider">滑条等控件使用的样式资源。</param>
+        /// <param name="additionalEditors">追加到解析顺序中的可选编辑器；数组本身可为 <c>null</c>，元素为 <c>null</c> 时抛出异常。</param>
+        /// <returns>已注册标准编辑器的新注册表；双元素编辑器最后注册并复用本注册表解析槽位子编辑器。</returns>
         public static ValueEditorRegistry CreateDefault(
             IUnityProvider unityService,
             IUnityGuiProvider unityGui,
             IEntryStyleResource styleProvider,
-            DualValueDescriptor dualValueDescriptor,
             params IValueEditor[] additionalEditors)
         {
             if (unityService == null)
@@ -54,8 +58,6 @@ namespace UnityModBase.HGuiSpace.Editor
                 throw new ArgumentNullException(nameof(unityGui));
             if (styleProvider == null)
                 throw new ArgumentNullException(nameof(styleProvider));
-            if (dualValueDescriptor == null)
-                throw new ArgumentNullException(nameof(dualValueDescriptor));
 
             var registry = new ValueEditorRegistry();
             registry.RegisterEditor(new BooleanEditor(unityGui));
@@ -70,7 +72,7 @@ namespace UnityModBase.HGuiSpace.Editor
                     registry.RegisterEditor(editor);
             }
 
-            registry.RegisterEditor(new DualValueEditor(unityGui, registry.GetEditor, dualValueDescriptor));
+            registry.RegisterEditor(new DualValueEditor(unityGui, registry.GetEditor));
             return registry;
         }
 

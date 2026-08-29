@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityModBase.BSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HTranslatorSpace;
 
@@ -8,16 +9,12 @@ namespace UnityModBase.HControlSpace
 {
     /// <summary>
     /// 管理单个用户的纯内存实时控制表、条目和自动刷新调度，不读取或写入配置文件。
+    /// 键名与值类型按共享的 <see cref="EntryModel"/> 规则校验，与配置空间保持一致判定；
+    /// 表和条目只经 <see cref="CreateTable"/> 与 <see cref="Bind{T}"/> 登记，结构变化经 <see cref="OnStructureChanged"/> 通知控制 GUI 重建绑定树。
+    /// <see cref="Update"/> 应由 GUI 宿主每帧调用一次并传入界面可见性；本服务及全部模型不提供并发保护，须由调用方串行化。
     /// </summary>
     public sealed class ControlService : IDisposable
     {
-        private static readonly HashSet<Type> NumericTypes = new HashSet<Type>
-        {
-            typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
-            typeof(int), typeof(uint), typeof(long), typeof(ulong),
-            typeof(float), typeof(double)
-        };
-
         private bool _disposed;
 
         /// <summary>获取当前运行时控制表模型。</summary>
@@ -27,55 +24,81 @@ namespace UnityModBase.HControlSpace
         public event Action OnStructureChanged;
 
         /// <summary>
-        /// 创建新的实时控制表。表键只允许 Unicode 字母、数字和下划线。
+        /// 创建新的实时控制表并同步触发 <see cref="OnStructureChanged"/>。
         /// </summary>
+        /// <param name="key">表键名，只允许 Unicode 字母、数字和下划线。</param>
+        /// <param name="name">运行时展示名称；为 <c>null</c> 时以表键作为中英文默认名称。</param>
+        /// <param name="description">展示说明；为 <c>null</c> 时使用空说明。</param>
+        /// <exception cref="ObjectDisposedException">服务已释放。</exception>
+        /// <exception cref="ArgumentException"><paramref name="key"/> 不符合表键名语法（含 <c>null</c> 或空白）。</exception>
+        /// <exception cref="InvalidOperationException">运行时控制表中已存在同键表。</exception>
         public void CreateTable(string key, Translator name, Translator description = null)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(ControlService));
-            if (!ControlKeyValidator.IsValidTableKey(key))
+            if (!EntryModel.IsValidTableKey(key))
                 throw new ArgumentException($"Invalid control table key: {key}.", nameof(key));
-            if (name == null)
-                throw new ArgumentNullException(nameof(name));
             if (Sheet.Contains(key))
                 throw new InvalidOperationException($"Control table already exists: {key}.");
+            if (name == null)
+                name = new Translator(key, key);
 
             Sheet.Add(key, new ControlTable(key, name, description));
             InvokeStructureChanged();
         }
 
         /// <summary>
-        /// 创建实时控制项并立即通过 getter 取得初始值。条目只进入内存模型，不建立配置文件绑定。
+        /// 创建实时控制项并加入指定表。条目只进入内存模型，不建立配置文件绑定；
+        /// 构造时立即调用一次 <paramref name="valueGetter"/> 取得初始缓存值，之后的读取由更新策略调度。
         /// </summary>
+        /// <typeparam name="T">值类型，必须是受共享条目模型支持的非多元素条目值类型（多元素类型如 <see cref="EntryValue{T1, T2}"/> 会被拒绝）。</typeparam>
+        /// <param name="tableKey">已有控制表键名，须先经 <see cref="CreateTable"/> 建立。</param>
+        /// <param name="key">条目键名，只允许 Unicode 字母、数字和下划线。</param>
+        /// <param name="valueGetter">读取监听对象当前值的委托，调用时机由 <paramref name="updatePolicy"/> 决定。</param>
+        /// <param name="updatePolicy">自动刷新策略。</param>
+        /// <param name="name">展示名称；为 <c>null</c> 时以条目键作为中英文默认名称。</param>
+        /// <param name="description">展示说明；为 <c>null</c> 时使用空说明。</param>
+        /// <param name="metadata">可选 GUI 元数据，影响值编辑器的控件选择和展示。</param>
+        /// <returns>新创建并已登记到目标表的控制条目。</returns>
+        /// <exception cref="ObjectDisposedException">服务已释放。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 或 <paramref name="key"/> 不符合键名语法，值类型不受共享条目模型支持，或目标表不存在。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="valueGetter"/> 或 <paramref name="updatePolicy"/> 为 <c>null</c>。</exception>
+        /// <exception cref="InvalidOperationException">值类型为多元素条目值类型，或同一表键和条目键已存在绑定。</exception>
+        /// <remarks>
+        /// getter 的返回值不做逐次类型校验，刷新时只按共享等值规则跳过未变化的值；
+        /// 返回 <c>null</c> 或与声明类型不符的对象会原样进入界面缓存，由值编辑器自行处理。
+        /// </remarks>
         public ControlEntry<T> Bind<T>(
             string tableKey,
             string key,
             Func<T> valueGetter,
             ControlUpdatePolicy updatePolicy,
             Translator name,
-            Translator description,
+            Translator description = null,
             IUiMetadata metadata = null)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(ControlService));
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
-            if (!ControlKeyValidator.IsValidEntryKey(key))
+            if (!EntryModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid control table key: {tableKey}.", nameof(tableKey));
+            if (!EntryModel.IsValidEntryKey(key))
                 throw new ArgumentException($"Invalid control entry key: {key}.", nameof(key));
+            var valueType = typeof(T);
+            if (!EntryModel.IsEntryValueType(valueType))
+                throw new ArgumentException($"Unsupported control entry type: {valueType.FullName}.", nameof(valueType));
             if (valueGetter == null)
                 throw new ArgumentNullException(nameof(valueGetter));
             if (updatePolicy == null)
                 throw new ArgumentNullException(nameof(updatePolicy));
             if (name == null)
-                throw new ArgumentNullException(nameof(name));
+                name = new Translator(key, key);
             if (description == null)
-                throw new ArgumentNullException(nameof(description));
+                description = new Translator();
 
             var table = Sheet[tableKey] ?? throw new ArgumentException($"Control table does not exist: {tableKey}.", nameof(tableKey));
             if (table.Contains(key))
                 throw new InvalidOperationException($"Control entry already exists: {tableKey}.{key}.");
 
-            ValidateSupportedType(typeof(T), metadata);
             var entry = new ControlEntry<T>(tableKey, key, valueGetter, updatePolicy, name, description, metadata);
             table.Add(entry);
             InvokeStructureChanged();
@@ -84,7 +107,11 @@ namespace UnityModBase.HControlSpace
 
         /// <summary>
         /// 推进全部条目的更新策略。单个条件或 getter 失败不会阻止其余条目。
+        /// 调用方应每帧调用一次并传入当前界面可见性，否则按秒和可见性策略无法正确工作。
         /// </summary>
+        /// <param name="unscaledDeltaTime">非缩放帧间隔（秒）。</param>
+        /// <param name="isVisible">实时控制界面当前是否可见。</param>
+        /// <param name="becameVisible">本帧是否刚由隐藏转为可见。</param>
         public void Update(float unscaledDeltaTime, bool isVisible, bool becameVisible = false)
         {
             if (_disposed)
@@ -104,74 +131,13 @@ namespace UnityModBase.HControlSpace
             }
         }
 
-        internal static void ValidateValue(Type valueType, object value, string parameterName)
-        {
-            if (value == null || !valueType.IsAssignableFrom(value.GetType()))
-                throw new ArgumentException($"Invalid control value. Expected {valueType.FullName}, got {value?.GetType().FullName ?? "<null>"}.", parameterName);
-
-            if (IsDualValueType(valueType))
-            {
-                var value1 = valueType.GetProperty(nameof(ControlEntryValue<int, int>.Value1)).GetValue(value, null);
-                var value2 = valueType.GetProperty(nameof(ControlEntryValue<int, int>.Value2)).GetValue(value, null);
-                var types = valueType.GetGenericArguments();
-                ValidateValue(types[0], value1, parameterName);
-                ValidateValue(types[1], value2, parameterName);
-            }
-        }
-
-        private static void ValidateSupportedType(Type valueType, IUiMetadata metadata)
-        {
-            if (IsDualValueType(valueType))
-            {
-                var elementTypes = valueType.GetGenericArguments();
-                foreach (var elementType in elementTypes)
-                {
-                    if (IsDualValueType(elementType) || !IsSimpleSupportedType(elementType))
-                        throw new ArgumentException($"Unsupported control entry element type: {elementType.FullName}.", nameof(valueType));
-                }
-
-                if (metadata != null && !(metadata is UiCompositeMetadata))
-                    throw new ArgumentException("Dual-value control entries require UiCompositeMetadata or null metadata.", nameof(metadata));
-
-                var slotMetadatas = (metadata as UiCompositeMetadata)?.Metadatas;
-                if (slotMetadatas == null)
-                    return;
-                if (slotMetadatas.Length < 2)
-                    throw new ArgumentException("Dual-value control metadata must contain two slots.", nameof(metadata));
-                ValidateSimpleMetadata(elementTypes[0], slotMetadatas[0]);
-                ValidateSimpleMetadata(elementTypes[1], slotMetadatas[1]);
-                return;
-            }
-
-            if (!IsSimpleSupportedType(valueType))
-                throw new ArgumentException($"Unsupported control entry type: {valueType.FullName}.", nameof(valueType));
-            ValidateSimpleMetadata(valueType, metadata);
-        }
-
-        private static bool IsSimpleSupportedType(Type type)
-        {
-            return type == typeof(bool) || type == typeof(string) || type.IsEnum || NumericTypes.Contains(type);
-        }
-
-        private static bool IsDualValueType(Type type)
-        {
-            return type != null && type.IsGenericType && !type.ContainsGenericParameters && type.GetGenericTypeDefinition() == typeof(ControlEntryValue<,>);
-        }
-
-        private static void ValidateSimpleMetadata(Type valueType, IUiMetadata metadata)
-        {
-            if (metadata == null)
-                return;
-            if (!(metadata is UiSliderMetadata) || !NumericTypes.Contains(valueType))
-                throw new ArgumentException($"Unsupported GUI metadata '{metadata.GetType().FullName}' for control value type '{valueType.FullName}'.", nameof(metadata));
-        }
-
+        // 遍历前先复制条目快照：刷新过程中的 getter 或事件回调若再登记条目，直接遍历运行时集合会被修改异常中断。
         private List<IControlEntryInternal> GetEntrySnapshot()
         {
             var entries = new List<IControlEntryInternal>();
-            foreach (var table in Sheet)
+            foreach (var table in Sheet.Values)
             {
-                foreach (var entry in table.Value)
+                foreach (var entry in table.Entries)
                     entries.Add((IControlEntryInternal)entry);
             }
             return entries;

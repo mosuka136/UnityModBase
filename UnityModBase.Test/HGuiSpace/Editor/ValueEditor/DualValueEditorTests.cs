@@ -12,7 +12,7 @@ using UnityModBase.HProvider;
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
     /// <summary>
-    /// 双元素组合编辑器把值为封闭 ConfigEntryValue&lt;,&gt; 的条目投影为两个槽位绑定，
+    /// 双元素组合编辑器把值为封闭 EntryValue&lt;,&gt; 的条目投影为两个槽位绑定，
     /// 并复用所属注册表按槽位值类型选出的子编辑器绘制；元素写入合并为整体值写回父条目，
     /// 外部值变化会清空槽位暂存。
     /// </summary>
@@ -42,13 +42,14 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Theory]
-        [InlineData(typeof(ConfigEntryValue<int, float>), true)]
-        [InlineData(typeof(ConfigEntryValue<string, string>), true)]
+        [InlineData(typeof(EntryValue<int, float>), true)]
+        [InlineData(typeof(EntryValue<string, string>), true)]
         [InlineData(typeof(int), false)]
         [InlineData(typeof(KeyValuePair<int, string>), false)]
-        public void CanEdit_WhenEntryValueTypeIsClosedConfigEntryValueGeneric_ReturnsExpectedResult(Type valueType, bool expected)
+        [InlineData(typeof(ConventionalDualValue<int, string>), false)]
+        public void CanEdit_WhenEntryValueTypeIsClosedEntryValueGeneric_ReturnsExpectedResult(Type valueType, bool expected)
         {
-            // Arrange：只识别 ConfigEntryValue<,> 的封闭泛型，其他泛型（如 KeyValuePair<,>）与非泛型均不可编辑。
+            // Arrange：只识别 EntryValue<,> 的封闭泛型，其他泛型（如 KeyValuePair<,>）与非泛型均不可编辑。
             var editor = CreateEditor();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.ValueType).Returns(valueType);
@@ -78,7 +79,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange：槽位投影绑定不可再被本编辑器匹配，防止嵌套双元素值递归绘制。
             var editor = CreateEditor();
-            var parentMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
 
             // Act
@@ -112,7 +113,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             var editor = new DualValueEditor(unityGuiMock.Object, _registry.GetEditor);
             var sliderMetadata = new UiSliderMetadata(0f, 10f, 1f);
             var entryMock = CreateDualEntryMock(
-                new ConfigEntryValue<int, string>(1, "a"),
+                new EntryValue<int, string>(1, "a"),
                 new UiCompositeMetadata(new IUiMetadata[] { sliderMetadata, null }));
             var drawnSlots = new List<IEntryBinding>();
             _registry.RegisterEditor(CreateRecordingSubEditor(drawnSlots).Object);
@@ -144,7 +145,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Arrange
             var unityGuiMock = CreateCompositeAreaGuiMock();
             var editor = new DualValueEditor(unityGuiMock.Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var subEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
             subEditorMock.Setup(x => x.CanEdit(It.IsAny<IEntryBinding>())).Returns(true);
             subEditorMock
@@ -167,7 +168,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange：子编辑器对第一个槽位提交新值，父条目应收到只替换该元素的完整双元素值。
             var editor = new DualValueEditor(CreateCompositeAreaGuiMock().Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var subEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
             subEditorMock.Setup(x => x.CanEdit(It.IsAny<IEntryBinding>())).Returns(true);
             subEditorMock
@@ -183,7 +184,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             editor.DrawValue(entryMock.Object, new EditableGuiContext());
 
             // Assert
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(entryMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(entryMock.Object.Value);
             Assert.Equal(7, result.Value1);
             Assert.Equal("a", result.Value2);
         }
@@ -193,7 +194,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange：两槽先后挂起延迟输入，各自提交不应互相覆盖。
             var editor = new DualValueEditor(CreateCompositeAreaGuiMock().Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var drawnSlots = new List<IEntryBinding>();
             _registry.RegisterEditor(CreateRecordingSubEditor(drawnSlots).Object);
             var context = new EditableGuiContext();
@@ -205,7 +206,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             context.ChangeSink.FlushValue(1.0f);
 
             // Assert：最终整体值同时保留两槽修改。
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(entryMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(entryMock.Object.Value);
             Assert.Equal(7, result.Value1);
             Assert.Equal("b", result.Value2);
         }
@@ -215,7 +216,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange
             var editor = new DualValueEditor(CreateCompositeAreaGuiMock().Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var drawnSlots = new List<IEntryBinding>();
             _registry.RegisterEditor(CreateRecordingSubEditor(drawnSlots).Object);
             var context = new EditableGuiContext();
@@ -225,13 +226,13 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             context.ChangeSink.SetConvertedValue(drawnSlots[0], "not-a-number", 10.0f);
             var slot0 = Assert.IsType<DualValueSlotBinding>(drawnSlots[0]);
             Assert.True(slot0.EditBuffer.IsUsing);
-            entryMock.Object.Value = new ConfigEntryValue<int, string>(42, "z");
+            entryMock.Object.Value = new EntryValue<int, string>(42, "z");
             editor.DrawValue(entryMock.Object, context);
 
             // Assert：外部变化清空槽位暂存，过期延迟输入到期后也不会覆盖外部值。
             Assert.False(slot0.EditBuffer.IsUsing);
             context.ChangeSink.FlushValue(100.0f);
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(entryMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(entryMock.Object.Value);
             Assert.Equal(42, result.Value1);
             Assert.Equal("z", result.Value2);
         }
@@ -241,7 +242,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange：槽位自身的合并写入不属于外部变化，不应清空另一槽位的暂存输入。
             var editor = new DualValueEditor(CreateCompositeAreaGuiMock().Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var drawnSlots = new List<IEntryBinding>();
             _registry.RegisterEditor(CreateRecordingSubEditor(drawnSlots).Object);
             var context = new EditableGuiContext();
@@ -255,7 +256,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Assert：下一帧绘制后槽1 暂存仍在，父条目保留槽0 的提交值。
             var slot1 = Assert.IsType<DualValueSlotBinding>(drawnSlots[1]);
             Assert.True(slot1.EditBuffer.IsUsing);
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(entryMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(entryMock.Object.Value);
             Assert.Equal(7, result.Value1);
         }
 
@@ -264,7 +265,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             // Arrange：扩展区域与主值控件使用同一批槽位绑定，保证子编辑器跨阶段状态连续。
             var editor = new DualValueEditor(CreateCompositeAreaGuiMock().Object, _registry.GetEditor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
             var valueSlots = new List<IEntryBinding>();
             var extraSlots = new List<IEntryBinding>();
             var subEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
@@ -293,7 +294,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Arrange：登记后双元素条目由本编辑器接管，不再回退占位编辑器。
             var editor = new DualValueEditor(new Mock<IUnityGuiProvider>().Object, _registry.GetEditor);
             _registry.RegisterEditor(editor);
-            var entryMock = CreateDualEntryMock(new ConfigEntryValue<int, string>(1, "a"));
+            var entryMock = CreateDualEntryMock(new EntryValue<int, string>(1, "a"));
 
             // Act
             var result = _registry.GetEditor(entryMock.Object);
@@ -308,14 +309,14 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         /// <summary>
-        /// 创建值为 <see cref="ConfigEntryValue{T1, T2}"/> 的双元素条目严格替身；
+        /// 创建值为 <see cref="EntryValue{T1, T2}"/> 的双元素条目严格替身；
         /// 值用 SetupProperty 提供可读写的已提交值存储。
         /// </summary>
         private static Mock<IEntryBinding> CreateDualEntryMock(
-            ConfigEntryValue<int, string> value, IUiMetadata metadata = null)
+            EntryValue<int, string> value, IUiMetadata metadata = null)
         {
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
-            entryMock.SetupGet(x => x.ValueType).Returns(typeof(ConfigEntryValue<int, string>));
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
             entryMock.SetupProperty(x => x.Value, value);
             entryMock.SetupGet(x => x.Metadata).Returns(metadata);
             return entryMock;
@@ -345,6 +346,19 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
                 .Setup(x => x.DrawValue(It.IsAny<IEntryBinding>(), It.IsAny<EditableGuiContext>()))
                 .Callback<IEntryBinding, EditableGuiContext>((slot, _) => drawnSlots.Add(slot));
             return subEditorMock;
+        }
+
+        private sealed class ConventionalDualValue<T1, T2>
+        {
+            public T1 Value1 { get; }
+
+            public T2 Value2 { get; }
+
+            public ConventionalDualValue(T1 value1, T2 value2)
+            {
+                Value1 = value1;
+                Value2 = value2;
+            }
         }
 
         public void Dispose()

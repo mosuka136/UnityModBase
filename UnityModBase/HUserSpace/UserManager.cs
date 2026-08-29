@@ -87,9 +87,8 @@ namespace UnityModBase.HUserSpace
         /// 标识为空时自动生成，冲突时追加随机后缀而不复用已有上下文。
         /// </summary>
         /// <param name="userId">期望的用户标识；<c>null</c> 或空字符串表示自动生成。仅空白字符串不会被视为空。</param>
-        /// <param name="name">非空的可翻译显示名称；新上下文保留该实例，不复制其文本或语言状态。</param>
+        /// <param name="name">可翻译显示名称；为 <c>null</c> 时以用户标识作为中英文默认名称。新上下文保留该实例，不复制其文本或语言状态。</param>
         /// <returns>新建并登记到进程级注册表的用户上下文。</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="name"/> 为 <c>null</c> 时抛出，且不会生成或登记用户。</exception>
         /// <exception cref="ArgumentException"><paramref name="userId"/> 仅包含空白字符时由 <see cref="UserContext"/> 抛出。</exception>
         /// <remarks>
         /// 新建上下文最初不包含配置服务；转发处理器由 <see cref="UserService.OnConfigChanged"/> 暂存，
@@ -97,16 +96,13 @@ namespace UnityModBase.HUserSpace
         /// </remarks>
         public static UserContext Register(string userId, Translator name)
         {
-            if (name == null)
-                throw new ArgumentNullException(nameof(name));
-
             if (string.IsNullOrEmpty(userId))
                 userId = $"User_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 
             while (ContainsUser(userId))
                 userId += $"_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 
-            var context = CreateUser(userId, name);
+            var context = CreateUser(userId, name ?? new Translator(userId, userId));
 
             var h = new ServiceEventHandler(context);
             context.Service.OnConfigChanged += h.OnConfigChangedHandler;
@@ -160,24 +156,19 @@ namespace UnityModBase.HUserSpace
         /// 注册表内标识已存在时直接返回原上下文并忽略新的非空名称。
         /// </summary>
         /// <param name="userId">非 <c>null</c> 且非空字符串的用户标识；仅空白值会继续交由 <see cref="UserContext"/> 拒绝。</param>
-        /// <param name="name">非空的可翻译显示名称；创建新上下文时按引用保存。</param>
+        /// <param name="name">可翻译显示名称；创建新上下文时按引用保存，为 <c>null</c> 时以用户标识作为中英文默认名称。</param>
         /// <returns>新建上下文或同标识的现有上下文。</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="userId"/> 为 <c>null</c> 或空字符串，或 <paramref name="name"/> 为 <c>null</c> 时抛出。
-        /// 名称校验先于重复标识查询，因此已有用户也不接受空名称。
-        /// </exception>
+        /// <exception cref="ArgumentNullException"><paramref name="userId"/> 为 <c>null</c> 或空字符串时抛出。</exception>
         /// <exception cref="ArgumentException"><paramref name="userId"/> 仅包含空白字符时由 <see cref="UserContext"/> 抛出。</exception>
         public static UserContext CreateUser(string userId, Translator name)
         {
             if (string.IsNullOrEmpty(userId))
                 throw new ArgumentNullException(nameof(userId), "UserId cannot be null or empty!");
-            if (name == null)
-                throw new ArgumentNullException(nameof(name));
 
             if (_userContexts.ContainsKey(userId))
                 return _userContexts[userId];
 
-            var context = new UserContext(userId, name);
+            var context = new UserContext(userId, name ?? new Translator(userId, userId));
             _userContexts.Add(userId, context);
             return context;
         }

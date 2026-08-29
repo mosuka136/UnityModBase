@@ -1,5 +1,5 @@
 using System;
-using UnityModBase.HTranslatorSpace;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.HConfigSpace
 {
@@ -11,42 +11,12 @@ namespace UnityModBase.HConfigSpace
     /// <see cref="ConfigService.Reload"/> 依赖该协议实现可回滚的统一提交；自定义实现必须正确实现这组方法，
     /// 否则加入配置表后会导致重载预检或提交失败。
     /// </summary>
-    public interface IConfigEntry
+    public interface IConfigEntry : IWritableEntry
     {
-        /// <summary>
-        /// 运行时声明所属的表键名；重新绑定文件项不会改变该值。
-        /// </summary>
-        string TableKey { get; }
-
-        /// <summary>
-        /// 当前绑定文件项的键名。
-        /// </summary>
-        string Key { get; }
-
-        /// <summary>
-        /// 当前绑定文件项提供的多语言展示名称。
-        /// </summary>
-        Translator Name { get; }
-
-        /// <summary>
-        /// 当前绑定文件项提供的多语言说明。
-        /// </summary>
-        Translator Description { get; }
-
         /// <summary>
         /// 当前绑定的文件层模型；重载成功后可能替换为新实例。
         /// </summary>
         ConfigFileEntry Entry { get; }
-
-        /// <summary>
-        /// 装箱值必须遵循的运行时声明类型。
-        /// </summary>
-        Type ValueType { get; }
-
-        /// <summary>
-        /// 装箱后的当前值。赋值必须能直接转换为声明类型，并会执行与强类型赋值相同的编码和事件流程。
-        /// </summary>
-        object BoxedValue { get; set; }
 
         /// <summary>
         /// 装箱后的声明默认值；该值用于元数据，不表示读取失败时会自动回退。

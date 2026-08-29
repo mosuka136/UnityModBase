@@ -27,15 +27,17 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         }
 
         [Fact]
-        public void Constructor_WithNullNameAndDescription_UsesSafeDefaultsAndNoChildren()
+        public void Constructor_WithNullNameAndDescription_UsesKeyDerivedNameAndNoChildren()
         {
             // Act
             var result = new GroupBinding("Group", null, null, null);
 
-            // Assert
+            // Assert：名称缺失时以键作为中英文默认名称，说明缺失时使用空翻译。
             Assert.Equal("Group", result.Key);
-            Assert.NotNull(result.Name);
-            Assert.NotNull(result.Description);
+            Assert.Equal("Group", result.Name.Chinese);
+            Assert.Equal("Group", result.Name.English);
+            Assert.Equal(string.Empty, result.Description.Chinese);
+            Assert.Equal(string.Empty, result.Description.English);
             Assert.Empty(result.Children);
         }
 

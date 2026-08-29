@@ -1,8 +1,6 @@
 using System;
 using UnityModBase.HConfigGUI.Editor.ValueEditor;
 using UnityModBase.HConfigGUI.Resource;
-using UnityModBase.HConfigSpace;
-using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor;
 using UnityModBase.HProvider;
 using SharedGroupEditor = UnityModBase.HGuiSpace.Editor.GroupEditor;
@@ -14,11 +12,6 @@ namespace UnityModBase.HConfigGUI.Editor
     /// </summary>
     public class GroupEditor : SharedGroupEditor
     {
-        private static readonly DualValueDescriptor ConfigDualValueDescriptor = new DualValueDescriptor(
-            typeof(ConfigEntryValue<,>),
-            nameof(ConfigEntryValue<int, int>.Value1),
-            nameof(ConfigEntryValue<int, int>.Value2));
-
         /// <summary>获取配置界面专属的热键编辑器。</summary>
         public HotkeyEditor HotkeyEditor { get; }
 
@@ -38,12 +31,7 @@ namespace UnityModBase.HConfigGUI.Editor
                 unityGui,
                 styleProvider,
                 hotkeyEditor,
-                ValueEditorRegistry.CreateDefault(
-                    unityService,
-                    unityGui,
-                    styleProvider,
-                    ConfigDualValueDescriptor,
-                    hotkeyEditor))
+                ValueEditorRegistry.CreateDefault(unityService, unityGui, styleProvider, hotkeyEditor))
         {
         }
 

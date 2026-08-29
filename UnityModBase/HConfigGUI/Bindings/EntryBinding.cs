@@ -1,5 +1,6 @@
 using System;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HTranslatorSpace;
@@ -47,7 +48,7 @@ namespace UnityModBase.HConfigGUI.Bindings
             {
                 if (Entry.ValueType.IsAssignableFrom(value?.GetType()))
                 {
-                    if (!value.Equals(Entry.BoxedValue))
+                    if (!EntryModel.ValueEqual(value, Entry.BoxedValue))
                         Entry.BoxedValue = value;
                 }
                 else

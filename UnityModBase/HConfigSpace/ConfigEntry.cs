@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityModBase.BSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigSpace
@@ -137,17 +138,17 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         /// <param name="entry">包含当前编码值且已设置所属表键名的文件项。</param>
         /// <param name="defaultValue">声明默认值；不会覆盖文件项当前值。</param>
-        /// <param name="name">写入文件注释并供 UI 使用的名称。</param>
-        /// <param name="description">写入文件注释并供 UI 使用的说明。</param>
-        /// <exception cref="ArgumentNullException"><paramref name="entry"/>、<paramref name="name"/> 或 <paramref name="description"/> 为 <c>null</c>。</exception>
+        /// <param name="name">写入文件注释并供 UI 使用的名称；为 <c>null</c> 时以条目键作为中英文默认名称。</param>
+        /// <param name="description">写入文件注释并供 UI 使用的说明；为 <c>null</c> 时使用空说明。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
         /// <exception cref="InvalidOperationException">值类型提示、默认值无法编码，或文件项当前值无法解码为 <typeparamref name="T"/>。</exception>
-        public ConfigEntry(ConfigFileEntry entry, T defaultValue, Translator name, Translator description)
+        public ConfigEntry(ConfigFileEntry entry, T defaultValue, Translator name, Translator description = null)
         {
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry));
 
-            entry.Name = name ?? throw new ArgumentNullException(nameof(name));
-            entry.Description = description ?? throw new ArgumentNullException(nameof(description));
+            entry.Name = name ?? new Translator(entry.Key, entry.Key);
+            entry.Description = description ?? new Translator();
 
             var valueTypeResult = ConfigFileModel.EncodeValueType<T>();
             if (!valueTypeResult.Success)
@@ -277,7 +278,7 @@ namespace UnityModBase.HConfigSpace
         /// </remarks>
         public static bool EqualBoxed(object a, object b)
         {
-            return ConfigFileModel.ValueEqual(a, b);
+            return EntryModel.ValueEqual(a, b);
         }
 
         /// <inheritdoc/>

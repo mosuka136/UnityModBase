@@ -70,7 +70,7 @@ namespace UnityModBase.Test.HControlGUI
             hotkeyBinding.SetupGet(x => x.ValueType).Returns(typeof(Hotkey));
             hotkeyBinding.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
             var dualBinding = new Mock<IEntryBinding>(MockBehavior.Strict);
-            dualBinding.SetupGet(x => x.ValueType).Returns(typeof(ControlEntryValue<int, string>));
+            dualBinding.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
             dualBinding.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
 
             Assert.IsType<UnsupportedEditor>(editor.GroupEditor.ValueEditors.GetEditor(hotkeyBinding.Object));

@@ -133,12 +133,13 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void CreateUser_WhenNameIsNull_ThrowsArgumentNullExceptionWithoutRegisteringUser()
+        public void CreateUser_WhenNameIsNull_UsesUserIdDerivedTranslator()
         {
-            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.CreateUser("user", null));
+            var context = UserManager.CreateUser("user", null);
 
-            Assert.Equal("name", exception.ParamName);
-            Assert.Empty(UserManager.UserContexts);
+            Assert.Equal("user", context.Name.Chinese);
+            Assert.Equal("user", context.Name.English);
+            Assert.Same(context, UserManager.GetUser("user"));
         }
 
         [Fact]
@@ -175,12 +176,13 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void Register_WhenNameIsNull_ThrowsArgumentNullExceptionWithoutGeneratingUser()
+        public void Register_WhenNameIsNull_UsesUserIdDerivedTranslator()
         {
-            var exception = Assert.Throws<ArgumentNullException>(() => UserManager.Register(null, null));
+            var context = UserManager.Register("user", null);
 
-            Assert.Equal("name", exception.ParamName);
-            Assert.Empty(UserManager.UserContexts);
+            Assert.Equal("user", context.Name.Chinese);
+            Assert.Equal("user", context.Name.English);
+            Assert.Same(context, UserManager.GetUser("user"));
         }
 
         [Fact]

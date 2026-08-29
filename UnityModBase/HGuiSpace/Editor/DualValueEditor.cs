@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HProvider;
@@ -7,7 +8,7 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HGuiSpace.Editor
 {
     /// <summary>
-    /// 双元素条目的组合编辑器：把值类型与 <see cref="DualValueDescriptor"/> 匹配的条目投影为两个
+    /// 双元素条目的组合编辑器：把值类型为封闭 <see cref="EntryValue{T1,T2}"/> 的条目投影为两个
     /// <see cref="DualValueSlotBinding"/> 槽位绑定，并按槽位值类型复用所属注册表
     /// <see cref="ValueEditorRegistry"/> 中已注册的子编辑器绘制控件；本类自身不直接绘制值控件。
     /// </summary>
@@ -21,7 +22,6 @@ namespace UnityModBase.HGuiSpace.Editor
         // 父条目到槽位状态的弱表：槽位绑定与父条目同生命周期，界面重建绑定树后旧槽位随父条目一起回收。
         private readonly ConditionalWeakTable<IEntryBinding, DualEditorState> _slotStates = new ConditionalWeakTable<IEntryBinding, DualEditorState>();
         private readonly Func<IEntryBinding, IValueEditor> _editorResolver;
-        private readonly DualValueDescriptor _descriptor;
 
         /// <summary>
         /// 获取复合值横向区域布局使用的 IMGUI 提供器。
@@ -41,23 +41,7 @@ namespace UnityModBase.HGuiSpace.Editor
         }
 
         /// <summary>
-        /// 创建仅匹配指定双元素值类型的组合编辑器。
-        /// </summary>
-        /// <param name="unityGui">用于布局复合值横向区域的 IMGUI 提供器。</param>
-        /// <param name="editorResolver">用于选择槽位子编辑器的解析器。</param>
-        /// <param name="descriptor">要投影的双元素值类型描述。</param>
-        public DualValueEditor(
-            IUnityGuiProvider unityGui,
-            Func<IEntryBinding, IValueEditor> editorResolver,
-            DualValueDescriptor descriptor)
-        {
-            UnityGui = unityGui ?? throw new ArgumentNullException(nameof(unityGui));
-            _editorResolver = editorResolver ?? throw new ArgumentNullException(nameof(editorResolver));
-            _descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
-        }
-
-        /// <summary>
-        /// 判断绑定的值类型是否与本编辑器的双元素描述匹配；
+        /// 判断绑定的值类型是否为封闭 <see cref="EntryValue{T1,T2}"/>；
         /// 槽位投影绑定自身不可再被本编辑器匹配，防止手工构造的嵌套双元素值递归绘制。
         /// 绑定为 <c>null</c> 时不可编辑。
         /// </summary>
@@ -65,7 +49,7 @@ namespace UnityModBase.HGuiSpace.Editor
         {
             if (entry == null || entry is DualValueSlotBinding)
                 return false;
-            return ResolveDescriptor(entry.ValueType) != null;
+            return DualValueSlotBinding.IsSupportedValueType(entry.ValueType);
         }
 
         /// <summary>
@@ -114,14 +98,7 @@ namespace UnityModBase.HGuiSpace.Editor
 
         private DualEditorState GetSlotState(IEntryBinding entry)
         {
-            return _slotStates.GetValue(entry, parent => new DualEditorState(parent, ResolveDescriptor(parent.ValueType)));
-        }
-
-        private DualValueDescriptor ResolveDescriptor(Type valueType)
-        {
-            if (_descriptor != null)
-                return _descriptor.CanDescribe(valueType) ? _descriptor : null;
-            return DualValueDescriptor.TryCreateConventional(valueType, out var descriptor) ? descriptor : null;
+            return _slotStates.GetValue(entry, parent => new DualEditorState(parent));
         }
 
         // 对比父条目已提交值引用识别外部写入；槽位自身的合并写入通过回调标记，不触发清空。
@@ -178,12 +155,12 @@ namespace UnityModBase.HGuiSpace.Editor
             /// </summary>
             public bool HasSelfWriteSinceDraw { get; set; }
 
-            public DualEditorState(IEntryBinding parent, DualValueDescriptor descriptor)
+            public DualEditorState(IEntryBinding parent)
             {
                 Parent = parent;
                 var onParentValueWritten = (Action)(() => HasSelfWriteSinceDraw = true);
-                Slot0 = new DualValueSlotBinding(parent, 0, descriptor, onParentValueWritten);
-                Slot1 = new DualValueSlotBinding(parent, 1, descriptor, onParentValueWritten);
+                Slot0 = new DualValueSlotBinding(parent, 0, onParentValueWritten);
+                Slot1 = new DualValueSlotBinding(parent, 1, onParentValueWritten);
                 LastCommittedValue = parent.Value;
             }
         }

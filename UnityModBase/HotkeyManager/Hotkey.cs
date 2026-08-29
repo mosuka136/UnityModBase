@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityModBase.HConfigSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HProvider;
 
 namespace UnityModBase.HotkeyManager
@@ -246,7 +247,7 @@ namespace UnityModBase.HotkeyManager
         /// </summary>
         /// <param name="other">另一个配置值，可能为 <c>null</c> 或其他实现类型。</param>
         /// <returns>类型一致且组合集合等价时为 <c>true</c>。</returns>
-        public bool Equals(IConfigEntryValue other)
+        public bool Equals(IEntryValue other)
         {
             if (other == null || other.GetType() != typeof(Hotkey))
                 return false;

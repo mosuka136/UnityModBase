@@ -9,6 +9,11 @@ namespace UnityModBase.HControlGUI.Bindings
     /// </summary>
     internal static class GroupBindingFactory
     {
+        /// <summary>
+        /// 以用户标识为根键创建绑定树：每个实时控制表映射为一个分组，组内按声明顺序排列条目绑定。
+        /// 每次调用都重建整棵树，供模型结构变化后整体替换。
+        /// </summary>
+        /// <param name="context">提供实时控制服务的用户上下文；无控制服务时仅返回空根节点。</param>
         internal static GroupBinding CreateRoot(UserContext context)
         {
             var userId = context.UserId;

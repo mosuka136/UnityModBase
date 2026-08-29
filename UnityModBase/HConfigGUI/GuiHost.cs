@@ -22,6 +22,7 @@ namespace UnityModBase.HConfigGUI
     [RegisterOnGameBoot]
     public class GuiHost : GuiHostBase
     {
+        // 保留配置项引用仅为在 OnDestroy 中退订热键变更；实时热键值存于基类 UIHotkey。
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
 
         /// <summary>
@@ -188,6 +189,7 @@ namespace UnityModBase.HConfigGUI
             (UserEditor as UserEditor)?.GroupEditor.HotkeyEditor.Session.CancelEdit();
         }
 
+        // 语言切换后文案长度变化，标记当前用户的布局缓存失效以重新测量标签和按钮宽度。
         private void OnDefaultLanguageChanged(object sender, LanguageType language)
         {
             var context = CurrentContext as GuiContext;

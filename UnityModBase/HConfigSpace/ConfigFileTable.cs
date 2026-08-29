@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigSpace
@@ -41,7 +42,7 @@ namespace UnityModBase.HConfigSpace
         /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表名语法。</exception>
         public ConfigFileTable(string tableKey, Translator description)
         {
-            if (ConfigFileModel.IsValidTableKey(tableKey))
+            if (EntryModel.IsValidTableKey(tableKey))
                 Key = tableKey;
             else
                 throw new ArgumentException($"Invalid table name: {tableKey}", nameof(tableKey));
@@ -123,7 +124,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>表头文本，或表名非法诊断。</returns>
         public ConfigFileResult<string> EncodeTableHeader()
         {
-            if (!ConfigFileModel.IsValidTableKey(Key))
+            if (!EntryModel.IsValidTableKey(Key))
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidTableName, $"Invalid table name: {Key}"));
             return $"[{Key}]";
         }
@@ -179,7 +180,7 @@ namespace UnityModBase.HConfigSpace
         /// <returns>新文件表，或表名非法诊断。</returns>
         public static ConfigFileResult<ConfigFileTable> Create(string tableName, Translator description)
         {
-            if (!ConfigFileModel.IsValidTableKey(tableName))
+            if (!EntryModel.IsValidTableKey(tableName))
                 return ConfigFileResult<ConfigFileTable>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidTableName, $"Invalid table name: {tableName}"));
             var table = new ConfigFileTable(tableName, description);
             return table;

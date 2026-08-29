@@ -10,44 +10,35 @@ namespace UnityModBase.Test.HConfigSpace
         [Fact]
         public void Constructor_InvalidTableName_ThrowsArgumentException()
         {
-            var fileTable = new ConfigFileTable("Table", new Translator());
-
             var exception = Assert.Throws<ArgumentException>(() =>
-                new ConfigTable("invalid-key", fileTable, new Translator(), new Translator()));
+                new ConfigTable("invalid-key", new Translator(), new Translator()));
 
             Assert.Equal("key", exception.ParamName);
         }
 
         [Fact]
-        public void Constructor_ValidArguments_InitializesTableAndSynchronizesMetadata()
+        public void Constructor_ValidArguments_InitializesTableMetadata()
         {
-            var fileTable = new ConfigFileTable("Table", new Translator());
             var name = new Translator("名称", "Name");
             var description = new Translator("说明", "Description");
 
-            var table = new ConfigTable("Table", fileTable, name, description);
+            var table = new ConfigTable("Table", name, description);
 
             Assert.Equal("Table", table.Key);
             Assert.Same(name, table.Name);
             Assert.Same(description, table.Description);
-            Assert.Empty(table.Table);
-            Assert.Same(name, fileTable.Name);
-            Assert.Same(description, fileTable.Description);
+            Assert.Empty(table.Entries);
         }
 
         [Fact]
         public void Constructor_NullMetadata_UsesEmptyTranslators()
         {
-            var fileTable = new ConfigFileTable("Table", new Translator());
-
-            var table = new ConfigTable("Table", fileTable, null, null);
+            var table = new ConfigTable("Table", null, null);
 
             Assert.Equal(string.Empty, table.Name.Chinese);
             Assert.Equal(string.Empty, table.Name.English);
             Assert.Equal(string.Empty, table.Description.Chinese);
             Assert.Equal(string.Empty, table.Description.English);
-            Assert.Same(table.Name, fileTable.Name);
-            Assert.Same(table.Description, fileTable.Description);
         }
 
         [Fact]
@@ -58,7 +49,7 @@ namespace UnityModBase.Test.HConfigSpace
             var exception = Assert.Throws<ArgumentNullException>(() => table.Add(null));
 
             Assert.Equal("entry", exception.ParamName);
-            Assert.Empty(table.Table);
+            Assert.Empty(table.Entries);
         }
 
         [Fact]
@@ -70,21 +61,21 @@ namespace UnityModBase.Test.HConfigSpace
             var exception = Assert.Throws<ArgumentException>(() => table.Add(foreignEntry));
 
             Assert.Equal("entry", exception.ParamName);
-            Assert.Empty(table.Table);
+            Assert.Empty(table.Entries);
         }
 
         [Fact]
-        public void Add_WhenEntryAlreadyExists_ThrowsArgumentException()
+        public void Add_WhenEntryAlreadyExists_ThrowsInvalidOperationException()
         {
             var table = CreateTable();
             var entry = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
             table.Add(entry);
             var duplicate = CreateEntryMock(tableKey: "Table", key: "Entry").Object;
 
-            var exception = Assert.Throws<ArgumentException>(() => table.Add(duplicate));
+            var exception = Assert.Throws<InvalidOperationException>(() => table.Add(duplicate));
 
-            Assert.Equal("entry", exception.ParamName);
-            Assert.Equal(new[] { entry }, table.Table);
+            Assert.Contains("Table.Entry", exception.Message);
+            Assert.Equal(new[] { entry }, table.Entries);
         }
 
         [Fact]
@@ -97,7 +88,7 @@ namespace UnityModBase.Test.HConfigSpace
             table.Add(first);
             table.Add(second);
 
-            Assert.Equal(new[] { first, second }, table.Table);
+            Assert.Equal(new[] { first, second }, table.Entries);
             Assert.Equal(new[] { first, second }, table.ToArray());
             Assert.Equal(new object[] { first, second }, ((IEnumerable)table).Cast<object>().ToArray());
         }
@@ -154,8 +145,7 @@ namespace UnityModBase.Test.HConfigSpace
 
         private static ConfigTable CreateTable()
         {
-            var fileTable = new ConfigFileTable("Table", new Translator());
-            return new ConfigTable("Table", fileTable, new Translator(), new Translator());
+            return new ConfigTable("Table", new Translator(), new Translator());
         }
     }
 }

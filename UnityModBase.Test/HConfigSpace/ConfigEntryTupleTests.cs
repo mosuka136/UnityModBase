@@ -4,7 +4,7 @@ using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigSpace
 {
-    // ConfigEntry<T1,T2> 是双元素元组配置项的门面，内部委托给值类型为 ConfigEntryValue<T1,T2> 的 ConfigEntry<T>。
+    // ConfigEntry<T1,T2> 是双元素元组配置项的门面，内部委托给值类型为 EntryValue<T1,T2> 的 ConfigEntry<T>。
     // 以下测试覆盖：构造与文件值解码、说明拼接、单元素读写（整体替换语义）、装箱视图、
     // 值变化事件转发，以及事务协议方法（PrepareBind/ApplyBind/PublishBind/RollbackBind）的转发正确性。
     public class ConfigEntryTupleTests
@@ -46,7 +46,7 @@ namespace UnityModBase.Test.HConfigSpace
             // 文件中的 1,2 优先于声明的默认值 10,20。
             Assert.Equal(1, entry.Value1);
             Assert.Equal(2, entry.Value2);
-            Assert.Equal(typeof(ConfigEntryValue<int, int>), entry.ValueType);
+            Assert.Equal(typeof(EntryValue<int, int>), entry.ValueType);
         }
 
         [Fact]
@@ -61,7 +61,7 @@ namespace UnityModBase.Test.HConfigSpace
             var boxedDefault = iEntry.BoxedDefaultValue;
 
             // Assert
-            var tupleDefault = Assert.IsType<ConfigEntryValue<int, int>>(boxedDefault);
+            var tupleDefault = Assert.IsType<EntryValue<int, int>>(boxedDefault);
             Assert.Equal(10, tupleDefault.Value1);
             Assert.Equal(20, tupleDefault.Value2);
         }
@@ -100,14 +100,18 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
-        public void Constructor_WhenNameIsNull_ThrowsArgumentNullException()
+        public void Constructor_WhenNameIsNull_UsesKeyDerivedTranslator()
         {
             // Arrange
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
 
-            // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => new ConfigEntry<int, int>(
-                model, 0, 0, null, new Translator(), new Translator(), new Translator()));
+            // Act
+            var entry = new ConfigEntry<int, int>(
+                model, 0, 0, null, new Translator(), new Translator(), new Translator());
+
+            // Assert
+            Assert.Equal("TestKey", entry.Name.Chinese);
+            Assert.Equal("TestKey", entry.Name.English);
         }
 
         [Fact]
@@ -153,11 +157,11 @@ namespace UnityModBase.Test.HConfigSpace
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
             var entry = CreateEntry(model, 0, 0);
             var invokeCount = 0;
-            ConfigEntryValue<int, int> observed = null;
+            EntryValue<int, int> observed = null;
             entry.OnValueChangedBase += (sender, args) =>
             {
                 invokeCount++;
-                observed = Assert.IsType<EntryValueChangedEventArgs<ConfigEntryValue<int, int>>>(args).Value;
+                observed = Assert.IsType<EntryValueChangedEventArgs<EntryValue<int, int>>>(args).Value;
             };
 
             // Act
@@ -184,7 +188,7 @@ namespace UnityModBase.Test.HConfigSpace
             entry.OnValueChangedBase += (sender, args) =>
             {
                 invokeCount++;
-                Assert.IsType<EntryValueChangedEventArgs<ConfigEntryValue<int, int>>>(args);
+                Assert.IsType<EntryValueChangedEventArgs<EntryValue<int, int>>>(args);
             };
 
             // Act
@@ -239,7 +243,7 @@ namespace UnityModBase.Test.HConfigSpace
             var entry = CreateEntry(model, 0, 0);
 
             // Act
-            entry.Value = new ConfigEntryValue<int, int>(7, 8);
+            entry.Value = new EntryValue<int, int>(7, 8);
 
             // Assert
             Assert.Equal(7, entry.Value1);
@@ -250,7 +254,7 @@ namespace UnityModBase.Test.HConfigSpace
         // ---- 装箱视图 ----
 
         [Fact]
-        public void BoxedValue_Get_ReturnsConfigEntryValue()
+        public void BoxedValue_Get_ReturnsEntryValue()
         {
             // Arrange
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
@@ -261,7 +265,7 @@ namespace UnityModBase.Test.HConfigSpace
             var boxed = iEntry.BoxedValue;
 
             // Assert
-            var tuple = Assert.IsType<ConfigEntryValue<int, int>>(boxed);
+            var tuple = Assert.IsType<EntryValue<int, int>>(boxed);
             Assert.Equal(1, tuple.Value1);
             Assert.Equal(2, tuple.Value2);
         }
@@ -275,7 +279,7 @@ namespace UnityModBase.Test.HConfigSpace
             IConfigEntry iEntry = entry;
 
             // Act
-            iEntry.BoxedValue = new ConfigEntryValue<int, int>(3, 4);
+            iEntry.BoxedValue = new EntryValue<int, int>(3, 4);
 
             // Assert
             Assert.Equal(3, entry.Value1);

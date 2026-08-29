@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityModBase.BSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.HConfigSpace
@@ -364,24 +365,23 @@ namespace UnityModBase.HConfigSpace
         /// <param name="tableKey">已有配置表键名。</param>
         /// <param name="key">配置项键名，只允许 Unicode 字母、数字和下划线。</param>
         /// <param name="defaultValue">文件模型中缺失该项时使用的初始值。</param>
-        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称。</param>
-        /// <param name="description">用于生成配置文件注释和 GUI 提示的描述。</param>
+        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称；为 <c>null</c> 时以配置项键作为中英文默认名称。</param>
+        /// <param name="description">用于生成配置文件注释和 GUI 提示的描述；为 <c>null</c> 时使用空说明。</param>
         /// <returns>可在运行时读写的强类型配置项。</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或 <paramref name="description"/> 为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentException">表不存在或键名非法时抛出。</exception>
+        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 或 <paramref name="key"/> 不符合键名语法（含 <c>null</c> 或空白），或表不存在。</exception>
         /// <exception cref="InvalidOperationException">现有值无法解码、类型或默认值无法编码，文件模型无法接受新项，或同一表键和配置项键已存在运行时绑定。</exception>
         /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
         /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
-        public ConfigEntry<T> Bind<T>(string tableKey, string key, T defaultValue, Translator name, Translator description)
+        public ConfigEntry<T> Bind<T>(string tableKey, string key, T defaultValue, Translator name, Translator description = null)
         {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
-            if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentNullException(nameof(key));
+            if (!EntryModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
+            if (!EntryModel.IsValidEntryKey(key))
+                throw new ArgumentException($"Invalid entry key: {tableKey}.{key}.", nameof(key));
             if (name == null)
-                throw new ArgumentNullException(nameof(name));
+                name = new Translator(key, key);
             if (description == null)
-                throw new ArgumentNullException(nameof(description));
+                description = new Translator();
 
             var configFileEntry = GetOrCreateConfigFileEntry(tableKey, key, defaultValue);
             var result = new ConfigEntry<T>(configFileEntry, defaultValue, name, description);
@@ -395,19 +395,18 @@ namespace UnityModBase.HConfigSpace
         /// 返回的门面允许分别读写两个元素，但单元素写入仍会整体替换双元素值，从而复用统一的编码、事件和自动保存流程。
         /// 每次调用都会追加新运行时绑定；调用前必须先通过 <see cref="CreateTable"/> 建立运行时表，同一配置键重复绑定会在登记阶段抛出异常。
         /// </summary>
-        /// <typeparam name="T1">第一个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
-        /// <typeparam name="T2">第二个元素的值类型，必须受配置编解码器支持，且不能是另一个双元素配置值适配器。</typeparam>
+        /// <typeparam name="T1">第一个元素的值类型，必须受配置编解码器支持，且不能是多元素条目值类型（如 <see cref="EntryValue{T1, T2}"/>）。</typeparam>
+        /// <typeparam name="T2">第二个元素的值类型，必须受配置编解码器支持，且不能是多元素条目值类型（如 <see cref="EntryValue{T1, T2}"/>）。</typeparam>
         /// <param name="tableKey">已有配置表键名。</param>
         /// <param name="key">配置项键名，只允许 Unicode 字母、数字和下划线。</param>
         /// <param name="defaultValue1">文件中缺失该项时使用的第一个元素默认值。</param>
         /// <param name="defaultValue2">文件中缺失该项时使用的第二个元素默认值。</param>
-        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称。</param>
-        /// <param name="description">双元素配置项的整体说明。</param>
-        /// <param name="valueDescription1">第一个元素的说明；仅用于文件注释和 GUI 提示，不参与取值校验。</param>
-        /// <param name="valueDescription2">第二个元素的说明；仅用于文件注释和 GUI 提示，不参与取值校验。</param>
+        /// <param name="name">用于生成配置文件注释和 GUI 标签的名称；为 <c>null</c> 时以配置项键作为中英文默认名称。</param>
+        /// <param name="description">双元素配置项的整体说明；为 <c>null</c> 时视为空说明。</param>
+        /// <param name="valueDescription1">第一个元素的说明；为 <c>null</c> 时视为空说明。</param>
+        /// <param name="valueDescription2">第二个元素的说明；为 <c>null</c> 时视为空说明。</param>
         /// <returns>可整体或按元素读写的双元素配置项门面。</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="tableKey"/> 或 <paramref name="key"/> 为空白字符串，或 <paramref name="name"/> 或任一说明参数为 <c>null</c>。</exception>
-        /// <exception cref="ArgumentException">表不存在、键名非法，或任一元素类型会使双元素平铺格式产生嵌套分隔歧义。</exception>
+        /// <exception cref="ArgumentException">表不存在、键名不符合语法（含 <c>null</c> 或空白），或任一元素类型会使双元素平铺格式产生嵌套分隔歧义。</exception>
         /// <exception cref="InvalidOperationException">现有双元素文本无法解码、元素类型或默认值无法编码，文件模型无法接受新项，或同一表键和配置项键已存在运行时绑定。</exception>
         /// <exception cref="NullReferenceException">服务已释放、<see cref="FileSheet"/> 首次读取失败，或尚未通过 <see cref="CreateTable"/> 建立对应运行时表。</exception>
         /// <remarks>文件模型的补项和元数据更新早于运行时登记；若后续的类型校验或登记失败，这些文件模型变更不会自动回滚。</remarks>
@@ -417,31 +416,30 @@ namespace UnityModBase.HConfigSpace
             T1 defaultValue1,
             T2 defaultValue2,
             Translator name,
-            Translator description,
-            Translator valueDescription1,
-            Translator valueDescription2)
+            Translator description = null,
+            Translator valueDescription1 = null,
+            Translator valueDescription2 = null)
         {
-            if (string.IsNullOrWhiteSpace(tableKey))
-                throw new ArgumentNullException(nameof(tableKey));
-            if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentNullException(nameof(key));
+            if (!EntryModel.IsValidTableKey(tableKey))
+                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
+            if (!EntryModel.IsValidEntryKey(key))
+                throw new ArgumentException($"Invalid entry key: {tableKey}.{key}.", nameof(key));
             if (name == null)
-                throw new ArgumentNullException(nameof(name));
+                name = new Translator(key, key);
             if (description == null)
-                throw new ArgumentNullException(nameof(description));
+                description = new Translator();
             if (valueDescription1 == null)
-                throw new ArgumentNullException(nameof(valueDescription1));
+                valueDescription1 = new Translator();
             if (valueDescription2 == null)
-                throw new ArgumentNullException(nameof(valueDescription2));
+                valueDescription2 = new Translator();
 
             // 双元素文本没有外层定界符；元素若再次使用相同平铺格式，其逗号会被外层误判为额外元素，导致无法逆向解码。
-            var genericType = typeof(IGenericConfigEntryValue);
-            if (genericType.IsAssignableFrom(typeof(T1)))
-                throw new ArgumentException($"Type {typeof(T1).FullName} is a generic ConfigEntryValue type and cannot be used as a direct element type in a dual-value config entry.");
-            if (genericType.IsAssignableFrom(typeof(T2)))
-                throw new ArgumentException($"Type {typeof(T2).FullName} is a generic ConfigEntryValue type and cannot be used as a direct element type in a dual-value config entry.");
+            if (EntryModel.IsEntryMultipleValueType(typeof(T1)))
+                throw new ArgumentException($"Type {typeof(T1).FullName} is an EntryValue type and cannot be used as a direct element type in a dual-value config entry.");
+            if (EntryModel.IsEntryMultipleValueType(typeof(T2)))
+                throw new ArgumentException($"Type {typeof(T2).FullName} is an EntryValue type and cannot be used as a direct element type in a dual-value config entry.");
 
-            var defaultValue = new ConfigEntryValue<T1, T2>(defaultValue1, defaultValue2);
+            var defaultValue = new EntryValue<T1, T2>(defaultValue1, defaultValue2);
             var configFileEntry = GetOrCreateConfigFileEntry(tableKey, key, defaultValue);
             var result = new ConfigEntry<T1, T2>(configFileEntry, defaultValue1, defaultValue2, name, description, valueDescription1, valueDescription2);
             Bind(tableKey, result);
@@ -464,9 +462,9 @@ namespace UnityModBase.HConfigSpace
         /// <remarks>键名格式校验先于任何文件查询执行，非法键在读取已有项之前即被拒绝。</remarks>
         private ConfigFileEntry GetOrCreateConfigFileEntry<T>(string tableKey, string key, T defaultValue)
         {
-            if (!ConfigFileModel.IsValidTableKey(tableKey))
+            if (!EntryModel.IsValidTableKey(tableKey))
                 throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
-            if (!ConfigFileModel.IsValidEntryKey(key))
+            if (!EntryModel.IsValidEntryKey(key))
                 throw new ArgumentException($"Invalid entry key: {tableKey}.{key}.", nameof(key));
 
             var entryResult = FileSheet.GetEntry(tableKey, key);
@@ -519,7 +517,7 @@ namespace UnityModBase.HConfigSpace
         /// <exception cref="NullReferenceException"><see cref="Sheet"/> 已释放，或目标运行时表不存在。</exception>
         private void Bind(string tableKey, IConfigEntry entry)
         {
-            if (!ConfigFileModel.IsValidTableKey(tableKey))
+            if (!EntryModel.IsValidTableKey(tableKey))
                 throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry));
@@ -539,37 +537,38 @@ namespace UnityModBase.HConfigSpace
         /// 运行时模型中已存在同键表时不再静默复用原表，而是抛出异常；重复声明无法用于刷新表元数据。
         /// 成功路径均会同步触发 <see cref="OnConfigChanged"/>，因此调用方不能把该事件次数等同于新增表数量。
         /// </summary>
-        /// <param name="tableKey">表键名，只允许 Unicode 字母、数字和下划线。</param>
-        /// <param name="tableName">运行时展示名称。</param>
+        /// <param name="key">表键名，只允许 Unicode 字母、数字和下划线。</param>
+        /// <param name="name">运行时展示名称，同时写入文件表模型；为 <c>null</c> 时以表键作为中英文默认名称。</param>
         /// <param name="description">写入配置文件的表说明，可为空。</param>
-        /// <exception cref="ArgumentException"><paramref name="tableKey"/> 不符合表键名语法（含 <c>null</c> 或空白）。</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="tableName"/> 为 <c>null</c>。</exception>
+        /// <exception cref="ArgumentException"><paramref name="key"/> 不符合表键名语法（含 <c>null</c> 或空白）。</exception>
         /// <exception cref="InvalidOperationException">运行时表中已存在同键表，新表无法创建，或新表无法加入文件模型。</exception>
         /// <exception cref="NullReferenceException">服务已释放，或 <see cref="FileSheet"/> 首次读取失败。</exception>
-        public void CreateTable(string tableKey, Translator tableName, Translator description = null)
+        public void CreateTable(string key, Translator name, Translator description = null)
         {
-            if (!ConfigFileModel.IsValidTableKey(tableKey))
-                throw new ArgumentException($"Invalid table key: {tableKey}.", nameof(tableKey));
-            if (tableName == null)
-                throw new ArgumentNullException(nameof(tableName));
+            if (!EntryModel.IsValidTableKey(key))
+                throw new ArgumentException($"Invalid table key: {key}.", nameof(key));
+            if (name == null)
+                name = new Translator(key, key);
 
-            var tableResult = FileSheet.GetTable(tableKey);
+            var tableResult = FileSheet.GetTable(key);
             if (tableResult.Success)
             {
-                if (Sheet.Contains(tableKey))
-                    throw new InvalidOperationException($"Config table already exists in runtime sheet: {tableKey}.");
+                if (Sheet.Contains(key))
+                    throw new InvalidOperationException($"Config table already exists in runtime sheet: {key}.");
 
-                Sheet.Add(tableKey, new ConfigTable(tableKey, tableResult.Value, tableName, description));
+                tableResult.Value.Name = name;
+                tableResult.Value.Description = description;
+                Sheet.Add(key, new ConfigTable(key, name, description));
                 InvokeOnConfigChanged();
                 return;
             }
 
-            var newTableResult = ConfigFileSheet.CreateTable(tableKey, description);
+            var newTableResult = ConfigFileSheet.CreateTable(key, description);
             if (!newTableResult.Success)
             {
                 foreach (var error in newTableResult.Errors)
                     BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new InvalidOperationException($"Failed to create config table: {tableKey}.");
+                throw new InvalidOperationException($"Failed to create config table: {key}.");
             }
 
             var addTableResult = FileSheet.AddTable(newTableResult.Value);
@@ -577,10 +576,12 @@ namespace UnityModBase.HConfigSpace
             {
                 foreach (var error in addTableResult.Errors)
                     BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                throw new InvalidOperationException($"Failed to add config table: {tableKey}.");
+                throw new InvalidOperationException($"Failed to add config table: {key}.");
             }
 
-            Sheet.Add(tableKey, new ConfigTable(tableKey, newTableResult.Value, tableName, description));
+            newTableResult.Value.Name = name;
+            newTableResult.Value.Description = description;
+            Sheet.Add(key, new ConfigTable(key, name, description));
             InvokeOnConfigChanged();
         }
 

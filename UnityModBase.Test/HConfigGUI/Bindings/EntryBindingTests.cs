@@ -139,6 +139,29 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
         }
 
         [Fact]
+        public void Value_SetterGivenDeepEqualArrayInstance_DoesNotUpdateEntryBoxedValue()
+        {
+            // Arrange：等值判断按内容深度比较集合（EntryModel.ValueEqual），
+            // 等价的新数组实例不应触发重复写入；内容变化时才整体写回。
+            var entryMock = CreateEntryMock();
+            entryMock.SetupGet(entry => entry.ValueType).Returns(typeof(int[]));
+            entryMock.SetupProperty(entry => entry.BoxedValue, new[] { 1, 2 });
+            var binding = new EntryBinding(typeof(TestConfig), entryMock.Object);
+
+            // Act
+            binding.Value = new[] { 1, 2 };
+
+            // Assert
+            entryMock.VerifySet(entry => entry.BoxedValue = It.IsAny<object>(), Times.Never);
+
+            // Act
+            binding.Value = new[] { 1, 3 };
+
+            // Assert
+            entryMock.VerifySet(entry => entry.BoxedValue = new[] { 1, 3 }, Times.Once);
+        }
+
+        [Fact]
         public void Value_SetterGivenIncompatibleValue_ThrowsArgumentException()
         {
             // Arrange

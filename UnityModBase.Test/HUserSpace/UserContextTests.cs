@@ -17,11 +17,12 @@ namespace UnityModBase.Test.HUserSpace
         }
 
         [Fact]
-        public void Constructor_WhenNameIsNull_ThrowsArgumentNullException()
+        public void Constructor_WhenNameIsNull_UsesUserIdDerivedTranslator()
         {
-            var exception = Assert.Throws<ArgumentNullException>(() => new UserContext("user", null));
+            using var context = new UserContext("user", null);
 
-            Assert.Equal("name", exception.ParamName);
+            Assert.Equal("user", context.Name.Chinese);
+            Assert.Equal("user", context.Name.English);
         }
 
         [Fact]

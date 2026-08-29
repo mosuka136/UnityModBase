@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.HConfigSpace
 {
@@ -35,7 +36,7 @@ namespace UnityModBase.HConfigSpace
             if (value == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null"));
 
-            var collectionType = GetCollectionElementType(type);
+            var collectionType = EntryModel.GetCollectionElementType(type);
             if (collectionType == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported collection type"));
 
@@ -66,7 +67,7 @@ namespace UnityModBase.HConfigSpace
             if (value == null)
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Value cannot be null"));
 
-            var collectionType = GetCollectionElementType(type);
+            var collectionType = EntryModel.GetCollectionElementType(type);
             if (collectionType == null)
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported collection type"));
 
@@ -84,28 +85,6 @@ namespace UnityModBase.HConfigSpace
             }
 
             return CreateCollectionResult(type, collectionType, elements);
-        }
-
-        /// <summary>
-        /// 获取集合类型的元素类型。
-        /// </summary>
-        /// <param name="collectionType">数组、<see cref="IEnumerable{T}"/> 或实现泛型 IEnumerable 的类型。</param>
-        /// <returns>元素类型；<paramref name="collectionType"/> 为 <c>null</c> 或无法识别时返回 <c>null</c>。</returns>
-        public static Type GetCollectionElementType(Type collectionType)
-        {
-            if (collectionType == null)
-                return null;
-
-            if (collectionType.IsArray)
-                return collectionType.GetElementType();
-
-            if (collectionType.IsGenericType && collectionType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                return collectionType.GetGenericArguments()[0];
-
-            var enumerableType = collectionType.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
-
-            return enumerableType?.GetGenericArguments()[0];
         }
 
         /// <summary>

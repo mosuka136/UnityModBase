@@ -80,7 +80,7 @@ namespace UnityModBase.Test.HConfigSpace
         {
             var translator = new Translator("中文", "English");
             var fileTable = new ConfigFileTable(key, translator);
-            return new ConfigTable(key, fileTable, translator, translator);
+            return new ConfigTable(key, translator, translator);
         }
     }
 }

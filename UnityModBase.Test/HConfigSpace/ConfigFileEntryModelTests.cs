@@ -1,4 +1,5 @@
 using UnityModBase.HConfigSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigSpace
@@ -1141,7 +1142,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return "CustomType";
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
         private enum TestEnum
@@ -1168,7 +1169,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Test failure"));
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
 
@@ -1189,7 +1190,7 @@ namespace UnityModBase.Test.HConfigSpace
                 throw new InvalidOperationException("Test exception");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
     }
 }

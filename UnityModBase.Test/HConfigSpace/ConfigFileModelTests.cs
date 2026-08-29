@@ -1,5 +1,6 @@
 using UnityModBase.HConfigSpace;
 using System.Collections;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.Test.HConfigSpace
 {
@@ -104,7 +105,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
-            Assert.Equal("Unsupported collection type", error.Message);
+            Assert.Equal("Unsupported type", error.Message);
         }
 
         [Fact]
@@ -286,7 +287,7 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.False(result.Success);
             var error = Assert.Single(result.Errors);
             Assert.Equal(ConfigFileErrorCode.UnsupportedType, error.Code);
-            Assert.Equal("Unsupported collection type", error.Message);
+            Assert.Equal("Decoding not implemented", error.Message);
         }
 
         [Fact]
@@ -369,7 +370,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void IsTupleType_DetectsValueTupleGenericsOnly(Type type, bool expected)
         {
             // Act
-            var result = ConfigFileModel.IsTupleType(type);
+            var result = EntryModel.IsTupleType(type);
 
             // Assert
             Assert.Equal(expected, result);
@@ -379,7 +380,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void IsTupleType_WithNull_ReturnsFalse()
         {
             // Act
-            var result = ConfigFileModel.IsTupleType(null);
+            var result = EntryModel.IsTupleType(null);
 
             // Assert
             Assert.False(result);
@@ -401,7 +402,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void IsValidTableKey_AcceptsOnlyWordCharacters(string tableKey, bool expected)
         {
             // Act
-            var result = ConfigFileModel.IsValidTableKey(tableKey);
+            var result = EntryModel.IsValidTableKey(tableKey);
 
             // Assert
             Assert.Equal(expected, result);
@@ -419,7 +420,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void IsValidEntryKey_AcceptsOnlyWordCharacters(string key, bool expected)
         {
             // Act
-            var result = ConfigFileModel.IsValidEntryKey(key);
+            var result = EntryModel.IsValidEntryKey(key);
 
             // Assert
             Assert.Equal(expected, result);
@@ -812,7 +813,7 @@ namespace UnityModBase.Test.HConfigSpace
         public void GetCollectionElementType_GenericEnumerable_ReturnsGenericArgument()
         {
             // Act
-            var result = ConfigFileModel.GetCollectionElementType(typeof(IEnumerable<int>));
+            var result = EntryModel.GetCollectionElementType(typeof(IEnumerable<int>));
 
             // Assert
             Assert.Equal(typeof(int), result);
@@ -1961,7 +1962,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Ok("FailingEncodeAdapter");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
         private class ThrowingEncodeAdapter : IConfigEntryValue
@@ -1981,7 +1982,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Ok("ThrowingEncodeAdapter");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
         private class FailingDecodeAdapter : IConfigEntryValue
@@ -2001,7 +2002,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Ok("FailingDecodeAdapter");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
         private class ThrowingDecodeAdapter : IConfigEntryValue
@@ -2021,7 +2022,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Ok("ThrowingDecodeAdapter");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
 
         private class WrongTypeDecodeAdapter : IConfigEntryValue
@@ -2041,7 +2042,7 @@ namespace UnityModBase.Test.HConfigSpace
                 return ConfigFileResult<string>.Ok("WrongTypeDecodeAdapter");
             }
 
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
     }
 }

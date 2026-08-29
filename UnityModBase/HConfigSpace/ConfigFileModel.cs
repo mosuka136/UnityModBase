@@ -1,17 +1,18 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.HConfigSpace
 {
     /// <summary>
     /// 配置文件值的编码/解码工具。
     /// 该类型定义了项目内部配置文本格式的基础规则：字符串带双引号并转义，集合用方括号、元组用圆括号并以逗号分隔元素，数字使用不随系统区域变化的格式。
-    /// 它只处理单个值、集合与元组；<see cref="IsKeyValuePair"/>、<see cref="IsComment"/>、<see cref="IsValidEntryKey"/>、<see cref="IsValidTableKey"/> 仅提供行分类与键名/表名校验，
+    /// 它只处理单个值、集合、元组与多元素条目值；<see cref="IsKeyValuePair"/>、<see cref="IsComment"/> 仅提供行分类，
     /// 键值行和表结构的解析由 <see cref="ConfigFileEntry"/>、<see cref="ConfigFileTable"/> 负责。
-    /// 内置类型路径不维护共享状态；适配器路径会执行 <see cref="IConfigEntryValue"/> 实现代码，其线程安全和副作用由适配器自行保证。
+    /// 类型识别与等值比较等共享规则统一委托 <see cref="EntryModel"/>；内置类型路径不维护共享状态，
+    /// 适配器路径会执行 <see cref="IConfigEntryValue"/> 实现代码，其线程安全和副作用由适配器自行保证。
     /// </summary>
     public static partial class ConfigFileModel
     {
@@ -40,6 +41,9 @@ namespace UnityModBase.HConfigSpace
             if (type == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
 
+            if (EntryModel.IsEntryMultipleValueType(type))
+                return EncodeEntryMultipleValue(type, value);
+
             if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
@@ -57,16 +61,16 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            if (IsPrimitiveType(type))
+            if (EntryModel.IsPrimitiveType(type))
                 return EncodePrimitive(type, value);
 
-            if (type.IsEnum)
+            if (EntryModel.IsEnumType(type))
                 return ConfigFileResult<string>.Ok(value.ToString());
 
-            if (IsTupleType(type))
+            if (EntryModel.IsTupleType(type))
                 return EncodeTuple(type, value);
 
-            if (typeof(IEnumerable).IsAssignableFrom(type))
+            if (EntryModel.IsCollectionType(type))
                 return EncodeCollection(type, value);
 
             return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Unsupported type"));
@@ -105,6 +109,9 @@ namespace UnityModBase.HConfigSpace
 
             value = value.Trim();
 
+            if (EntryModel.IsEntryMultipleValueType(type))
+                return DecodeEntryMultipleValue(type, value);
+
             if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
@@ -121,10 +128,10 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            if (IsPrimitiveType(type))
+            if (EntryModel.IsPrimitiveType(type))
                 return DecodePrimitive(type, value);
 
-            if (type.IsEnum)
+            if (EntryModel.IsEnumType(type))
             {
                 try
                 {
@@ -137,10 +144,10 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            if (IsTupleType(type))
+            if (EntryModel.IsTupleType(type))
                 return DecodeTuple(type, value);
 
-            if (typeof(IEnumerable).IsAssignableFrom(type))
+            if (EntryModel.IsCollectionType(type))
                 return DecodeCollection(type, value);
 
             return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, "Decoding not implemented"));
@@ -152,7 +159,7 @@ namespace UnityModBase.HConfigSpace
         /// 引号内的转义序列（<c>\\</c>、<c>\"</c>、<c>\n</c>、<c>\r</c>、<c>\t</c>）在此阶段按原文保留，由后续 <see cref="DecodeString"/> 统一反转义。
         /// </summary>
         /// <param name="value">待拆分文本，允许带首尾空白。</param>
-        /// <param name="opening">外层起始定界符；与 <paramref name="closing"/> 同为 <c>'\0'</c> 时表示文本无外层定界符（用于 <c>ConfigEntryValue</c> 这类顶层逗号分隔编码）。</param>
+        /// <param name="opening">外层起始定界符；与 <paramref name="closing"/> 同为 <c>'\0'</c> 时表示文本无外层定界符（用于 <c>EntryValue</c> 这类顶层逗号分隔编码）。</param>
         /// <param name="closing">外层结束定界符；非 <c>'\0'</c> 时要求文本去除首尾空白后必须被该对定界符完整包裹，拆分前会先去掉这对定界符。</param>
         /// <returns>
         /// 各元素的原始文本（已去首尾空白、未反转义）；去除定界符后内容为空时返回空数组。
@@ -273,104 +280,6 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 按配置模型的等值规则比较两个值，供 <see cref="ConfigEntry{T}"/> 判断“值未变化”以跳过写入与事件。
-        /// 两者的运行时类型必须相同，否则直接视为不相等。原始类型、字符串、枚举按 <see cref="object.Equals(object, object)"/> 比较；
-        /// 数组与 <see cref="IEnumerable"/> 按元素顺序递归深度比较；<see cref="IConfigEntryValue"/> 委托给其实现的业务等值判断。
-        /// 其余类型一律视为不相等，使配置项按“值已变化”保守处理。
-        /// </summary>
-        /// <param name="a">第一个待比较值，可为 <c>null</c>。</param>
-        /// <param name="b">第二个待比较值，可为 <c>null</c>；仅两者同为 <c>null</c> 时相等。</param>
-        /// <returns>类型相同且内容符合上述规则时返回 <c>true</c>。</returns>
-        /// <remarks>
-        /// 数组分支必须先于 <see cref="IEnumerable"/> 判断（数组本身实现了 <see cref="IEnumerable"/>），以便用长度快速排除不等；
-        /// <see cref="IConfigEntryValue"/> 分支先于 <see cref="IEnumerable"/>，保证同时可枚举的自定义值类型使用其业务等值语义。
-        /// 枚举序列会被完整遍历，且枚举器在可释放时会被释放；调用方不应传入无限序列或枚举有破坏性副作用的源。
-        /// </remarks>
-        public static bool ValueEqual(object a, object b)
-        {
-            if (a == null && b == null)
-                return true;
-
-            if (a == null || b == null)
-                return false;
-
-            var type = a.GetType();
-
-            if (type != b.GetType())
-                return false;
-
-            if (type.IsPrimitive || type == typeof(string) || type.IsEnum)
-                return object.Equals(a, b);
-
-            if (type.IsArray)
-            {
-                var arrayA = a as Array;
-                var arrayB = b as Array;
-
-                if (arrayA == null || arrayB == null)
-                    return false;
-
-                if (arrayA.Length != arrayB.Length)
-                    return false;
-
-                for (int i = 0; i < arrayA.Length; i++)
-                {
-                    if (!ValueEqual(arrayA.GetValue(i), arrayB.GetValue(i)))
-                        return false;
-                }
-
-                return true;
-            }
-
-            if (typeof(IConfigEntryValue).IsAssignableFrom(type))
-            {
-                var valueA = a as IConfigEntryValue;
-                var valueB = b as IConfigEntryValue;
-
-                if (valueA == null || valueB == null)
-                    return false;
-
-                return valueA.Equals(valueB);
-            }
-
-            if (typeof(IEnumerable).IsAssignableFrom(type))
-            {
-                var enumA = (a as IEnumerable)?.GetEnumerator();
-                var enumB = (b as IEnumerable)?.GetEnumerator();
-
-                if (enumA == null || enumB == null)
-                    return false;
-
-                try
-                {
-                    while (true)
-                    {
-                        var hasNextA = enumA.MoveNext();
-                        var hasNextB = enumB.MoveNext();
-
-                        if (hasNextA != hasNextB)
-                            return false;
-
-                        if (!hasNextA)
-                            break;
-
-                        if (!ValueEqual(enumA.Current, enumB.Current))
-                            return false;
-                    }
-
-                    return true;
-                }
-                finally
-                {
-                    (enumA as IDisposable)?.Dispose();
-                    (enumB as IDisposable)?.Dispose();
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
         /// 按泛型声明类型生成人工可读的类型提示。
         /// </summary>
         /// <typeparam name="T">配置值的声明类型。</typeparam>
@@ -391,6 +300,9 @@ namespace UnityModBase.HConfigSpace
             if (type == null)
                 return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidType, "Type cannot be null"));
 
+            if (EntryModel.IsEntryMultipleValueType(type))
+                return EncodeEntryMultipleValueType(type);
+
             if (typeof(IConfigEntryValue).IsAssignableFrom(type))
             {
                 try
@@ -408,39 +320,19 @@ namespace UnityModBase.HConfigSpace
                 }
             }
 
-            if (IsPrimitiveType(type))
+            if (EntryModel.IsPrimitiveType(type))
                 return EncodePrimitiveType(type);
 
-            if (type.IsEnum)
+            if (EntryModel.IsEnumType(type))
                 return $"Enum {type.Name}";
 
-            if (IsTupleType(type))
+            if (EntryModel.IsTupleType(type))
                 return EncodeTupleType(type);
 
-            if (typeof(IEnumerable).IsAssignableFrom(type))
-                return $"{EncodeValueType(GetCollectionElementType(type))}[]";
+            if (EntryModel.IsCollectionType(type))
+                return $"{EncodeValueType(EntryModel.GetCollectionElementType(type))}[]";
 
             return ConfigFileResult<string>.Fail(new ConfigFileError(ConfigFileErrorCode.UnsupportedType, $"Unsupported type: {type.FullName}"));
-        }
-
-        /// <summary>
-        /// 判断表名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
-        /// </summary>
-        /// <param name="key">待检查的表名。</param>
-        /// <returns>表名是否可以安全写入方括号表头。</returns>
-        public static bool IsValidTableKey(string key)
-        {
-            return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
-        }
-
-        /// <summary>
-        /// 判断键名是否符合配置文件语法约束：非空且仅包含 Unicode 字母、数字或下划线。
-        /// </summary>
-        /// <param name="key">待检查的键名。</param>
-        /// <returns>键名是否可以安全写入键值行。</returns>
-        public static bool IsValidEntryKey(string key)
-        {
-            return !string.IsNullOrWhiteSpace(key) && key.All(c => char.IsLetterOrDigit(c) || c == '_');
         }
 
         /// <summary>

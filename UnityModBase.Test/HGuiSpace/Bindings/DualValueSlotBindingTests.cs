@@ -27,7 +27,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Constructor_WhenSlotIndexIsOutOfRange_ThrowsArgumentOutOfRangeException(int slotIndex)
         {
             // Arrange
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
 
             // Act & Assert
             var exception = Assert.Throws<ArgumentOutOfRangeException>(
@@ -40,7 +40,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         [InlineData(null)]
         public void Constructor_WhenParentValueTypeIsNullOrNotDualValueGeneric_ThrowsArgumentException(Type valueType)
         {
-            // Arrange：值类型缺失或非 ConfigEntryValue<,> 泛型的父条目均无法按元素投影。
+            // Arrange：值类型缺失或非 EntryValue<,> 泛型的父条目均无法按元素投影。
             var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             parentMock.SetupGet(x => x.ValueType).Returns(valueType);
 
@@ -55,7 +55,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         {
             // Arrange：开放泛型定义缺少元素类型参数，无法确定槽位值类型。
             var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
-            parentMock.SetupGet(x => x.ValueType).Returns(typeof(ConfigEntryValue<,>));
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<,>));
 
             // Act & Assert
             Assert.Throws<ArgumentException>(() => new DualValueSlotBinding(parentMock.Object, 0));
@@ -69,7 +69,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
             var description = new Translator("说明", "Description");
             var sliderMetadata = new UiSliderMetadata(0f, 10f, 1f);
             var metadata = new UiCompositeMetadata(new IUiMetadata[] { null, sliderMetadata });
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"), metadata);
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"), metadata);
             parentMock.SetupGet(x => x.Name).Returns(name);
             parentMock.SetupGet(x => x.Description).Returns(description);
 
@@ -98,7 +98,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
             // Arrange：组合元数据只在第二个槽位声明了滑条。
             var sliderMetadata = new UiSliderMetadata(0f, 10f, 1f);
             var parentMock = CreateParentMock(
-                new ConfigEntryValue<int, string>(1, "a"),
+                new EntryValue<int, string>(1, "a"),
                 new UiCompositeMetadata(new IUiMetadata[] { null, sliderMetadata }));
 
             // Act
@@ -114,9 +114,9 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Metadata_WhenParentMetadataIsNullOrNotCombo_ReturnsNullForBothSlots()
         {
             // Arrange：父元数据缺失或不是组合元数据时，两个槽位都按“无元数据”处理。
-            var withoutMetadata = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var withoutMetadata = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var withSliderMetadata = CreateParentMock(
-                new ConfigEntryValue<int, string>(1, "a"), new UiSliderMetadata(0f, 10f, 1f));
+                new EntryValue<int, string>(1, "a"), new UiSliderMetadata(0f, 10f, 1f));
 
             // Act & Assert
             Assert.Null(new DualValueSlotBinding(withoutMetadata.Object, 0).Metadata);
@@ -130,7 +130,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         {
             // Arrange：组合元数据数组长度由声明决定，可能小于槽位数，越界槽位保持无元数据。
             var parentMock = CreateParentMock(
-                new ConfigEntryValue<int, string>(1, "a"),
+                new EntryValue<int, string>(1, "a"),
                 new UiCompositeMetadata(new IUiMetadata[] { new UiSliderMetadata(0f, 10f, 1f) }));
 
             // Act
@@ -144,7 +144,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_Get_WhenParentHasCommittedTuple_ReturnsOwnSlotElement()
         {
             // Arrange
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(42, "hello"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(42, "hello"));
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
             var slot1 = new DualValueSlotBinding(parentMock.Object, 1);
 
@@ -168,14 +168,14 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_SetFirstSlot_MergesWithCurrentSecondElement()
         {
             // Arrange
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
 
             // Act
             slot0.Value = 7;
 
             // Assert：只替换第一个元素，第二个元素保持父条目当前已提交值。
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(parentMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(parentMock.Object.Value);
             Assert.Equal(7, result.Value1);
             Assert.Equal("a", result.Value2);
         }
@@ -184,14 +184,14 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_SetSecondSlot_MergesWithCurrentFirstElement()
         {
             // Arrange
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var slot1 = new DualValueSlotBinding(parentMock.Object, 1);
 
             // Act
             slot1.Value = "b";
 
             // Assert
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(parentMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(parentMock.Object.Value);
             Assert.Equal(1, result.Value1);
             Assert.Equal("b", result.Value2);
         }
@@ -200,7 +200,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_SetSequentialSlots_BothChangesPreservedInFinalTuple()
         {
             // Arrange：两槽先后写入互不覆盖，最终整体值同时包含两次修改。
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
             var slot1 = new DualValueSlotBinding(parentMock.Object, 1);
 
@@ -209,7 +209,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
             slot1.Value = "b";
 
             // Assert
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(parentMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(parentMock.Object.Value);
             Assert.Equal(7, result.Value1);
             Assert.Equal("b", result.Value2);
         }
@@ -225,7 +225,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
             slot0.Value = 7;
 
             // Assert
-            var result = Assert.IsType<ConfigEntryValue<int, string>>(parentMock.Object.Value);
+            var result = Assert.IsType<EntryValue<int, string>>(parentMock.Object.Value);
             Assert.Equal(7, result.Value1);
             Assert.Null(result.Value2);
         }
@@ -236,7 +236,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_SetInvalidValue_ThrowsArgumentException(object invalidValue)
         {
             // Arrange：与 EntryBinding.Value 相同的赋值约束——null 或不可赋值类型拒绝写入，不带参数名。
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
 
             // Act & Assert
@@ -247,7 +247,7 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         public void Value_SetInvokesOnParentValueWrittenCallback()
         {
             // Arrange
-            var parentMock = CreateParentMock(new ConfigEntryValue<int, string>(1, "a"));
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
             var callbackCount = 0;
             var slot0 = new DualValueSlotBinding(parentMock.Object, 0, () => callbackCount++);
 
@@ -259,13 +259,13 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         }
 
         /// <summary>
-        /// 创建值为 <see cref="ConfigEntryValue{T1, T2}"/> 的父条目严格替身；
+        /// 创建值为 <see cref="EntryValue{T1, T2}"/> 的父条目严格替身；
         /// 值用 SetupProperty 提供可读写的已提交值存储。
         /// </summary>
-        private static Mock<IEntryBinding> CreateParentMock(ConfigEntryValue<int, string> value, IUiMetadata metadata = null)
+        private static Mock<IEntryBinding> CreateParentMock(EntryValue<int, string> value, IUiMetadata metadata = null)
         {
             var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
-            parentMock.SetupGet(x => x.ValueType).Returns(typeof(ConfigEntryValue<int, string>));
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
             parentMock.SetupProperty(x => x.Value, value);
             parentMock.SetupGet(x => x.Metadata).Returns(metadata);
             parentMock.SetupGet(x => x.Key).Returns("DualEntry");

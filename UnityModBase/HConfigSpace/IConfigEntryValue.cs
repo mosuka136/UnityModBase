@@ -1,4 +1,5 @@
 using System;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.HConfigSpace
 {
@@ -14,12 +15,12 @@ namespace UnityModBase.HConfigSpace
     /// 在框架侧通过 <see cref="Activator.CreateInstance(Type)"/> 创建临时实例调用，因此实现类型必须提供可访问的无参构造函数。
     /// </para>
     /// <para>
-    /// <see cref="Equals(IConfigEntryValue)"/> 用于让 <see cref="ConfigEntry{T}"/> 判断“值未变化”，
+    /// <see cref="IEntryValue.Equals(IEntryValue)"/> 用于让 <see cref="ConfigEntry{T}"/> 判断“值未变化”，
     /// 以便在重载或赋值等价值时跳过写入与事件发布。实现应进行基于内容的比较（而非引用比较），
     /// 且对 <c>null</c> 或不同类型安全返回 <c>false</c>。
     /// </para>
     /// </remarks>
-    public interface IConfigEntryValue
+    public interface IConfigEntryValue : IEntryValue
     {
         /// <summary>
         /// 将当前实例编码为可放在键值行等号右侧的单个值文本。
@@ -42,16 +43,5 @@ namespace UnityModBase.HConfigSpace
         /// </summary>
         /// <returns>面向人工编辑者的稳定类型说明。</returns>
         ConfigFileResult<string> EncodeValueType();
-
-        /// <summary>
-        /// 比较当前实例与另一个配置值是否在业务上等价。
-        /// </summary>
-        /// <param name="other">另一个配置值，可能为 <c>null</c> 或不同实现类型。</param>
-        /// <returns>两者内容等价时返回 <c>true</c>；<c>null</c> 或类型不同时应返回 <c>false</c>。</returns>
-        /// <remarks>
-        /// 该方法供 <see cref="ConfigEntry{T}"/> 在赋值与重载提交时做“值是否变化”的短路判断，
-        /// 因此实现必须基于值内容，而非默认的引用相等。
-        /// </remarks>
-        bool Equals(IConfigEntryValue other);
     }
 }

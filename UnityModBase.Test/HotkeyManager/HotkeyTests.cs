@@ -2,6 +2,7 @@ using UnityModBase.HConfigSpace;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using Moq;
+using UnityModBase.HEntrySpace;
 
 namespace UnityModBase.Test.HotkeyManager
 {
@@ -313,7 +314,7 @@ namespace UnityModBase.Test.HotkeyManager
             Assert.Empty(hotkey.Hotkeys);
         }
 
-        // 新增：Hotkey 现实现 IConfigEntryValue.Equals，基于 HasSameHotkey 比较内容。
+        // Hotkey 通过共享 IEntryValue 契约，基于 HasSameHotkey 比较内容。
         [Fact]
         public void Equals_WhenOtherIsNull_ReturnsFalse()
         {
@@ -353,7 +354,7 @@ namespace UnityModBase.Test.HotkeyManager
             public ConfigFileResult<string> Encode() => "x";
             public ConfigFileResult<object> Decode(string content) => new object();
             public ConfigFileResult<string> EncodeValueType() => "Other";
-            public bool Equals(IConfigEntryValue other) => ReferenceEquals(this, other);
+            public bool Equals(IEntryValue other) => ReferenceEquals(this, other);
         }
     }
 }
