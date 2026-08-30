@@ -14,7 +14,7 @@ namespace UnityModBase.HUserSpace
     /// 本类型不记录已释放状态；调用方应自行串行化生命周期操作，并避免在释放期间或释放后继续增删子上下文，
     /// 否则并发加入的对象可能未经释放便被最终清理映射。
     /// </remarks>
-    public partial class UserContext : IDisposable
+    public sealed partial class UserContext : IDisposable
     {
         // 仅保护键到直接子上下文的映射；子对象状态以及与 Dispose 组合的操作不受该并发容器保护。
         private readonly ConcurrentDictionary<string, IUserContext> _childrenContext = new ConcurrentDictionary<string, IUserContext>();

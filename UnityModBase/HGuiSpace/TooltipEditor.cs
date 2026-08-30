@@ -7,7 +7,7 @@ namespace UnityModBase.HGuiSpace
     /// 将当前 IMGUI 控件提供的工具提示绘制在鼠标附近，并限制在宿主窗口范围内。
     /// 本类只消费 <see cref="IUnityGuiProvider.Tooltip"/>，不负责决定哪个控件提供提示文本。
     /// </summary>
-    public class TooltipEditor
+    public sealed class TooltipEditor
     {
         /// <summary>
         /// 获取鼠标位置和边界计算所用的 Unity 服务。

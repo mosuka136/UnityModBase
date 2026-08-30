@@ -17,7 +17,7 @@ namespace UnityModBase.HGuiSpace.Bindings
     /// 名称与说明透传父条目，使变更提示仍显示真实条目；槽位子元数据从父条目的
     /// <see cref="UiCompositeMetadata"/> 按下标解析，父元数据缺失或槽位未声明时为 null，子编辑器走通用分支。
     /// </remarks>
-    internal class DualValueSlotBinding : IEntryBinding
+    internal sealed class DualValueSlotBinding : IEntryBinding
     {
         /// <summary>
         /// 获取被投影的双元素父条目绑定。

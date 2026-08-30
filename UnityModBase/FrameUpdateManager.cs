@@ -26,7 +26,7 @@ namespace UnityModBase
         /// 该组件只负责事件分发，其对象生命周期由启动注册器管理。
         /// </summary>
         [RegisterOnGameBoot]
-        public class Updater : MonoBehaviour
+        public sealed class Updater : MonoBehaviour
         {
             /// <summary>
             /// 记录桥接组件已由启动注册器成功创建，不建立额外状态或订阅。
@@ -65,7 +65,7 @@ namespace UnityModBase
         /// 清空所有帧更新订阅。
         /// 桥接组件及其 GameObject 由 <see cref="GameBootRegistry.Dispose"/> 负责销毁。
         /// </summary>
-        public static void Dispose()
+        internal static void Dispose()
         {
             OnFrameUpdate = null;
         }

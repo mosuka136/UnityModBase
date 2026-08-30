@@ -137,7 +137,7 @@ namespace UnityModBase.HGuiSpace
         /// <see cref="CurrentContext"/>，这些模块级状态由派生类在调用后完成。
         /// 派生类必须先设置 <see cref="StyleProvider"/>；初始化失败时会记录错误并销毁当前组件。
         /// </summary>
-        public virtual void Awake()
+        protected virtual void Awake()
         {
             try
             {
@@ -162,7 +162,7 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 在 Unity 更新阶段轮询界面热键，并切换窗口显隐状态。
         /// </summary>
-        public virtual void Update()
+        protected virtual void Update()
         {
             if (UIHotkey?.WasPressedThisFrame() == true)
             {
@@ -174,7 +174,7 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 绘制可见窗口、记录拖动结果，并在满足条件时处理点击窗外自动隐藏。
         /// </summary>
-        public virtual void OnGUI()
+        protected virtual void OnGUI()
         {
             if (!IsVisible)
                 return;

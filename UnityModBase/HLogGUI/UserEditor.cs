@@ -10,7 +10,7 @@ namespace UnityModBase.HLogGUI
     /// 将通用用户选择器与日志表格编辑器组合为日志 GUI 的用户级内容编辑器。
     /// 用户切换或日志变化时只标记列宽缓存失效，实际测量在后续绘制中完成。
     /// </summary>
-    public class UserEditor : UserEditorBase
+    public sealed class UserEditor : UserEditorBase
     {
         /// <summary>
         /// 获取当前用户日志内容使用的表格编辑器。

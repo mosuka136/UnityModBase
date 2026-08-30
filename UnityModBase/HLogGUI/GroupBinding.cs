@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 
@@ -10,14 +11,14 @@ namespace UnityModBase.HLogGUI
     /// 本类不累计重复次数；日志数据库会先原地更新 <see cref="EntryBinding.Entry"/>，再通过等价绑定通知本类刷新排序结果。
     /// </summary>
     /// <remarks>
-    /// 添加、移除和排序快照重建通过实例锁串行化。<see cref="SortedGroup"/> 返回内部缓存的物化结果，
-    /// 调用方只能枚举，不得通过类型转换修改该集合。调用方应在 GUI 线程读取或修改排序设置并读取派生标志；
+    /// 添加、移除和排序快照重建通过实例锁串行化。<see cref="SortedGroup"/> 返回只读的物化快照。
+    /// 调用方应在 GUI 线程读取或修改排序设置并读取派生标志；
     /// 这些访问不提供与日志回调线程之间的线性一致快照。
     /// </remarks>
-    public class GroupBinding
+    public sealed class GroupBinding
     {
         // 串行化绑定列表、派生标志，以及 AddEntry/RemoveEntry 与 SortedGroup 之间的缓存失效和重建。
-        // SortOrder、IsSortDescending 和派生标志的读取不取得本锁，也不防止调用方修改返回的集合。
+        // SortOrder、IsSortDescending 和派生标志的读取不取得本锁。
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
 
         // 按首次接收顺序保存每组等价日志的首个绑定；后续等价绑定只用于使排序缓存失效。
@@ -26,7 +27,8 @@ namespace UnityModBase.HLogGUI
 
         // 缓存当前字段对应的物化排序快照；快照保留绑定引用，但条目字段变化不会自动调整其既有位置。
         // null 表示尚未创建快照，或字段、绑定集合、重复次数等可能影响排序的状态已经变化。
-        private IEnumerable<EntryBinding> _sortedGroup = null;
+        private IReadOnlyList<EntryBinding> _sortedGroup = null;
+        private bool _isSortDescending = false;
 
         /// <summary>
         /// 获取分组是否已观察到累计出现多次的日志。
@@ -58,9 +60,20 @@ namespace UnityModBase.HLogGUI
         }
 
         /// <summary>
-        /// 获取或设置是否反向枚举当前排序快照。该属性不重建快照，应由 GUI 线程修改。
+        /// 获取或设置是否按反向顺序生成排序快照。更改方向会使当前缓存失效，应由 GUI 线程修改。
         /// </summary>
-        public bool IsSortDescending { get; set; } = false;
+        public bool IsSortDescending
+        {
+            get => _isSortDescending;
+            set
+            {
+                if (_isSortDescending != value)
+                {
+                    _isSortDescending = value;
+                    _sortedGroup = null;
+                }
+            }
+        }
 
         /// <summary>
         /// 获取当前字段对应的物化排序快照。
@@ -70,74 +83,75 @@ namespace UnityModBase.HLogGUI
         /// <remarks>
         /// 缓存失效后的首次访问会在写锁内完成排序和复制。快照保留 <see cref="EntryBinding"/> 引用，
         /// 因而字段文本可反映底层日志的后续更新，但排序位置要等 <see cref="AddEntry"/>、<see cref="RemoveEntry"/>
-        /// 或 <see cref="SortOrder"/> 使缓存失效后才会重算。升序结果的运行时对象是内部列表，调用方不得将返回值
-        /// 转换为可变集合，否则会破坏当前缓存；降序结果是该列表的延迟反向枚举。
+        /// 或 <see cref="SortOrder"/>、<see cref="IsSortDescending"/> 使缓存失效后才会重算。
+        /// 返回对象是只读集合，不能修改分组的内部缓存。
         /// </remarks>
-        public IEnumerable<EntryBinding> SortedGroup
+        public IReadOnlyList<EntryBinding> SortedGroup
         {
             get
             {
-                var sorted = _sortedGroup;
-
                 _lock.EnterWriteLock();
                 try
                 {
                     if (_sortedGroup == null)
                     {
+                        List<EntryBinding> sorted;
                         switch (_sortOrder)
                         {
                             case EntryContentType.Timestamp:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Timestamp).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Timestamp).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.ThreadId:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.ThreadId).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.ThreadId).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Frame:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Frame).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Frame).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Scene:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Scene).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Scene).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Level:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Level).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Level).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Message:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Message).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Message).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.File:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.File).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.File).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Line:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Line).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Line).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Member:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Member).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Member).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.Exception:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Exception).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Exception).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.LastRepeatTime:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.LastRepeatTime).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.LastRepeatTime).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.RepeatCount:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.RepeatCount).ThenBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.RepeatCount).ThenBy(e => e.Entry.Id).ToList();
                                 break;
                             case EntryContentType.None:
                             case EntryContentType.Id:
                             default:
-                                _sortedGroup = _originalGroup.OrderBy(e => e.Entry.Id).ToList();
+                                sorted = _originalGroup.OrderBy(e => e.Entry.Id).ToList();
                                 break;
                         }
+
+                        if (_isSortDescending)
+                            sorted.Reverse();
+                        _sortedGroup = new ReadOnlyCollection<EntryBinding>(sorted);
                     }
 
-                    sorted = _sortedGroup;
+                    return _sortedGroup;
                 }
                 finally
                 {
                     _lock.ExitWriteLock();
                 }
-
-                return IsSortDescending ? sorted.Reverse() : sorted;
             }
         }
 

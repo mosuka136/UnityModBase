@@ -7,7 +7,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// <summary>
     /// 配置界面的用户级编辑器。
     /// </summary>
-    public class UserEditor : EditableUserEditorBase
+    public sealed class UserEditor : EditableUserEditorBase
     {
         /// <summary>获取配置专用分组编辑器。</summary>
         public new GroupEditor GroupEditor => (GroupEditor)base.GroupEditor;

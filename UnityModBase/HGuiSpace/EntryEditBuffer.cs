@@ -8,7 +8,7 @@ namespace UnityModBase.HGuiSpace
     /// 保存单个可编辑条目来自一个或多个编辑控件的暂存值，并以单调递增序号确定最后一次输入。
     /// 缓冲区既保留无效文本用于回显，也阻止其写入底层值；实例不提供线程安全保证。
     /// </summary>
-    public class EntryEditBuffer
+    public sealed class EntryEditBuffer
     {
         private readonly Dictionary<string, OrderedEntry> _buffer = new Dictionary<string, OrderedEntry>();
 
@@ -180,23 +180,23 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 封装暂存值、跨来源比较所需的写入顺序及有效性。
         /// </summary>
-        public class OrderedEntry
+        public sealed class OrderedEntry
         {
             /// <summary>
-            /// 获取或设置用于跨来源比较先后的顺序号；数值越大表示越新。
+            /// 获取用于跨来源比较先后的顺序号；数值越大表示越新。
             /// </summary>
-            public int Order { get; set; }
+            public int Order { get; }
             /// <summary>
-            /// 获取或设置暂存的输入值。
+            /// 获取暂存的输入值。
             /// </summary>
-            public object Value { get; set; }
+            public object Value { get; }
             /// <summary>
-            /// 获取或设置该输入是否允许提交。
+            /// 获取该输入是否允许提交。
             /// </summary>
-            public bool IsValid { get; set; }
+            public bool IsValid { get; }
 
             /// <summary>
-            /// 表示来源槽不存在的共享哨兵。调用方不应修改其可写属性。
+            /// 表示来源槽不存在的共享不可变哨兵。
             /// </summary>
             public static readonly OrderedEntry Empty = new OrderedEntry(int.MinValue, int.MinValue, false);
 

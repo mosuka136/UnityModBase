@@ -120,11 +120,11 @@ namespace UnityModBase.Test.HLogSpace
                 string.Empty,
                 0,
                 string.Empty,
-                null)
-            {
-                RepeatCount = 4,
-                LastRepeatTime = new DateTime(2026, 6, 13, 10, 11, 15, 16)
-            };
+                null);
+            var lastRepeatTime = new DateTime(2026, 6, 13, 10, 11, 15, 16);
+            entry.UpdateRepeat(lastRepeatTime);
+            entry.UpdateRepeat(lastRepeatTime);
+            entry.UpdateRepeat(lastRepeatTime);
 
             // Act
             var result = entry.ToString();

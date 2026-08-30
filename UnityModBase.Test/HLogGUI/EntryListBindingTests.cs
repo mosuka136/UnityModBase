@@ -121,6 +121,20 @@ namespace UnityModBase.Test.HLogGUI
             Assert.Equal(new[] { 1, 2 }, result);
         }
 
+        [Fact]
+        public void SortedGroup_WhenCastToMutableList_RejectsMutationAndPreservesCache()
+        {
+            var list = new GroupBinding();
+            var entry = new EntryBinding(CreateEntry());
+            list.AddEntry(entry);
+            var snapshot = list.SortedGroup;
+            var mutableView = Assert.IsAssignableFrom<IList<EntryBinding>>(snapshot);
+
+            Assert.Throws<NotSupportedException>(() => mutableView.Clear());
+
+            Assert.Same(entry, Assert.Single(list.SortedGroup));
+        }
+
         private static LogEntry CreateEntry(
             int id = 1,
             DateTime? timestamp = null,

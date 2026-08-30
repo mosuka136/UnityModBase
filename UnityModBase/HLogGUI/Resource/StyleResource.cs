@@ -9,7 +9,7 @@ namespace UnityModBase.HLogGUI.Resource
     /// 各样式属性按需创建并在资源实例内缓存，避免逐帧分配；缓存不会随 GUI 皮肤变化自动失效。
     /// 本类不提供显式释放入口，宿主应在窗口生命周期内复用实例，而不是逐帧创建。
     /// </summary>
-    public class StyleResource : IStyleResource
+    public sealed class StyleResource : IStyleResource
     {
         /// <inheritdoc/>
         public IUnityGuiProvider UnityGui { get; }

@@ -9,7 +9,7 @@ namespace UnityModBase.HTranslatorSpace
     /// 该类型用于配置文件注释、GUI 文案和用户显示名；它只按当前默认语言返回中文或英文，
     /// 不负责资源文件加载或运行时本地化回退链。
     /// </summary>
-    public class Translator : IEnumerable<string>
+    public sealed class Translator : IEnumerable<string>
     {
         /// <summary>
         /// 全局默认语言实际变化后同步触发；事件发送者固定为 <c>null</c>，单个订阅者异常会被忽略，不影响后续订阅者。
@@ -122,7 +122,7 @@ namespace UnityModBase.HTranslatorSpace
         /// <summary>
         /// 清除全部全局语言变更订阅者，并把默认语言复位为英文。
         /// </summary>
-        public static void Dispose()
+        internal static void Dispose()
         {
             OnDefaultLanguageChanged = null;
             _defaultLanguage = LanguageType.English;

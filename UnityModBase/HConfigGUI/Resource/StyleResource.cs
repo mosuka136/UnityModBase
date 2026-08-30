@@ -7,7 +7,7 @@ namespace UnityModBase.HConfigGUI.Resource
     /// <summary>
     /// 在通用条目样式上补充配置弹窗和热键录制样式。
     /// </summary>
-    public class StyleResource : EntryStyleResource
+    public sealed class StyleResource : EntryStyleResource
     {
         private GUIStyle _popupTitleStyle;
         private GUIStyle _recordingHotkeyLabelStyle;

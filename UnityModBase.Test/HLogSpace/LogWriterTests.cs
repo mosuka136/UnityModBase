@@ -86,8 +86,8 @@ namespace UnityModBase.Test.HLogSpace
             var writer = new LogWriter(directory, "repeated.log", LogLevel.Debug);
             var log = CreateLog(1, LogLevel.Info, "repeated-entry");
             writer.Log(log);
-            log.RepeatCount = 3;
-            log.LastRepeatTime = log.Timestamp.AddSeconds(1);
+            log.UpdateRepeat(log.Timestamp.AddSeconds(1));
+            log.UpdateRepeat(log.Timestamp.AddSeconds(1));
 
             // Act
             writer.Dispose();
@@ -105,8 +105,7 @@ namespace UnityModBase.Test.HLogSpace
             var writer = new LogWriter(directory, "rollover.log", LogLevel.Debug);
             var repeated = CreateLog(1, LogLevel.Info, "repeated-entry");
             writer.Log(repeated);
-            repeated.RepeatCount = 2;
-            repeated.LastRepeatTime = repeated.Timestamp.AddSeconds(1);
+            repeated.UpdateRepeat(repeated.Timestamp.AddSeconds(1));
 
             // Act
             writer.Log(CreateLog(2, LogLevel.Warning, "next-entry"));
@@ -178,8 +177,7 @@ namespace UnityModBase.Test.HLogSpace
             var timestamp = DateTime.Now;
             var log = CreateLog(1, LogLevel.Info, "duration-entry", timestamp);
             writer.Log(log);
-            log.RepeatCount = 2;
-            log.LastRepeatTime = timestamp.AddSeconds(6);
+            log.UpdateRepeat(timestamp.AddSeconds(6));
 
             writer.Flush();
             writer.Dispose();

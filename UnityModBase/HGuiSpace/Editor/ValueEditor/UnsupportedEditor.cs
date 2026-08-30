@@ -7,7 +7,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// 当没有注册编辑器支持配置类型时显示类型名称的只读占位实现。
     /// <see cref="Default"/> 可由多个注册表共享；该实现不修改配置，也不持有需释放状态。
     /// </summary>
-    public class UnsupportedEditor : IValueEditor
+    public sealed class UnsupportedEditor : IValueEditor
     {
         /// <summary>
         /// 获取显示不支持类型提示所用的全局 IMGUI 提供器。

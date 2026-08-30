@@ -14,7 +14,7 @@ namespace UnityModBase.HClassAttribute
     /// 为同一配置属性打包多个滑条声明，每个槽位独立生效。
     /// </remarks>
     [AttributeUsage(AttributeTargets.Property, Inherited = true, AllowMultiple = true)]
-    public class EntrySliderAttribute : Attribute, IEntryGuiAttribute
+    public sealed class EntrySliderAttribute : Attribute, IEntryGuiAttribute
     {
         /// <summary>
         /// 获取已验证的滑条最小显示值。

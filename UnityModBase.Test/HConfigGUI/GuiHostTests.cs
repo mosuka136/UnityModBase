@@ -1,3 +1,4 @@
+using System.Reflection;
 using Moq;
 using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Editor;
@@ -14,6 +15,8 @@ namespace UnityModBase.Test.HConfigGUI
 {
     public class GuiHostTests
     {
+        private const string ContextKey = "HConfigGUI";
+
         [Fact]
         public void RegisterContext_WhenUserIsValid_AttachesProjectedContext()
         {
@@ -21,8 +24,9 @@ namespace UnityModBase.Test.HConfigGUI
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleProvider = new StyleResource(unityGui.Object);
-            var sut = new TestGuiHost();
-            sut.Configure(
+            var sut = new GuiHost();
+            Configure(
+                sut,
                 unityService.Object,
                 new ToastEditor(unityService.Object, unityGui.Object, styleProvider));
             using var user = new UserContext("user", new Translator("用户", "User"));
@@ -31,7 +35,7 @@ namespace UnityModBase.Test.HConfigGUI
             sut.RegisterContext(user);
 
             // Assert
-            var context = Assert.IsType<GuiContext>(user.GetChildContext(TestGuiHost.ContextKey));
+            var context = Assert.IsType<GuiContext>(user.GetChildContext(ContextKey));
             Assert.Equal(user.UserId, context.UserData.Key);
             Assert.Empty(context.UserData.Children);
             unityService.VerifyNoOtherCalls();
@@ -45,20 +49,21 @@ namespace UnityModBase.Test.HConfigGUI
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleProvider = new StyleResource(unityGui.Object);
-            var sut = new TestGuiHost();
-            sut.Configure(
+            var sut = new GuiHost();
+            Configure(
+                sut,
                 unityService.Object,
                 new ToastEditor(unityService.Object, unityGui.Object, styleProvider));
             using var user = new UserContext("user", new Translator("用户", "User"));
             using var existing = new TrackingContext();
-            user.AddChildContext(TestGuiHost.ContextKey, existing);
+            user.AddChildContext(ContextKey, existing);
 
             // Act
             var exception = Assert.Throws<InvalidOperationException>(() => sut.RegisterContext(user));
 
             // Assert
             Assert.Contains("already exists", exception.Message, StringComparison.Ordinal);
-            Assert.Same(existing, user.GetChildContext(TestGuiHost.ContextKey));
+            Assert.Same(existing, user.GetChildContext(ContextKey));
             unityService.VerifyNoOtherCalls();
             unityGui.VerifyNoOtherCalls();
         }
@@ -71,11 +76,11 @@ namespace UnityModBase.Test.HConfigGUI
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleProvider = new StyleResource(unityGui.Object);
             using var userEditor = new UserEditor(unityService.Object, unityGui.Object, styleProvider);
-            var sut = new TestGuiHost();
-            sut.Configure(unityService.Object, userEditor);
+            var sut = new GuiHost();
+            Configure(sut, unityService.Object, userEditor);
 
             // Act
-            sut.Update();
+            InvokeNonPublic(sut, "Update");
 
             // Assert
             Assert.Null(sut.CurrentContext);
@@ -93,15 +98,15 @@ namespace UnityModBase.Test.HConfigGUI
             UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
             UserManager.CreateUser(remainingUserId, new Translator("保留", "Remaining"));
             var selectedContext = new TrackingContext();
-            var sut = new TestGuiHost();
-            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var sut = new GuiHost();
+            ConfigureSelection(sut, selectedUserId, selectedContext);
             var removalHandler = CreateUserRemovalHandler(sut);
             UserManager.OnUserRemoved += removalHandler;
 
             try
             {
                 // Act
-                sut.DestroyForTest();
+                InvokeNonPublic(sut, "OnDestroy");
                 UserManager.RemoveUser(selectedUserId);
 
                 // Assert
@@ -119,14 +124,14 @@ namespace UnityModBase.Test.HConfigGUI
         [Fact]
         public void OnCurrentContextChanging_CommitsPendingEditAndClosesPopup()
         {
-            var sut = new TestGuiHost();
+            var sut = new GuiHost();
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             using var userEditor = new UserEditor(
                 unityService.Object,
                 unityGui.Object,
                 new StyleResource(null));
-            sut.Configure(unityService.Object, userEditor);
+            Configure(sut, unityService.Object, userEditor);
             var currentContext = new GuiContext();
             var nextContext = new GuiContext();
             var entry = new Mock<IEntryBinding>(MockBehavior.Strict);
@@ -147,7 +152,7 @@ namespace UnityModBase.Test.HConfigGUI
             hotkeyEntry.SetupGet(x => x.Value).Returns(hotkey);
             userEditor.GroupEditor.HotkeyEditor.Session.BeginEdit(hotkeyEntry.Object);
 
-            sut.ChangeContextForTest(currentContext, nextContext);
+            InvokeNonPublic(sut, "OnCurrentContextChanging", currentContext, nextContext);
 
             Assert.Equal("new", storedValue);
             Assert.False(editBuffer.IsUsing);
@@ -172,10 +177,11 @@ namespace UnityModBase.Test.HConfigGUI
             var remainingUser = UserManager.CreateUser(
                 remainingUserId,
                 new Translator("无效", "Invalid"));
-            remainingUser.AddChildContext(TestGuiHost.ContextKey, GuiContext.InvalidGuiContext);
+            var invalidContext = new GuiContext(false);
+            remainingUser.AddChildContext(ContextKey, invalidContext);
             var selectedContext = new TrackingContext();
-            var sut = new TestGuiHost();
-            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var sut = new GuiHost();
+            ConfigureSelection(sut, selectedUserId, selectedContext);
             var removalHandler = CreateUserRemovalHandler(sut);
             UserManager.OnUserRemoved += removalHandler;
 
@@ -185,15 +191,15 @@ namespace UnityModBase.Test.HConfigGUI
 
                 Assert.Same(remainingUser, UserManager.GetUser(remainingUserId));
                 Assert.Same(
-                    GuiContext.InvalidGuiContext,
-                    remainingUser.GetChildContext(TestGuiHost.ContextKey));
+                    invalidContext,
+                    remainingUser.GetChildContext(ContextKey));
                 Assert.Equal(string.Empty, sut.SelectedUserKey);
                 Assert.Null(sut.CurrentContext);
             }
             finally
             {
                 UserManager.OnUserRemoved -= removalHandler;
-                remainingUser.RemoveChildContext(TestGuiHost.ContextKey);
+                remainingUser.RemoveChildContext(ContextKey);
                 UserManager.RemoveUser(selectedUserId);
                 UserManager.RemoveUser(remainingUserId);
             }
@@ -203,45 +209,53 @@ namespace UnityModBase.Test.HConfigGUI
         {
             var method = typeof(GuiHostBase).GetMethod(
                 "OnUserRemoved",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(method);
             return (Action<string>)Delegate.CreateDelegate(typeof(Action<string>), target, method);
         }
 
-        private sealed class TestGuiHost : GuiHost
+        private static void Configure(GuiHost host, IUnityProvider unityService, ToastEditor toastEditor)
         {
-            public const string ContextKey = "HConfigGUI";
+            SetProperty(host, nameof(GuiHost.UnityService), unityService);
+            SetProperty(host, nameof(GuiHost.ToastEditor), toastEditor);
+            SetProperty(host, nameof(GuiHost.GuiContextKey), ContextKey);
+        }
 
-            public void Configure(IUnityProvider unityService, ToastEditor toastEditor)
-            {
-                UnityService = unityService;
-                ToastEditor = toastEditor;
-                GuiContextKey = ContextKey;
-            }
+        private static void Configure(GuiHost host, IUnityProvider unityService, UserEditor userEditor)
+        {
+            SetProperty(host, nameof(GuiHost.UnityService), unityService);
+            SetProperty(host, nameof(GuiHost.UserEditor), userEditor);
+            SetProperty(host, nameof(GuiHost.GuiContextKey), ContextKey);
+        }
 
-            public void Configure(IUnityProvider unityService, UserEditor userEditor)
-            {
-                UnityService = unityService;
-                UserEditor = userEditor;
-                GuiContextKey = ContextKey;
-            }
+        private static void ConfigureSelection(GuiHost host, string userId, IUserContext context)
+        {
+            SetProperty(host, nameof(GuiHost.GuiContextKey), ContextKey);
+            SetField(host, "_selectedUserKey", userId);
+            SetProperty(host, nameof(GuiHost.CurrentContext), context);
+        }
 
-            public void ConfigureSelection(string userId, IUserContext context)
-            {
-                GuiContextKey = ContextKey;
-                _selectedUserKey = userId;
-                CurrentContext = context;
-            }
+        private static void SetProperty(GuiHost host, string propertyName, object value)
+        {
+            var property = typeof(GuiHostBase).GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.NotNull(property);
+            property.SetValue(host, value);
+        }
 
-            public void DestroyForTest()
-            {
-                OnDestroy();
-            }
+        private static void SetField(GuiHost host, string fieldName, object value)
+        {
+            var field = typeof(GuiHostBase).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(host, value);
+        }
 
-            public void ChangeContextForTest(IUserContext currentContext, IUserContext nextContext)
-            {
-                OnCurrentContextChanging(currentContext, nextContext);
-            }
+        private static void InvokeNonPublic(GuiHost host, string methodName, params object[] arguments)
+        {
+            var method = typeof(GuiHost).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(host, arguments);
         }
 
         private sealed class TrackingContext : IUserContext

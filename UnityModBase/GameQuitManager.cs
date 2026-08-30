@@ -27,7 +27,7 @@ namespace UnityModBase
         /// 在游戏启动阶段订阅 Unity 退出事件。重复调用不会重复订阅。
         /// </summary>
         [InitializeOnGameBoot]
-        public static void Initialize()
+        private static void Initialize()
         {
             lock (_lock)
             {
@@ -45,7 +45,7 @@ namespace UnityModBase
         /// 取消 Unity 退出事件订阅，并提取、清空后逐一执行当前退出回调。
         /// 该方法可由 Unity 退出事件或框架卸载路径调用；重复调用不会重复执行已清空的回调。
         /// </summary>
-        public static void Dispose()
+        internal static void Dispose()
         {
             Action[] handlers;
 

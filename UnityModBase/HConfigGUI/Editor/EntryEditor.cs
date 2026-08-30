@@ -10,7 +10,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// <summary>
     /// 在通用条目行尾部绘制配置恢复默认值操作。
     /// </summary>
-    public class EntryEditor : SharedEntryEditor
+    public sealed class EntryEditor : SharedEntryEditor
     {
         /// <inheritdoc/>
         public override float TrailingActionWidth =>

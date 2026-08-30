@@ -8,7 +8,7 @@ namespace UnityModBase.HGuiSpace
     /// 集中处理 GUI 编辑值的转换、暂存、延迟提交、可选重置及变更通知。
     /// 延迟以调用方传入的帧增量递减，实例没有并发保护，预期由所属 GUI 上下文在 Unity 主线程使用。
     /// </summary>
-    public class EntryChangeSink
+    public sealed class EntryChangeSink
     {
         // 每个条目只保留一个剩余延迟；同一项的新输入会覆盖倒计时并使用缓冲区中的最新序号值。
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();

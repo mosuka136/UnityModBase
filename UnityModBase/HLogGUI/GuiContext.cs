@@ -15,7 +15,7 @@ namespace UnityModBase.HLogGUI
     /// 日志回调在写入数据库的线程同步执行，可能并非 Unity GUI 线程。分组集合内部会串行化写入，
     /// 列宽失效状态使用原子版本协调后台写入和 GUI 测量；其他编辑器状态仍应由 Unity GUI 线程维护。
     /// </remarks>
-    public class GuiContext : IUserContext
+    public sealed class GuiContext : IUserContext
     {
         private LogDatabase _logDatabase;
         private UserEditor _userEditor;

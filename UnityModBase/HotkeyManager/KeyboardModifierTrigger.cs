@@ -16,7 +16,7 @@ namespace UnityModBase.HotkeyManager
     /// 同一不完整状态可能可查询但无法序列化。所有别名列表都是无并发保护的进程级可变对象，列表项不得为 <c>null</c>，
     /// 首项用于规范化输出。
     /// </remarks>
-    public class KeyboardModifierTrigger : IHotkeyTrigger
+    public sealed class KeyboardModifierTrigger : IHotkeyTrigger
     {
         private Key _leftKey = Key.None;
         private Key _rightKey = Key.None;

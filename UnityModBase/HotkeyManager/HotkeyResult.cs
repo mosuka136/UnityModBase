@@ -7,7 +7,7 @@ namespace UnityModBase.HotkeyManager
     /// 表示热键解析操作的值或有序错误集合。错误列表在构造时复制，之后不会随调用方集合变化。
     /// </summary>
     /// <typeparam name="T">成功结果的值类型。</typeparam>
-    public class HotkeyResult<T>
+    public sealed class HotkeyResult<T>
     {
         /// <summary>
         /// 成功时的返回值；失败时为该类型默认值。

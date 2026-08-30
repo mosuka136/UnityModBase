@@ -228,7 +228,7 @@ namespace UnityModBase.HUserSpace
         /// 同时清空用户注册和配置变化事件的订阅者，但保留用户移除事件的订阅者。
         /// 单个上下文释放失败不会阻止其余上下文的清理。
         /// </summary>
-        public static void Dispose()
+        internal static void Dispose()
         {
             try
             {

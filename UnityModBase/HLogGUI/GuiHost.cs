@@ -18,7 +18,7 @@ namespace UnityModBase.HLogGUI
     /// 不负责日志的内存收集、去重、容量控制或文件写入；前者由用户的日志数据库负责，文件持久化由日志写入器负责。
     /// </summary>
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase
+    public sealed class GuiHost : GuiHostBase
     {
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
 
@@ -27,7 +27,7 @@ namespace UnityModBase.HLogGUI
         /// 用户移除由通用宿主订阅并负责切换当前上下文。
         /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
         /// </summary>
-        public override void Awake()
+        protected override void Awake()
         {
             try
             {
@@ -138,7 +138,7 @@ namespace UnityModBase.HLogGUI
         /// 根据当前列总宽度调整窗口宽度到屏幕的 50%～90%，再交由通用宿主绘制。
         /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变；当前模块上下文缺失时跳过自适应计算，沿用既有宽度进入通用绘制。
         /// </summary>
-        public override void OnGUI()
+        protected override void OnGUI()
         {
             if (CurrentContext is GuiContext context)
             {

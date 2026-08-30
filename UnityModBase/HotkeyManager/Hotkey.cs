@@ -11,7 +11,7 @@ namespace UnityModBase.HotkeyManager
     /// 表示一个可由多个按键组合触发的热键配置。
     /// 配置文件格式使用逗号分隔多个组合，例如 <c>Ctrl+F1,GamepadStart</c>；任意一个组合在当前帧按下即视为触发。
     /// </summary>
-    public class Hotkey : IConfigEntryValue
+    public sealed class Hotkey : IConfigEntryValue
     {
         private static readonly UnityProvider _defaultUnityService = UnityProvider.Instance;
 

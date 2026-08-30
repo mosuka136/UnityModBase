@@ -10,7 +10,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// <summary>
     /// 为通用分组编辑器追加配置热键编辑器和重置操作。
     /// </summary>
-    public class GroupEditor : SharedGroupEditor
+    public sealed class GroupEditor : SharedGroupEditor
     {
         /// <summary>获取配置界面专属的热键编辑器。</summary>
         public HotkeyEditor HotkeyEditor { get; }

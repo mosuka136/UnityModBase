@@ -13,7 +13,7 @@ namespace UnityModBase.HConfigSpace
     /// 表段按插入顺序保存配置项，负责编码/解码 <c>[Table]</c> 头和表内键值项，不处理跨表级别的文件结构。
     /// 解码只恢复表键名和配置项，不恢复名称、说明等注释元数据；模型可变且不提供并发保护。
     /// </summary>
-    public class ConfigFileTable
+    public sealed class ConfigFileTable
     {
         /// <summary>
         /// 写入文件的表名称注释；当前解析流程不会从已有注释中恢复该值。

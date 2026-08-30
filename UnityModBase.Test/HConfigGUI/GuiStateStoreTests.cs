@@ -16,7 +16,6 @@ namespace UnityModBase.Test.HConfigGUI
             var context = new GuiContext();
 
             Assert.True(context.IsValid);
-            Assert.NotSame(GuiContext.InvalidGuiContext, context);
             Assert.NotNull(context.ChangeSink);
             Assert.NotNull(context.Popup);
             Assert.Equal(string.Empty, context.ExpandedEnumKey);
@@ -29,9 +28,11 @@ namespace UnityModBase.Test.HConfigGUI
         }
 
         [Fact]
-        public void InvalidGuiContext_IsMarkedInvalid()
+        public void InternalConstructor_WhenMarkedInvalid_CreatesInvalidContext()
         {
-            Assert.False(GuiContext.InvalidGuiContext.IsValid);
+            var context = new GuiContext(false);
+
+            Assert.False(context.IsValid);
         }
 
         [Fact]

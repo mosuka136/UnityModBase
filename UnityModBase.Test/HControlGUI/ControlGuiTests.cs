@@ -1,3 +1,4 @@
+using System.Reflection;
 using Moq;
 using UnityModBase.HControlGUI;
 using UnityModBase.HControlGUI.Bindings;
@@ -17,6 +18,7 @@ namespace UnityModBase.Test.HControlGUI
 {
     public class ControlGuiTests
     {
+        private const string ContextKey = "HControlGUI";
         private static readonly Translator Name = new Translator("名称", "Name");
         private static readonly Translator Description = new Translator("说明", "Description");
 
@@ -86,14 +88,15 @@ namespace UnityModBase.Test.HControlGUI
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             var styleProvider = new EntryStyleResource(unityGui.Object);
-            var host = new TestGuiHost();
-            host.Configure(
+            var host = new GuiHost();
+            Configure(
+                host,
                 unityService.Object,
                 new ToastEditor(unityService.Object, unityGui.Object, styleProvider));
             using var user = new UserContext("user", Name);
 
             host.RegisterContext(user);
-            var context = Assert.IsType<GuiContext>(user.GetChildContext(TestGuiHost.ContextKey));
+            var context = Assert.IsType<GuiContext>(user.GetChildContext(ContextKey));
             var originalRoot = context.UserData;
             Assert.Empty(originalRoot.Children);
 
@@ -113,7 +116,7 @@ namespace UnityModBase.Test.HControlGUI
         {
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             unityService.SetupGet(x => x.UnscaledDeltaTime).Returns(0.25f);
-            var host = new TestGuiHost();
+            var host = new GuiHost();
             using var first = new UserContext("first", Name);
             using var second = new UserContext("second", Name);
             var firstTarget = 1;
@@ -124,16 +127,16 @@ namespace UnityModBase.Test.HControlGUI
                 "Player", "Health", () => firstTarget, ControlUpdatePolicy.EveryFrame, Name, Description);
             var secondEntry = second.Service.Control.Bind(
                 "Player", "Health", () => secondTarget, ControlUpdatePolicy.WhenVisibleEverySecond, Name, Description);
-            host.ConfigureForUpdate(unityService.Object, new[] { first, second });
+            ConfigureForUpdate(host, unityService.Object, new[] { first, second });
 
             firstTarget = 2;
             secondTarget = 20;
-            host.Update();
+            InvokeUpdate(host);
             Assert.Equal(2, firstEntry.Value);
             Assert.Equal(10, secondEntry.Value);
 
             host.ToggleVisibility();
-            host.Update();
+            InvokeUpdate(host);
 
             Assert.Equal(20, secondEntry.Value);
             unityService.VerifyGet(x => x.UnscaledDeltaTime, Times.Exactly(2));
@@ -163,23 +166,37 @@ namespace UnityModBase.Test.HControlGUI
             Assert.Equal(25, entry.Value);
         }
 
-        private sealed class TestGuiHost : GuiHost
+        private static void Configure(GuiHost host, IUnityProvider unityService, ToastEditor toastEditor)
         {
-            public const string ContextKey = "HControlGUI";
+            SetProperty(host, "UnityService", unityService);
+            SetProperty(host, "ToastEditor", toastEditor);
+            SetProperty(host, "GuiContextKey", ContextKey);
+        }
 
-            public void Configure(IUnityProvider unityService, ToastEditor toastEditor)
-            {
-                UnityService = unityService;
-                ToastEditor = toastEditor;
-                GuiContextKey = ContextKey;
-            }
+        private static void ConfigureForUpdate(
+            GuiHost host,
+            IUnityProvider unityService,
+            IEnumerable<UserContext> users)
+        {
+            SetProperty(host, "UnityService", unityService);
+            SetProperty(host, "Users", users);
+            SetProperty(host, "GuiContextKey", ContextKey);
+        }
 
-            public void ConfigureForUpdate(IUnityProvider unityService, IEnumerable<UserContext> users)
-            {
-                UnityService = unityService;
-                Users = users;
-                GuiContextKey = ContextKey;
-            }
+        private static void SetProperty(GuiHost host, string propertyName, object value)
+        {
+            var property = typeof(GuiHostBase).GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.NotNull(property);
+            property.SetValue(host, value);
+        }
+
+        private static void InvokeUpdate(GuiHost host)
+        {
+            var method = typeof(GuiHost).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(host, null);
         }
     }
 }

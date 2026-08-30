@@ -6,7 +6,7 @@ namespace UnityModBase.HLogGUI
     /// 将 <see cref="LogEntry"/> 的各字段格式化为日志表格可直接显示和排序的文本。
     /// 绑定保留底层日志引用，因此重复次数等可变字段会随日志数据库更新；相等性也沿用底层日志条目的定义。
     /// </summary>
-    public class EntryBinding
+    public sealed class EntryBinding
     {
         /// <summary>
         /// 获取被适配的底层日志条目。

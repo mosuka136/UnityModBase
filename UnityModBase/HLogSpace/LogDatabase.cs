@@ -19,7 +19,7 @@ namespace UnityModBase.HLogSpace
     /// 需要让初始快照与后续事件无缝衔接时必须使用 <see cref="SubscribeWithSnapshot"/> 和 <see cref="Unsubscribe"/>；
     /// 直接通过公开事件增删处理器不参与通知锁串行化，只适合由调用方自行保证生命周期顺序的场景。
     /// </remarks>
-    public class LogDatabase : IDisposable
+    public sealed class LogDatabase : IDisposable
     {
         /// <summary>
         /// 新增非重复日志后保留的条目数上限；重复日志只累加计数，不占用新条目。
@@ -183,8 +183,7 @@ namespace UnityModBase.HLogSpace
                     var repeatLog = _logs.FirstOrDefault(l => l.Equals(log));
                     if (repeatLog != null)
                     {
-                        repeatLog.LastRepeatTime = log.Timestamp;
-                        repeatLog.RepeatCount += log.RepeatCount;
+                        repeatLog.MergeRepeat(log.Timestamp, log.RepeatCount);
                         _pendingNotifications.Enqueue(new LogNotification(LogNotificationType.Repeated, repeatLog));
                     }
                     else

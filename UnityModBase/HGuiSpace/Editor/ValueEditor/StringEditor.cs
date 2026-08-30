@@ -7,7 +7,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// <summary>
     /// 使用文本框编辑字符串配置。输入先进入配置项缓冲区，并在无新输入达到指定时长后提交，避免每次击键都写配置。
     /// </summary>
-    public class StringEditor : IValueEditor
+    public sealed class StringEditor : IValueEditor
     {
         /// <summary>
         /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.5 秒，小于等于 0 时立即提交。

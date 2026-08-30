@@ -15,7 +15,7 @@ namespace UnityModBase.HotkeyManager
     /// 别名列表是无并发保护的进程级可变对象，列表项不得为 <c>null</c>，首项决定规范化输出。
     /// 可写属性只接受 <see cref="GamepadButton"/> 中已定义的值；未定义值会被静默忽略，配置解析器则返回明确的失败结果。
     /// </remarks>
-    public class GamepadTrigger : IHotkeyTrigger
+    public sealed class GamepadTrigger : IHotkeyTrigger
     {
         private GamepadButton _button = GamepadButton.South;
 

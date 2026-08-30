@@ -16,7 +16,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// 且其他模块不应在录制期间改写上述开关，否则结束录制时可能覆盖期间发生的变更。
     /// 调用方必须在切换配置根、关闭编辑器或释放资源时调用 <see cref="CancelEdit"/> 或 <see cref="Dispose"/>，以结束未完成的录制并恢复外部状态。
     /// </summary>
-    public class HotkeyEditSession : IDisposable
+    public sealed class HotkeyEditSession : IDisposable
     {
         // 仅在 IsRecording 为 true 时表示本轮录制开始时的快照；恢复时不会合并录制期间的外部修改。
         private bool _globalValidBeforeEdit = true;

@@ -13,7 +13,7 @@ namespace UnityModBase.HotkeyManager
     /// <see cref="Buttons"/> 使用通用触发器接口以支持扩展，但本类不会校验元素是否确为手柄按钮、是否为 <c>null</c>
     /// 或是否共享同一输入服务；<see cref="AddButton(GamepadButton)"/> 和 <see cref="TryParse(string, UnityProvider)"/> 才会建立标准手柄触发器。
     /// </remarks>
-    public class GamepadChord : IHotkeyChord
+    public sealed class GamepadChord : IHotkeyChord
     {
         /// <summary>
         /// 组合内部键与键的文本分隔符。

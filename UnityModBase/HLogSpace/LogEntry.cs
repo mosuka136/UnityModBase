@@ -9,7 +9,7 @@ namespace UnityModBase.HLogSpace
     /// 表示一次日志事件及其调用位置快照。初始事件信息创建后不可变，重复时间和次数由日志数据库原地更新。
     /// </summary>
     /// <remarks>重复信息是可变状态且没有内部同步；并发更新时调用方需自行协调。</remarks>
-    public class LogEntry
+    public sealed class LogEntry
     {
         private const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
 
@@ -71,12 +71,12 @@ namespace UnityModBase.HLogSpace
         /// <summary>
         /// 最近一次等价事件的时间；新建条目时等于 <see cref="Timestamp"/>。
         /// </summary>
-        public DateTime LastRepeatTime { get; set; }
+        public DateTime LastRepeatTime { get; private set; }
 
         /// <summary>
         /// 合并后的事件总次数；新建条目时为 <c>1</c>。
         /// </summary>
-        public int RepeatCount { get; set; }
+        public int RepeatCount { get; private set; }
 
         /// <summary>
         /// <see cref="RepeatCount"/> 是否大于 <c>1</c>。
@@ -121,8 +121,16 @@ namespace UnityModBase.HLogSpace
         /// <param name="newRepeatTime">最近一次等价事件的时间。</param>
         public void UpdateRepeat(DateTime newRepeatTime)
         {
+            MergeRepeat(newRepeatTime, 1);
+        }
+
+        /// <summary>
+        /// 合并一批等价日志的重复状态；仅供日志数据库使用。
+        /// </summary>
+        internal void MergeRepeat(DateTime newRepeatTime, int repeatCount)
+        {
             LastRepeatTime = newRepeatTime;
-            RepeatCount++;
+            RepeatCount += repeatCount;
         }
 
         /// <summary>

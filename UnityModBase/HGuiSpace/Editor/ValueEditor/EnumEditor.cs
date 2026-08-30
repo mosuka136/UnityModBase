@@ -14,7 +14,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// 显示约束应至少保留一个枚举值；选择提交依赖可见索引能映射回 <see cref="Enum.GetValues(Type)"/>。
     /// 选择网格绘制失败时会先闭合嵌套布局，再将异常传播给调用方。
     /// </remarks>
-    public class EnumEditor : IValueEditor
+    public sealed class EnumEditor : IValueEditor
     {
         // 映射列表保存“可见选项索引 -> Enum.GetValues 原始索引”，避免隐藏项破坏 SelectionGrid 的索引对应关系。
         private readonly Dictionary<IEntryBinding, (Array values, List<int> mapIndex, string[] names)> _cacheEnumInfo =

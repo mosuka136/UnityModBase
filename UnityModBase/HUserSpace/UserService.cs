@@ -13,7 +13,7 @@ namespace UnityModBase.HUserSpace
     /// 本类型不负责声明配置表或配置项，也不负责配置界面投影。
     /// </summary>
     /// <remarks>该类型没有内部生命周期锁，注册、事件订阅、日志转发与释放应由调用方串行化。</remarks>
-    public class UserService : IDisposable
+    public sealed class UserService : IDisposable
     {
         // 防止替换写入器或释放时重复退订数据库事件；它不是跨线程同步标记。
         private bool _logWriterSubscribed = false;

@@ -10,7 +10,7 @@ namespace UnityModBase.HConfigSpace
     /// 因而“成功且包含错误”表示流程保留了可用的部分结果。调用方应根据场景同时检查这两个状态。
     /// </summary>
     /// <typeparam name="T">结果可携带的值类型。</typeparam>
-    public class ConfigFileResult<T>
+    public sealed class ConfigFileResult<T>
     {
         /// <summary>
         /// 当前携带的值。是否可作为完整结果使用由 <see cref="Success"/> 决定；显式状态构造函数也允许失败结果携带非默认值。
@@ -187,7 +187,7 @@ namespace UnityModBase.HConfigSpace
     /// <summary>
     /// 配置文件处理中的单条结构化诊断，用错误码支持流程判断，并保留日志所需的来源信息。
     /// </summary>
-    public class ConfigFileError
+    public sealed class ConfigFileError
     {
         /// <summary>
         /// 机器可判定的错误类型。

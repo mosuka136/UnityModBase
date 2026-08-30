@@ -15,7 +15,7 @@ namespace UnityModBase.HClassAttribute
     /// 未通过带索引构造函数声明的子特性（<see cref="EntrySliderAttribute.Index"/> 为 <c>-1</c>）不占用槽位，展开时会被跳过。
     /// </remarks>
     [AttributeUsage(AttributeTargets.Property, Inherited = true, AllowMultiple = false)]
-    public class EntryGuiAttribute : Attribute, IEntryGuiAttribute
+    public sealed class EntryGuiAttribute : Attribute, IEntryGuiAttribute
     {
         /// <summary>
         /// 获取组合声明的槽位数量；没有子声明提供有效索引的槽位在展开结果中保持 <c>null</c>。

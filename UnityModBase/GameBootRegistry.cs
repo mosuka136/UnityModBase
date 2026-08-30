@@ -51,7 +51,7 @@ namespace UnityModBase
         /// 扫描当前已加载程序集中的启动特性，并监听后续程序集加载事件。
         /// 该方法只完成登记，不会执行启动回调；成功初始化后的重复调用不会重复扫描或订阅。
         /// </summary>
-        public static void Initialize()
+        internal static void Initialize()
         {
             lock (_lock)
             {
@@ -408,7 +408,7 @@ namespace UnityModBase
         /// Unity 对象在锁外销毁，避免销毁过程中的 Unity 回调进入注册器时形成锁内副作用。
         /// 该方法只复位注册器状态，不会自动重新扫描程序集；下一周期仍需先调用 <see cref="Initialize"/>。
         /// </remarks>
-        public static void Dispose()
+        internal static void Dispose()
         {
             GameObject[] gameObjects;
 

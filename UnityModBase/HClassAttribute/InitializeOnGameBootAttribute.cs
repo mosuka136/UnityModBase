@@ -7,7 +7,7 @@ namespace UnityModBase.HClassAttribute
     /// 有效签名必须为非泛型、无参、返回 <see cref="void"/> 的静态方法；签名在执行阶段校验。
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, Inherited = false)]
-    public class InitializeOnGameBootAttribute : Attribute
+    public sealed class InitializeOnGameBootAttribute : Attribute
     {
     }
 }

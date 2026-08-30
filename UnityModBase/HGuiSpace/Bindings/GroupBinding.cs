@@ -8,7 +8,7 @@ namespace UnityModBase.HGuiSpace.Bindings
     /// 表示可编辑 GUI 中可嵌套的分组节点，并维护不重复添加同一节点引用、无环的子节点集合。
     /// 对外暴露的子节点视图不可直接修改，但会实时反映通过 <see cref="Add"/> 完成的后续添加。
     /// </summary>
-    public class GroupBinding : INodeBinding
+    public sealed class GroupBinding : INodeBinding
     {
         private readonly List<INodeBinding> _children = new List<INodeBinding>();
         private readonly IReadOnlyList<INodeBinding> _childrenView;

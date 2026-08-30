@@ -7,7 +7,7 @@ namespace UnityModBase.HotkeyManager
     /// 键盘组合或手柄组合的统一包装器，供 <see cref="Hotkey"/> 和配置解析流程以同一类型保存不同设备的组合。
     /// 输入查询、有效性和清理由 <see cref="Chord"/> 完成，本类不校验具体组合类型或重新绑定其输入服务。
     /// </summary>
-    public class HotkeyChord : IHotkeyChord
+    public sealed class HotkeyChord : IHotkeyChord
     {
         /// <summary>
         /// 被包装的具体组合；为 <c>null</c> 时包装器无效且所有输入查询返回 <c>false</c>。

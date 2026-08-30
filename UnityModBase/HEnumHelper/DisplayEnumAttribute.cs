@@ -7,7 +7,7 @@ namespace UnityModBase.HEnumHelper
     /// 被隐藏的值仍可被配置文件解析，只是不作为 GUI 选项展示。
     /// </summary>
     [AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = false)]
-    public class DisplayEnumAttribute : Attribute
+    public sealed class DisplayEnumAttribute : Attribute
     {
         /// <summary>
         /// 是否在枚举选择控件中显示该值。

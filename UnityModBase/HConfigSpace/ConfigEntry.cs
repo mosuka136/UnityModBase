@@ -16,7 +16,7 @@ namespace UnityModBase.HConfigSpace
     /// 实例不提供并发保护；赋值、重绑定和事件订阅应由调用方串行化。
     /// </summary>
     /// <typeparam name="T">配置项值类型。</typeparam>
-    public class ConfigEntry<T> : IConfigEntry
+    public sealed class ConfigEntry<T> : IConfigEntry
     {
         private T _value;
 
@@ -421,7 +421,7 @@ namespace UnityModBase.HConfigSpace
     /// 通过非泛型事件暴露强类型配置值变化时使用的事件参数。
     /// </summary>
     /// <typeparam name="T">变化后的值类型。</typeparam>
-    public class EntryValueChangedEventArgs<T> : EventArgs
+    public sealed class EntryValueChangedEventArgs<T> : EventArgs
     {
         /// <summary>
         /// 事件触发后的配置值。

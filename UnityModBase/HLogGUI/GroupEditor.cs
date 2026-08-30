@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using UnityEngine;
 using UnityModBase.HLogGUI.Resource;
 using UnityModBase.HLogSpace;
@@ -16,7 +17,7 @@ namespace UnityModBase.HLogGUI
     /// 表格绘制会进入剪贴板服务、事件订阅者和可替换的 IMGUI 提供器；所有已成功开启的滚动、水平和垂直布局作用域
     /// 都在 <c>finally</c> 中闭合。异常仍向宿主传播，不会在本类中转换为日志或空操作。
     /// </remarks>
-    public class GroupEditor
+    public sealed class GroupEditor
     {
         private Vector2 _scrollPosition;
 
@@ -30,9 +31,9 @@ namespace UnityModBase.HLogGUI
         /// </summary>
         public LogLevel Level { get; set; } = LogLevel.Info;
         /// <summary>
-        /// 获取按日志字段索引的列编辑器集合。首次绘制检查时延迟创建，之后由所有用户上下文共享。
+        /// 获取按日志字段索引的只读列编辑器集合。首次绘制检查时延迟创建，之后由所有用户上下文共享。
         /// </summary>
-        public Dictionary<EntryContentType, ColumnEditor> ColumnEditorList { get; private set; }
+        public IReadOnlyDictionary<EntryContentType, ColumnEditor> ColumnEditorList { get; private set; }
         /// <summary>
         /// 获取负责绘制和复制单个日志字段的编辑器。
         /// </summary>
@@ -70,7 +71,7 @@ namespace UnityModBase.HLogGUI
         /// 管理单个日志字段列的可见性、宽度、排序表头和单元格文本提取。
         /// 传入样式通常来自共享资源；绘制排序状态时对字体的临时修改必须在本次调用结束前恢复。
         /// </summary>
-        public class ColumnEditor
+        public sealed class ColumnEditor
         {
             private const float MinColumnWidth = 32f;
             private const float ColumnWidthPadding = 18f;
@@ -338,7 +339,7 @@ namespace UnityModBase.HLogGUI
 
             if (ColumnEditorList == null)
             {
-                ColumnEditorList = new Dictionary<EntryContentType, ColumnEditor>()
+                var columnEditorList = new Dictionary<EntryContentType, ColumnEditor>()
                 {
                     { EntryContentType.Id, new ColumnEditor(EntryContentType.Id, TranslatorResource.IdTopBar, StyleProvider.IdButtonStyle, UnityGui, UnityService) },
                     { EntryContentType.Timestamp, new ColumnEditor(EntryContentType.Timestamp, TranslatorResource.TimestampTopBar, StyleProvider.TimestampButtonStyle, UnityGui, UnityService) },
@@ -355,12 +356,13 @@ namespace UnityModBase.HLogGUI
                     { EntryContentType.RepeatCount, new ColumnEditor(EntryContentType.RepeatCount, TranslatorResource.RepeatCountTopBar, StyleProvider.RepeatCountButtonStyle, UnityGui, UnityService) },
                 };
 
-                ColumnEditorList[EntryContentType.LastRepeatTime].IsVisible = false;
-                ColumnEditorList[EntryContentType.Exception].IsVisible = false;
-                ColumnEditorList[EntryContentType.File].IsVisible = false;
-                ColumnEditorList[EntryContentType.Line].IsVisible = false;
-                ColumnEditorList[EntryContentType.Member].IsVisible = false;
-                ColumnEditorList[EntryContentType.RepeatCount].IsVisible = false;
+                columnEditorList[EntryContentType.LastRepeatTime].IsVisible = false;
+                columnEditorList[EntryContentType.Exception].IsVisible = false;
+                columnEditorList[EntryContentType.File].IsVisible = false;
+                columnEditorList[EntryContentType.Line].IsVisible = false;
+                columnEditorList[EntryContentType.Member].IsVisible = false;
+                columnEditorList[EntryContentType.RepeatCount].IsVisible = false;
+                ColumnEditorList = new ReadOnlyDictionary<EntryContentType, ColumnEditor>(columnEditorList);
             }
 
             var group = context.UserData;

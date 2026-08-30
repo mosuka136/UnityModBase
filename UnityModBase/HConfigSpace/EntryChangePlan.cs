@@ -19,7 +19,7 @@ namespace UnityModBase.HConfigSpace
     /// 实例仅供一次重载流程串行使用，不提供线程安全保护；事件发布后不再允许回滚。
     /// </para>
     /// </remarks>
-    public class EntryChangePlan
+    public sealed class EntryChangePlan
     {
         /// <summary>
         /// 拥有本计划的配置项。配置服务持有非泛型计划列表，需通过该引用把提交、回滚和发布

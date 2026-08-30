@@ -20,7 +20,7 @@ namespace UnityModBase.HConfigGUI
     /// 底层配置注册和持久化仍由用户服务与配置管理器负责。
     /// </summary>
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase
+    public sealed class GuiHost : GuiHostBase
     {
         // 保留配置项引用仅为在 OnDestroy 中退订热键变更；实时热键值存于基类 UIHotkey。
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
@@ -37,7 +37,7 @@ namespace UnityModBase.HConfigGUI
         /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
         /// <see cref="OnDestroy"/> 负责释放初始化期间已经建立的订阅。
         /// </summary>
-        public override void Awake()
+        protected override void Awake()
         {
             try
             {
@@ -104,7 +104,7 @@ namespace UnityModBase.HConfigGUI
         /// 除处理界面热键外，使用非缩放帧增量推进当前用户的延迟配置提交。
         /// 当前用户尚未挂载配置 GUI 上下文时只处理通用热键，不读取帧增量或推进提交器。
         /// </summary>
-        public override void Update()
+        protected override void Update()
         {
             base.Update();
             if (CurrentContext is GuiContext context)
@@ -114,7 +114,7 @@ namespace UnityModBase.HConfigGUI
         /// <summary>
         /// 可见时优先绘制当前上下文的模态弹窗；弹窗打开期间暂停普通配置窗口绘制。
         /// </summary>
-        public override void OnGUI()
+        protected override void OnGUI()
         {
             if (!IsVisible)
                 return;

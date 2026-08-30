@@ -14,7 +14,7 @@ namespace UnityModBase.HConfigSpace
     /// 解码现有文件时只恢复键和值，名称、说明、默认值和类型提示会在运行时绑定阶段重新生成。
     /// 实例可变且不提供并发保护。
     /// </summary>
-    public class ConfigFileEntry
+    public sealed class ConfigFileEntry
     {
         private string _tableKey;
         private string _key;

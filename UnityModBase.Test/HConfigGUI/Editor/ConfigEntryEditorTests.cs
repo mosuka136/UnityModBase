@@ -1,3 +1,4 @@
+using System.Reflection;
 using Moq;
 using UnityModBase.HConfigGUI;
 using UnityModBase.HConfigGUI.Editor;
@@ -21,24 +22,15 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             unityGui.Setup(x => x.Button(It.IsAny<string>(), It.IsAny<UnityEngine.GUILayoutOption[]>())).Returns(true);
             unityGui.Setup(x => x.ExpandWidth(false)).Returns((UnityEngine.GUILayoutOption)null);
             using var registry = new ValueEditorRegistry();
-            var editor = new TestEntryEditor(unityGui.Object, registry);
+            var editor = new EntryEditor(unityGui.Object, registry);
 
-            editor.DrawAction(entry.Object, new GuiContext());
+            var method = typeof(EntryEditor).GetMethod(
+                "DrawTrailingAction",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(editor, new object[] { entry.Object, new GuiContext() });
 
             entry.Verify(x => x.ResetValue(), Times.Once);
-        }
-
-        private sealed class TestEntryEditor : EntryEditor
-        {
-            internal TestEntryEditor(IUnityGuiProvider unityGui, ValueEditorRegistry registry)
-                : base(unityGui, registry)
-            {
-            }
-
-            internal void DrawAction(IEntryBinding entry, EditableGuiContext context)
-            {
-                DrawTrailingAction(entry, context);
-            }
         }
     }
 }

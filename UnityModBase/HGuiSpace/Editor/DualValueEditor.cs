@@ -17,7 +17,7 @@ namespace UnityModBase.HGuiSpace.Editor
     /// 每帧绘制前对比父条目已提交值引用：非本编辑器写入的变化（外部重置、文件重载等）会丢弃两槽位的全部暂存输入，
     /// 避免过期回显或未到期的延迟提交覆盖最新值。槽位绑定不会再匹配本编辑器，避免递归绘制。
     /// </remarks>
-    public class DualValueEditor : IValueEditor
+    public sealed class DualValueEditor : IValueEditor
     {
         // 父条目到槽位状态的弱表：槽位绑定与父条目同生命周期，界面重建绑定树后旧槽位随父条目一起回收。
         private readonly ConditionalWeakTable<IEntryBinding, DualEditorState> _slotStates = new ConditionalWeakTable<IEntryBinding, DualEditorState>();

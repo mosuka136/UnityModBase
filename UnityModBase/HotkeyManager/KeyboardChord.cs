@@ -14,7 +14,7 @@ namespace UnityModBase.HotkeyManager
     /// 主键和修饰键使用通用触发器接口以支持扩展，但本类不会校验外部写入的触发器类型、空值或输入服务。
     /// <see cref="SetMainKey(Key)"/>、<see cref="AddModifier(Key)"/> 和 <see cref="TryParse(string, UnityProvider)"/> 才会建立标准键盘结构。
     /// </remarks>
-    public class KeyboardChord : IHotkeyChord
+    public sealed class KeyboardChord : IHotkeyChord
     {
         /// <summary>
         /// 组合内部修饰键与主键的文本分隔符。

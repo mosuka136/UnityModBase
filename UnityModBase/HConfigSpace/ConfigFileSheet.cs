@@ -12,7 +12,7 @@ namespace UnityModBase.HConfigSpace
     /// 解析器只恢复表头和键值行，文件中的说明注释会被忽略；运行时声明会在绑定阶段重新补充元数据。
     /// 模型可变且不提供并发保护，读写和枚举必须由调用方串行化。
     /// </summary>
-    public class ConfigFileSheet
+    public sealed class ConfigFileSheet
     {
         /// <summary>
         /// 配置表集合，使用有序字典保持写出顺序稳定。

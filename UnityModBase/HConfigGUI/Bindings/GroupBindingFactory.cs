@@ -8,12 +8,12 @@ namespace UnityModBase.HConfigGUI.Bindings
     /// <summary>
     /// 将用户配置表结构投影为通用可编辑 GUI 绑定树。
     /// </summary>
-    public static class GroupBindingFactory
+    internal static class GroupBindingFactory
     {
         /// <summary>
         /// 创建以用户标识为根键的配置绑定树；用户尚无配置服务时返回空根节点。
         /// </summary>
-        public static GroupBinding CreateRoot(UserContext context)
+        internal static GroupBinding CreateRoot(UserContext context)
         {
             var userId = context.UserId;
             var root = new GroupBinding(userId, new Translator(userId, userId), new Translator());

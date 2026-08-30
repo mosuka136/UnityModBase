@@ -80,8 +80,9 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         public void Draw_WhenContextIsInvalid_DoesNotInvokeGui()
         {
             var editor = CreateEditor(out _, out var unityGui);
+            var context = new GuiContext(false);
 
-            editor.Draw(GuiContext.InvalidGuiContext);
+            editor.Draw(context);
 
             unityGui.VerifyNoOtherCalls();
         }
@@ -191,12 +192,13 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             var editor = CreateEditor(out _, out _);
             var entry = CreateEntryBindingMock(typeof(string), value: "old", key: "InvalidContextEntry");
             entry.SetupSet(x => x.Value = "new");
-            var sink = GuiContext.InvalidGuiContext.ChangeSink;
+            var context = new GuiContext(false);
+            var sink = context.ChangeSink;
             sink.SetValue(entry.Object, "new", delay: 1f);
 
             try
             {
-                editor.Update(GuiContext.InvalidGuiContext, 1f);
+                editor.Update(context, 1f);
 
                 entry.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
             }

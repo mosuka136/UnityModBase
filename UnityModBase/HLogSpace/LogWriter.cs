@@ -14,7 +14,7 @@ namespace UnityModBase.HLogSpace
     /// <see cref="Log"/>、<see cref="Flush"/> 和 <see cref="Dispose"/> 共享同一把锁，可与内部定时器串行；
     /// <see cref="Write"/> 本身不加锁，外部直接调用时不得与释放并发。
     /// </remarks>
-    public class LogWriter : IDisposable
+    public sealed class LogWriter : IDisposable
     {
         private const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz";
         private static readonly TimeSpan WriteInterval = TimeSpan.FromSeconds(1.5);

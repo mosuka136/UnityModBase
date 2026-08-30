@@ -11,7 +11,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// 不受滑条范围或步长约束。
     /// 仅重绘时会保留暂存文本、原数值格式和已有越界配置，避免把显示转换误当作用户编辑。
     /// </summary>
-    public class SliderEditor : NumberEditor, IValueEditor
+    public sealed class SliderEditor : NumberEditor, IValueEditor
     {
         /// <summary>
         /// 获取滑条夹取、吸附和近似比较使用的 Unity 服务。

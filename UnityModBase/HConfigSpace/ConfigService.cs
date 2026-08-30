@@ -14,7 +14,7 @@ namespace UnityModBase.HConfigSpace
     /// 重载的回滚边界止于事件发布前；配置项变化事件、配置模型变化事件及最终磁盘写入不属于可回滚范围。
     /// 文件模型、运行时模型和磁盘 IO 均不提供并发保护；创建、绑定、重载、保存及释放必须由调用方串行化。
     /// </summary>
-    public class ConfigService : IDisposable
+    public sealed class ConfigService : IDisposable
     {
         private string _filePath;
 

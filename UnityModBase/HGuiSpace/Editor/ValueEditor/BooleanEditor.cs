@@ -8,7 +8,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// <summary>
     /// 使用本地化开关控件编辑布尔配置，并在切换发生时立即提交。
     /// </summary>
-    public class BooleanEditor : IValueEditor
+    public sealed class BooleanEditor : IValueEditor
     {
         /// <summary>
         /// 获取开关控件使用的 IMGUI 提供器。

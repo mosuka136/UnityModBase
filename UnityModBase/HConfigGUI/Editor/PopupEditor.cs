@@ -9,7 +9,7 @@ namespace UnityModBase.HConfigGUI.Editor
     /// 绘制覆盖屏幕的配置模态窗口，并执行当前 <see cref="GuiContext.PopupState"/> 提供的主体和关闭回调。
     /// 本类只承载弹窗外壳与位置，不拥有弹窗业务状态。
     /// </summary>
-    public class PopupEditor
+    public sealed class PopupEditor
     {
         /// <summary>
         /// 供 IMGUI 区分弹窗的运行时标识；不作为持久标识，哈希碰撞未额外处理。

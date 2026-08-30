@@ -23,7 +23,7 @@ namespace UnityModBase.HGuiSpace
     /// 参数不会在构造时校验。滑条路径会夹取和吸附用户拖动后的值，但仅重绘不会修正已有越界值；
     /// 同一编辑器中的文本输入也不受该范围或步长约束。
     /// </remarks>
-    public class UiSliderMetadata : IUiMetadata
+    public sealed class UiSliderMetadata : IUiMetadata
     {
         /// <summary>
         /// 获取当前实现对应的元数据运行时类型。
@@ -67,7 +67,7 @@ namespace UnityModBase.HGuiSpace
     /// 数组长度对应组合声明的元素数；没有子声明提供有效索引或类型不受识别的槽位为 <c>null</c>，消费方须容忍。
     /// 构造函数不校验数组及其元素。
     /// </remarks>
-    public class UiCompositeMetadata : IUiMetadata
+    public sealed class UiCompositeMetadata : IUiMetadata
     {
         /// <summary>
         /// 获取当前实现对应的元数据运行时类型。

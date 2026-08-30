@@ -96,7 +96,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="elementType">集合元素类型。</param>
         /// <param name="elements">已解码但尚未放入目标集合的元素。</param>
         /// <returns>目标集合实例。</returns>
-        public static ConfigFileResult<object> CreateCollectionResult(Type type, Type elementType, List<object> elements)
+        internal static ConfigFileResult<object> CreateCollectionResult(Type type, Type elementType, List<object> elements)
         {
             if (type == null)
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Type cannot be null"));
@@ -140,7 +140,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="elementType">数组元素类型。</param>
         /// <param name="elements">数组元素。</param>
         /// <returns>创建出的数组实例。</returns>
-        public static ConfigFileResult<Array> CreateTypedArray(Type elementType, object[] elements)
+        internal static ConfigFileResult<Array> CreateTypedArray(Type elementType, object[] elements)
         {
             try
             {
@@ -167,7 +167,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="elementType">列表元素类型。</param>
         /// <param name="elements">列表元素。</param>
         /// <returns>填充完成的泛型列表。</returns>
-        public static ConfigFileResult<IList> CreateTypedList(Type elementType, object[] elements)
+        internal static ConfigFileResult<IList> CreateTypedList(Type elementType, object[] elements)
         {
             try
             {
@@ -201,7 +201,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="type">集合类型。</param>
         /// <param name="elementType">集合元素类型。</param>
         /// <returns>匹配的方法；不存在时返回 <c>null</c>。</returns>
-        public static MethodInfo FindAddMethod(Type type, Type elementType)
+        internal static MethodInfo FindAddMethod(Type type, Type elementType)
         {
             if (type == null || elementType == null)
                 return null;
@@ -238,7 +238,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="elements">待添加元素。</param>
         /// <param name="result">如果找到了创建路径，则返回成功或失败结果；未找到时为 <c>null</c>。</param>
         /// <returns>是否找到了可执行的创建路径。</returns>
-        public static bool TryCreateCollectionFromAddMethod(Type type, Type elementType, object[] elements, out ConfigFileResult<object> result)
+        internal static bool TryCreateCollectionFromAddMethod(Type type, Type elementType, object[] elements, out ConfigFileResult<object> result)
         {
             if (type == null || elementType == null || elements == null)
             {
@@ -303,7 +303,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="array">辅助数组参数。</param>
         /// <param name="result">如果找到了可用构造函数，则返回成功或失败结果；未找到时为 <c>null</c>。</param>
         /// <returns>是否找到了匹配的构造路径。</returns>
-        public static bool TryCreateCollectionFromConstructor(Type type, IList list, Array array, out ConfigFileResult<object> result)
+        internal static bool TryCreateCollectionFromConstructor(Type type, IList list, Array array, out ConfigFileResult<object> result)
         {
             if (type == null || list == null || array == null)
             {
@@ -356,7 +356,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="element">待校验元素。</param>
         /// <param name="index">元素在集合中的索引，用于错误定位。</param>
         /// <returns>可放入集合的元素值。</returns>
-        public static ConfigFileResult<object> ValidateCollectionElement(Type elementType, object element, int index)
+        internal static ConfigFileResult<object> ValidateCollectionElement(Type elementType, object element, int index)
         {
             if (elementType == null)
                 return ConfigFileResult<object>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Element type cannot be null"));
@@ -386,7 +386,7 @@ namespace UnityModBase.HConfigSpace
         /// <param name="elementType">集合声明的元素类型。</param>
         /// <param name="elements">已解码元素。</param>
         /// <returns>校验后的元素数组。</returns>
-        public static ConfigFileResult<object[]> ValidateCollectionElements(Type elementType, List<object> elements)
+        internal static ConfigFileResult<object[]> ValidateCollectionElements(Type elementType, List<object> elements)
         {
             if (elementType == null)
                 return ConfigFileResult<object[]>.Fail(new ConfigFileError(ConfigFileErrorCode.InvalidValue, "Element type cannot be null"));

@@ -100,7 +100,7 @@ namespace UnityModBase.Test.HGuiSpace
             var selectedContext = new TrackingContext();
             selectedUser.AddChildContext("module", selectedContext);
             var sut = new TestGuiHost("module");
-            sut.Awake();
+            sut.AwakeForTest();
             sut.Select(selectedUser.UserId, selectedContext);
 
             // Act
@@ -124,7 +124,7 @@ namespace UnityModBase.Test.HGuiSpace
             var selectedContext = new TrackingContext();
             selectedUser.AddChildContext("module", selectedContext);
             var sut = new TestGuiHost("module");
-            sut.Awake();
+            sut.AwakeForTest();
             sut.Select(selectedUser.UserId, selectedContext);
 
             UserManager.RemoveUser(selectedUser.UserId);
@@ -147,7 +147,7 @@ namespace UnityModBase.Test.HGuiSpace
             var otherUser = CreateUser();
             otherUser.AddChildContext("module", new TrackingContext());
             var sut = new TestGuiHost("module");
-            sut.Awake();
+            sut.AwakeForTest();
             sut.Select(selectedUser.UserId, selectedContext);
 
             // Act
@@ -167,7 +167,7 @@ namespace UnityModBase.Test.HGuiSpace
             var selectedContext = new TrackingContext();
             selectedUser.AddChildContext("module", selectedContext);
             var sut = new TestGuiHost("module");
-            sut.Awake();
+            sut.AwakeForTest();
             sut.Select(selectedUser.UserId, selectedContext);
 
             UserManager.RemoveUser(selectedUser.UserId);
@@ -189,7 +189,7 @@ namespace UnityModBase.Test.HGuiSpace
             var remainingUser = CreateUser();
             remainingUser.AddChildContext("module", new TrackingContext());
             var sut = new TestGuiHost("module");
-            sut.Awake();
+            sut.AwakeForTest();
             sut.Select(selectedUser.UserId, selectedContext);
 
             // Act
@@ -293,6 +293,11 @@ namespace UnityModBase.Test.HGuiSpace
             public void DestroyForTest()
             {
                 OnDestroy();
+            }
+
+            public void AwakeForTest()
+            {
+                Awake();
             }
         }
 

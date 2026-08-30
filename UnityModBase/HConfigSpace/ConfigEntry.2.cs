@@ -18,7 +18,7 @@ namespace UnityModBase.HConfigSpace
     /// 直接调用构造函数时也应遵守相同约束。
     /// 本类型及其内部配置项均不提供并发保护，整体值和分元素值的读写必须由调用方串行化。
     /// </remarks>
-    public class ConfigEntry<T1, T2> : IConfigEntry
+    public sealed class ConfigEntry<T1, T2> : IConfigEntry
     {
         private readonly ConfigEntry<EntryValue<T1, T2>> _configEntry;
 

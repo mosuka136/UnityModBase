@@ -10,7 +10,7 @@ namespace UnityModBase.HLogGUI
     /// 将单个日志字段绘制为可复制按钮。
     /// 多行内容只在单元格显示首个非空行，完整文本保留为工具提示并在点击时写入系统剪贴板。
     /// </summary>
-    public class EntryEditor
+    public sealed class EntryEditor
     {
         /// <summary>
         /// 完整文本复制成功后触发，参数为供提示消息显示的“已复制 + 首行摘要”文本。

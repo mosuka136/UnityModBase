@@ -19,7 +19,7 @@ namespace UnityModBase.HControlGUI
     /// 实时控制界面的 Unity 宿主。负责独立热键显隐、所有用户的刷新调度和纯内存控制树绘制。
     /// </summary>
     [RegisterOnGameBoot]
-    public class GuiHost : GuiHostBase
+    public sealed class GuiHost : GuiHostBase
     {
         // 保留配置项引用仅为在 OnDestroy 中退订热键变更；实时热键值存于基类 UIHotkey。
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
@@ -27,7 +27,7 @@ namespace UnityModBase.HControlGUI
         private bool _wasVisible;
 
         /// <inheritdoc/>
-        public override void Awake()
+        protected override void Awake()
         {
             try
             {
@@ -85,7 +85,7 @@ namespace UnityModBase.HControlGUI
         /// 对每个用户先推进延迟界面输入，再按更新策略刷新其实时控制项；两类推进在同一用户上依次执行。
         /// 用户集合在遍历前先复制快照，注册表变化不会中断本帧调度。
         /// </summary>
-        public override void Update()
+        protected override void Update()
         {
             base.Update();
 

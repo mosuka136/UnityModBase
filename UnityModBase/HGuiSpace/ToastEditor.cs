@@ -7,7 +7,7 @@ namespace UnityModBase.HGuiSpace
     /// 管理单条短时提示消息的计时、淡出与窗口内绘制。
     /// 计时使用不受游戏时间缩放影响的实时钟；新消息会覆盖尚未结束的旧消息。
     /// </summary>
-    public class ToastEditor
+    public sealed class ToastEditor
     {
         /// <summary>
         /// 获取用于实时计时和数值运算的 Unity 服务。

@@ -1,3 +1,4 @@
+using System.Reflection;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI;
 using UnityModBase.HTranslatorSpace;
@@ -74,7 +75,7 @@ namespace UnityModBase.Test.HLogGUI
             var originalBounds = sut.WindowRect;
 
             // Act
-            sut.OnGUI();
+            InvokeNonPublic(sut, "OnGUI");
 
             // Assert
             Assert.Null(sut.CurrentContext);
@@ -94,8 +95,8 @@ namespace UnityModBase.Test.HLogGUI
             var wrongContext = new TrackingContext();
             remainingUser.AddChildContext(nameof(HLogGUI), wrongContext);
             var selectedContext = new TrackingContext();
-            var sut = new TestGuiHost();
-            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var sut = new GuiHost();
+            ConfigureSelection(sut, selectedUserId, selectedContext);
             var removalHandler = CreateUserRemovalHandler(sut);
             UserManager.OnUserRemoved += removalHandler;
 
@@ -125,15 +126,15 @@ namespace UnityModBase.Test.HLogGUI
             UserManager.CreateUser(selectedUserId, new Translator("已选择", "Selected"));
             UserManager.CreateUser(remainingUserId, new Translator("保留", "Remaining"));
             var selectedContext = new TrackingContext();
-            var sut = new TestGuiHost();
-            sut.ConfigureSelection(selectedUserId, selectedContext);
+            var sut = new GuiHost();
+            ConfigureSelection(sut, selectedUserId, selectedContext);
             var removalHandler = CreateUserRemovalHandler(sut);
             UserManager.OnUserRemoved += removalHandler;
 
             try
             {
                 // Act
-                sut.DestroyForTest();
+                InvokeNonPublic(sut, "OnDestroy");
                 UserManager.RemoveUser(selectedUserId);
 
                 // Assert
@@ -152,7 +153,7 @@ namespace UnityModBase.Test.HLogGUI
         {
             var method = typeof(GuiHostBase).GetMethod(
                 "OnUserRemoved",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(method);
             return (Action<string>)Delegate.CreateDelegate(typeof(Action<string>), target, method);
         }
@@ -164,19 +165,34 @@ namespace UnityModBase.Test.HLogGUI
             property.SetValue(sut, value);
         }
 
-        private sealed class TestGuiHost : GuiHost
+        private static void ConfigureSelection(GuiHost host, string userId, IUserContext context)
         {
-            public void ConfigureSelection(string userId, IUserContext context)
-            {
-                GuiContextKey = nameof(HLogGUI);
-                _selectedUserKey = userId;
-                CurrentContext = context;
-            }
+            SetProperty(host, "GuiContextKey", nameof(HLogGUI));
+            SetField(host, "_selectedUserKey", userId);
+            SetProperty(host, "CurrentContext", context);
+        }
 
-            public void DestroyForTest()
-            {
-                OnDestroy();
-            }
+        private static void SetProperty(GuiHost host, string propertyName, object value)
+        {
+            var property = typeof(GuiHostBase).GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.NotNull(property);
+            property.SetValue(host, value);
+        }
+
+        private static void SetField(GuiHost host, string fieldName, object value)
+        {
+            var field = typeof(GuiHostBase).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(host, value);
+        }
+
+        private static void InvokeNonPublic(GuiHost host, string methodName)
+        {
+            var method = typeof(GuiHost).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(host, null);
         }
 
         private sealed class TrackingContext : IUserContext

@@ -34,7 +34,7 @@ namespace UnityModBase.HotkeyManager
     /// <summary>
     /// 保存一次热键输入采样的键盘与手柄候选组合，不负责读取设备或推进编辑状态。
     /// </summary>
-    public class HotkeyInputSnapshot
+    public sealed class HotkeyInputSnapshot
     {
         /// <summary>
         /// 本次采样是否检测到任意按下输入。

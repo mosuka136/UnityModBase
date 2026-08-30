@@ -17,7 +17,7 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
     /// 会话和弹窗状态预期仅由 Unity 主线程推进。录制或布局内部绘制失败时，已开启的 IMGUI 布局会闭合，
     /// 但会话状态不会在此处自动回滚，调用方可通过 <see cref="HotkeyEditSession.CancelEdit"/> 结束编辑。
     /// </remarks>
-    public class HotkeyEditor : IValueEditor
+    public sealed class HotkeyEditor : IValueEditor
     {
         /// <summary>
         /// 获取当前编辑器独占的热键录制会话。

@@ -12,7 +12,7 @@ namespace UnityModBase.HotkeyManager
     /// <see cref="Key.None"/> 始终视为未配置。可写属性只接受 <see cref="Key"/> 中已定义的值；
     /// 未定义值会被静默忽略，配置解析器则返回明确的失败结果。
     /// </remarks>
-    public class KeyboardTrigger : IHotkeyTrigger
+    public sealed class KeyboardTrigger : IHotkeyTrigger
     {
         private Key _key = Key.None;
 
