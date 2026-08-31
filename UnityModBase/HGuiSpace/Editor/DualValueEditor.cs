@@ -8,8 +8,9 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HGuiSpace.Editor
 {
     /// <summary>
-    /// 双元素条目的组合编辑器：把值类型为封闭 <see cref="EntryValue{T1,T2}"/> 的条目投影为两个
-    /// <see cref="DualValueSlotBinding"/> 槽位绑定，并按槽位值类型复用所属注册表
+    /// 双元素条目的组合编辑器：把实现了 <see cref="IEntryMultipleBinding"/> 且值类型为封闭
+    /// <see cref="EntryValue{T1,T2}"/> 的条目投影为两个 <see cref="DualValueSlotBinding"/> 槽位绑定，
+    /// 槽位说明按下标取自绑定的分元素说明，并按槽位值类型复用所属注册表
     /// <see cref="ValueEditorRegistry"/> 中已注册的子编辑器绘制控件；本类自身不直接绘制值控件。
     /// </summary>
     /// <remarks>
@@ -41,13 +42,16 @@ namespace UnityModBase.HGuiSpace.Editor
         }
 
         /// <summary>
-        /// 判断绑定的值类型是否为封闭 <see cref="EntryValue{T1,T2}"/>；
+        /// 判断绑定是否可投影为双元素槽位：要求实现 <see cref="IEntryMultipleBinding"/>
+        /// （槽位分元素说明的唯一来源，仅有复合值类型不够）且值类型为封闭 <see cref="EntryValue{T1,T2}"/>；
         /// 槽位投影绑定自身不可再被本编辑器匹配，防止手工构造的嵌套双元素值递归绘制。
         /// 绑定为 <c>null</c> 时不可编辑。
         /// </summary>
         public bool CanEdit(IEntryBinding entry)
         {
             if (entry == null || entry is DualValueSlotBinding)
+                return false;
+            if (!(entry is IEntryMultipleBinding))
                 return false;
             return DualValueSlotBinding.IsSupportedValueType(entry.ValueType);
         }
@@ -59,6 +63,9 @@ namespace UnityModBase.HGuiSpace.Editor
         public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
             if (entry == null || context == null)
+                return;
+            // 与 CanEdit 同一约束：缺少多元素契约即缺少槽位说明来源，无从投影槽位。
+            if (!(entry is IEntryMultipleBinding))
                 return;
 
             var state = GetSlotState(entry);
@@ -84,6 +91,8 @@ namespace UnityModBase.HGuiSpace.Editor
         public void DrawExtra(IEntryBinding entry, EditableGuiContext context)
         {
             if (entry == null || context == null)
+                return;
+            if (!(entry is IEntryMultipleBinding))
                 return;
 
             var state = GetSlotState(entry);
@@ -133,7 +142,7 @@ namespace UnityModBase.HGuiSpace.Editor
             /// <summary>
             /// 获取所属的双元素父条目绑定。
             /// </summary>
-            public IEntryBinding Parent { get; }
+            public IEntryMultipleBinding Parent { get; }
 
             /// <summary>
             /// 获取第一个元素的槽位绑定。
@@ -155,12 +164,30 @@ namespace UnityModBase.HGuiSpace.Editor
             /// </summary>
             public bool HasSelfWriteSinceDraw { get; set; }
 
+            /// <summary>
+            /// 校验父绑定并创建两个槽位：父绑定必须是恰好包含两个元素的多元素绑定，
+            /// 槽位说明按下标取自父绑定的分元素说明。
+            /// </summary>
+            /// <exception cref="ArgumentException">父绑定未实现多元素契约或元素数量不为 2。</exception>
             public DualEditorState(IEntryBinding parent)
             {
-                Parent = parent;
+                if (!(parent is IEntryMultipleBinding parentMultiple))
+                    throw new ArgumentException("Parent binding must be a multiple value binding.", nameof(parent));
+                if (parentMultiple.Count != 2)
+                    throw new ArgumentException("Parent binding must have exactly two values.", nameof(parent));
+
+                Parent = parentMultiple;
                 var onParentValueWritten = (Action)(() => HasSelfWriteSinceDraw = true);
-                Slot0 = new DualValueSlotBinding(parent, 0, onParentValueWritten);
-                Slot1 = new DualValueSlotBinding(parent, 1, onParentValueWritten);
+                Slot0 = new DualValueSlotBinding(
+                    parent,
+                    0,
+                    onParentValueWritten,
+                    parentMultiple.ValueDescription[0]);
+                Slot1 = new DualValueSlotBinding(
+                    parent,
+                    1,
+                    onParentValueWritten,
+                    parentMultiple.ValueDescription[1]);
                 LastCommittedValue = parent.Value;
             }
         }

@@ -202,12 +202,31 @@ namespace UnityModBase.HProvider
         bool Toggle(bool value, string text, GUIStyle style, params GUILayoutOption[] options);
 
         /// <summary>
+        /// 使用当前皮肤绘制可含图像或提示的开关控件。
+        /// </summary>
+        /// <param name="value">当前开关值。</param>
+        /// <param name="content">显示内容和悬停提示。</param>
+        /// <param name="options">布局约束。</param>
+        /// <returns>处理当前事件后的开关值。</returns>
+        bool Toggle(bool value, GUIContent content, params GUILayoutOption[] options);
+
+        /// <summary>
         /// 绘制单行文本输入框。
         /// </summary>
         /// <param name="text">当前文本。</param>
         /// <param name="options">布局约束。</param>
         /// <returns>处理当前事件后的文本。</returns>
         string TextField(string text, params GUILayoutOption[] options);
+
+        /// <summary>
+        /// 在刚绘制的布局控件矩形上设置悬停提示，不改变其布局或交互行为。
+        /// </summary>
+        /// <param name="tooltip">悬停提示；为空时不绘制提示区域。</param>
+        /// <remarks>
+        /// 基于最近一个布局控件的矩形实现，必须在目标控件绘制后、绘制其他控件前调用，
+        /// 否则提示会落到后续控件上。
+        /// </remarks>
+        void SetLastControlTooltip(string tooltip);
 
         /// <summary>
         /// 使用当前皮肤绘制文本按钮。

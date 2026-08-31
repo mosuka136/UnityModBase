@@ -63,7 +63,18 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (valueString == null)
                 return;
 
-            if (UnityGui.Button(valueString, UnityGui.ExpandWidth(true)))
+            // 槽位控件没有独立的名称标签，分元素说明只能以悬停提示呈现；
+            // GUIContent 按钮重载要求显式样式，传入 ButtonStyle 以保持默认按钮外观。
+            bool buttonClicked;
+            if (entry is DualValueSlotBinding)
+                buttonClicked = UnityGui.Button(
+                    UnityGui.GetContent(valueString, entry.Description),
+                    UnityGui.ButtonStyle,
+                    UnityGui.ExpandWidth(true));
+            else
+                buttonClicked = UnityGui.Button(valueString, UnityGui.ExpandWidth(true));
+
+            if (buttonClicked)
             {
                 if (Session.Entry == entry)
                     Session.ConfirmEdit(context.ChangeSink);

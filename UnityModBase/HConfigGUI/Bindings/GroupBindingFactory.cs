@@ -1,4 +1,5 @@
 using UnityModBase.HConfigSpace;
+using UnityModBase.HEntrySpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
@@ -26,7 +27,13 @@ namespace UnityModBase.HConfigGUI.Bindings
                 var group = new GroupBinding(table.Key, table.Value.Name, table.Value.Description);
 
                 foreach (IConfigEntry entry in table.Value)
-                    group.Add(new EntryBinding(context.Service.ConfigManagerType, entry));
+                {
+                    // 多元素条目改用多元素绑定：在单值行为之外透出各元素说明，组合编辑器依赖它绘制带独立提示的槽位。
+                    if (entry is IEntryMultiple entryMultiple)
+                        group.Add(new EntryMultipleBinding(context.Service.ConfigManagerType, entryMultiple));
+                    else
+                        group.Add(new EntryBinding(context.Service.ConfigManagerType, entry));
+                }
 
                 root.Add(group);
             }

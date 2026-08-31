@@ -69,8 +69,8 @@ namespace UnityModBase.Test.HConfigSpace
         [Fact]
         public void Constructor_ConcatenatesDescriptionAndValueDescriptions()
         {
-            // 整体说明与两个分元素说明按语言各自换行拼接后写入内部配置项，
-            // 使文件注释与 UI 提示同时呈现总说明与各元素含义。
+            // 整体说明与两个分元素说明按语言拼接，并给分元素附上“值1/值2”与“Value1/Value2”标签，
+            // 使文件注释与 UI 提示在未读取逐槽说明的场景下仍能区分各元素含义。
             // Arrange
             var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
 
@@ -83,12 +83,67 @@ namespace UnityModBase.Test.HConfigSpace
                 new Translator("元素二", "Second"));
 
             // Assert
-            Assert.Contains("整体说明", entry.Description.Chinese);
-            Assert.Contains("元素一", entry.Description.Chinese);
-            Assert.Contains("元素二", entry.Description.Chinese);
-            Assert.Contains("Overall", entry.Description.English);
-            Assert.Contains("First", entry.Description.English);
-            Assert.Contains("Second", entry.Description.English);
+            Assert.Equal(
+                $"整体说明{Environment.NewLine}值1：元素一{Environment.NewLine}值2：元素二",
+                entry.Description.Chinese);
+            Assert.Equal(
+                $"Overall{Environment.NewLine}Value1: First{Environment.NewLine}Value2: Second",
+                entry.Description.English);
+        }
+
+        [Fact]
+        public void Constructor_WhenValueDescriptionBlank_OmitsLabeledLinePerLanguage()
+        {
+            // 空白的分元素说明连同行标签一起按语言独立省略：第一个元素只有中文说明时，
+            // 中文行带“值1”标签而英文行省略；完全空白的第二个元素两种语言都省略整行，
+            // 文件注释不出现无文本的“值1：/Value1:”标签。
+            // Arrange
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
+
+            // Act
+            var entry = new ConfigEntry<int, int>(
+                model, 0, 0,
+                new Translator(),
+                new Translator("整体说明", "Overall"),
+                new Translator("元素一", ""),
+                new Translator());
+
+            // Assert
+            Assert.Equal(
+                $"整体说明{Environment.NewLine}值1：元素一{Environment.NewLine}",
+                entry.Description.Chinese);
+            Assert.Equal(
+                $"Overall{Environment.NewLine}{Environment.NewLine}",
+                entry.Description.English);
+            // 原始说明不经拼接原样保留在多元素视图中，槽位提示不受省略逻辑影响。
+            Assert.Equal("元素一", ((IEntryMultiple)entry).ValueDescription[0].Chinese);
+        }
+
+        [Fact]
+        public void MultipleView_ExposesCountAndPerValueDescriptions()
+        {
+            // IEntryMultiple 视图按原实例暴露基础说明与分元素说明，供 GUI 绑定按下标解析槽位提示。
+            // Arrange
+            var model = new ConfigFileEntry { Key = "TestKey", Value = "1,2" };
+            var baseDescription = new Translator("整体说明", "Overall");
+            var valueDescription1 = new Translator("元素一", "First");
+            var valueDescription2 = new Translator("元素二", "Second");
+
+            // Act
+            var entry = new ConfigEntry<int, int>(
+                model, 0, 0,
+                new Translator(),
+                baseDescription,
+                valueDescription1,
+                valueDescription2);
+
+            // Assert
+            var multiple = Assert.IsAssignableFrom<IEntryMultiple>(entry);
+            Assert.Equal(2, multiple.Count);
+            Assert.Same(baseDescription, multiple.BaseDescription);
+            Assert.Equal(2, multiple.ValueDescription.Length);
+            Assert.Same(valueDescription1, multiple.ValueDescription[0]);
+            Assert.Same(valueDescription2, multiple.ValueDescription[1]);
         }
 
         [Fact]

@@ -18,7 +18,7 @@ namespace UnityModBase.HConfigSpace
     /// 直接调用构造函数时也应遵守相同约束。
     /// 本类型及其内部配置项均不提供并发保护，整体值和分元素值的读写必须由调用方串行化。
     /// </remarks>
-    public sealed class ConfigEntry<T1, T2> : IConfigEntry
+    public sealed class ConfigEntry<T1, T2> : IConfigEntry, IEntryMultiple
     {
         private readonly ConfigEntry<EntryValue<T1, T2>> _configEntry;
 
@@ -91,6 +91,15 @@ namespace UnityModBase.HConfigSpace
         public object BoxedDefaultValue => _configEntry.BoxedDefaultValue;
 
         /// <inheritdoc/>
+        public int Count => 2;
+
+        /// <inheritdoc/>
+        public Translator BaseDescription { get; }
+
+        /// <inheritdoc/>
+        public Translator[] ValueDescription { get; }
+
+        /// <inheritdoc/>
         public event EventHandler OnValueChangedBase
         {
             add => _configEntry.OnValueChangedBase += value;
@@ -99,8 +108,10 @@ namespace UnityModBase.HConfigSpace
 
         /// <summary>
         /// 构造双元素门面，内部委托给值类型为 <see cref="EntryValue{T1, T2}"/> 的 <see cref="ConfigEntry{T}"/>。
-        /// <paramref name="description"/> 与两个分元素说明会按语言各自用换行拼接，作为整体说明写入内部配置项，
-        /// 使文件注释与 UI 提示同时呈现总说明与各元素含义。
+        /// <paramref name="description"/> 与两个分元素说明按语言各自用换行拼接，分元素行带「值1：/值2：」
+        /// （英文 <c>Value1: /Value2: </c>，半角冒号后带空格）前缀，作为整体说明写入内部配置项，供文件注释呈现总说明与各元素含义；
+        /// 某语言的分元素说明为空时省略该语言的前缀行（仅保留空行），避免文件注释出现无文本的结构标签；
+        /// 未拼接的原始文本则分别存入 <see cref="BaseDescription"/> 与 <see cref="ValueDescription"/>，供 GUI 分级提示使用。
         /// </summary>
         /// <param name="entry">包含当前编码值且已设置所属表键名的文件项。</param>
         /// <param name="defaultValue1">第一个元素的声明默认值。</param>
@@ -129,14 +140,26 @@ namespace UnityModBase.HConfigSpace
             if (valueDescription2 == null)
                 valueDescription2 = new Translator();
 
+            // 为空的分元素说明跳过前缀行（仅保留空行），避免拼接出只有「值1：」前缀而没有内容的行。
+            var missingChineseDescription1 = string.IsNullOrWhiteSpace(valueDescription1.Chinese);
+            var missingEnglishDescription1 = string.IsNullOrWhiteSpace(valueDescription1.English);
+            var missingChineseDescription2 = string.IsNullOrWhiteSpace(valueDescription2.Chinese);
+            var missingEnglishDescription2 = string.IsNullOrWhiteSpace(valueDescription2.English);
             _configEntry = new ConfigEntry<EntryValue<T1, T2>>(
                 entry,
                 new EntryValue<T1, T2>(defaultValue1, defaultValue2),
                 name ?? new Translator(entry.Key, entry.Key),
                 new Translator(
-                    $"{description.Chinese}{Environment.NewLine}{valueDescription1.Chinese}{Environment.NewLine}{valueDescription2.Chinese}",
-                    $"{description.English}{Environment.NewLine}{valueDescription1.English}{Environment.NewLine}{valueDescription2.English}")
+                    $"{description.Chinese}{Environment.NewLine}" +
+                    $"{(missingChineseDescription1 ? "" : $"值1：{valueDescription1.Chinese}")}{Environment.NewLine}" +
+                    $"{(missingChineseDescription2 ? "" : $"值2：{valueDescription2.Chinese}")}",
+                    $"{description.English}{Environment.NewLine}" +
+                    $"{(missingEnglishDescription1 ? "" : $"Value1: {valueDescription1.English}")}{Environment.NewLine}" +
+                    $"{(missingEnglishDescription2 ? "" : $"Value2: {valueDescription2.English}")}")
                 );
+
+            BaseDescription = description;
+            ValueDescription = new Translator[] { valueDescription1, valueDescription2 };
         }
 
         /// <inheritdoc/>

@@ -42,6 +42,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         {
             var value = ValueProvider.GetValidValue<string>(entry);
             var newValue = UnityGui.TextField(value, UnityGui.ExpandWidth(true));
+            // 本类不继承数值编辑器，无法复用其 SetSlotTooltip；槽位的分元素说明同样只能在文本框绘制后立即补设悬停提示。
+            if (entry is DualValueSlotBinding)
+                UnityGui.SetLastControlTooltip(entry.Description);
             if (newValue != value)
                 context.ChangeSink.SetValue(entry, newValue, delay: DelayApplyDuration);
         }

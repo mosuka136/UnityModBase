@@ -36,7 +36,11 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         /// <inheritdoc/>
         public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
-            UnityGui.Label("Unsupported type: " + entry.ValueType.FullName);
+            var text = "Unsupported type: " + entry.ValueType.FullName;
+            if (entry is DualValueSlotBinding)
+                UnityGui.Label(UnityGui.GetContent(text, entry.Description));
+            else
+                UnityGui.Label(text);
         }
 
         /// <inheritdoc/>

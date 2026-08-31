@@ -8,16 +8,21 @@ using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
     /// <summary>
-    /// 双元素组合编辑器把值为封闭 EntryValue&lt;,&gt; 的条目投影为两个槽位绑定，
-    /// 并复用所属注册表按槽位值类型选出的子编辑器绘制；元素写入合并为整体值写回父条目，
-    /// 外部值变化会清空槽位暂存。
+    /// 双元素组合编辑器把值为封闭 EntryValue&lt;,&gt; 的 <see cref="IEntryMultipleBinding"/> 条目投影为两个槽位绑定，
+    /// 槽位说明取自父绑定的分元素说明数组；并复用所属注册表按槽位值类型选出的子编辑器绘制；
+    /// 元素写入合并为整体值写回父条目，外部值变化会清空槽位暂存。
     /// </summary>
     public class DualValueEditorTests : IDisposable
     {
+        private static readonly Translator BaseDescription = new Translator("整体说明", "Overall");
+        private static readonly Translator Slot0Description = new Translator("元素一", "First");
+        private static readonly Translator Slot1Description = new Translator("元素二", "Second");
+
         private readonly ValueEditorRegistry _registry = new ValueEditorRegistry();
 
         [Fact]
@@ -47,11 +52,12 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         [InlineData(typeof(int), false)]
         [InlineData(typeof(KeyValuePair<int, string>), false)]
         [InlineData(typeof(ConventionalDualValue<int, string>), false)]
-        public void CanEdit_WhenEntryValueTypeIsClosedEntryValueGeneric_ReturnsExpectedResult(Type valueType, bool expected)
+        public void CanEdit_WhenMultipleBindingValueTypeIsClosedEntryValueGeneric_ReturnsExpectedResult(Type valueType, bool expected)
         {
-            // Arrange：只识别 EntryValue<,> 的封闭泛型，其他泛型（如 KeyValuePair<,>）与非泛型均不可编辑。
+            // Arrange：多元素绑定上只识别 EntryValue<,> 的封闭泛型，
+            // 其他泛型（如 KeyValuePair<,>）与非泛型均不可编辑。
             var editor = CreateEditor();
-            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var entryMock = new Mock<IEntryMultipleBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.ValueType).Returns(valueType);
 
             // Act
@@ -59,6 +65,22 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 
             // Assert
             Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void CanEdit_WhenEntryIsNotMultipleBinding_ReturnsFalse()
+        {
+            // Arrange：即使值类型是 EntryValue<,>，未实现多元素契约的绑定拿不到分元素说明，
+            // 组合编辑器拒绝接管，由注册表回退到占位编辑器。
+            var editor = CreateEditor();
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+
+            // Act
+            var result = editor.CanEdit(entryMock.Object);
+
+            // Assert
+            Assert.False(result);
         }
 
         [Fact]
@@ -106,6 +128,55 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenEntryIsNotMultipleBinding_DoesNothing()
+        {
+            // Arrange：未实现多元素契约的绑定静默跳过，不进入复合布局也不创建槽位投影。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var editor = new DualValueEditor(unityGuiMock.Object, _registry.GetEditor);
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+
+            // Act
+            editor.DrawValue(entryMock.Object, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void DrawExtra_WhenEntryIsNotMultipleBinding_DoesNothing()
+        {
+            // Arrange：扩展区域与主值区域遵循同一契约；非多元素绑定静默跳过，
+            // 不创建槽位投影（否则会因缺少分元素说明来源在投影时失败）。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var editor = new DualValueEditor(unityGuiMock.Object, _registry.GetEditor);
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+
+            // Act
+            editor.DrawExtra(entryMock.Object, new EditableGuiContext());
+
+            // Assert
+            entryMock.VerifyNoOtherCalls();
+            unityGuiMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void DrawValue_WhenMultipleBindingCountIsNotTwo_ThrowsArgumentException()
+        {
+            // Arrange：槽位投影目前只支持双元素；元素数不符属于契约违反，应立即失败而不是画出残缺行。
+            var editor = CreateEditor();
+            var entryMock = new Mock<IEntryMultipleBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+            entryMock.SetupGet(x => x.Count).Returns(3);
+
+            // Act & Assert
+            var exception = Assert.Throws<ArgumentException>(
+                () => editor.DrawValue(entryMock.Object, new EditableGuiContext()));
+            Assert.Equal("parent", exception.ParamName);
+        }
+
+        [Fact]
         public void DrawValue_WhenSubEditorMatches_DrawsBothSlotsOnceInsideExpandedHorizontalArea()
         {
             // Arrange
@@ -121,7 +192,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Act
             editor.DrawValue(entryMock.Object, new EditableGuiContext());
 
-            // Assert：两个槽位各绘制一次，槽位视图按元素类型和下标正确投影；
+            // Assert：两个槽位各绘制一次，槽位视图按元素类型、下标和分元素说明正确投影；
             // 复合值区域整体占满剩余宽度（单个 ExpandWidth(true) 选项），子编辑器在区域内部自行分配空间。
             Assert.Equal(2, drawnSlots.Count);
             Assert.NotSame(drawnSlots[0], drawnSlots[1]);
@@ -129,10 +200,12 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             Assert.Equal(0, slot0.SlotIndex);
             Assert.Equal(typeof(int), slot0.ValueType);
             Assert.Same(sliderMetadata, slot0.Metadata);
+            Assert.Same(Slot0Description, slot0.Description);
             var slot1 = Assert.IsType<DualValueSlotBinding>(drawnSlots[1]);
             Assert.Equal(1, slot1.SlotIndex);
             Assert.Equal(typeof(string), slot1.ValueType);
             Assert.Null(slot1.Metadata);
+            Assert.Same(Slot1Description, slot1.Description);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(
                 x => x.BeginHorizontal(It.Is<GUILayoutOption[]>(options => options.Length == 1)), Times.Once);
@@ -309,16 +382,21 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         /// <summary>
-        /// 创建值为 <see cref="EntryValue{T1, T2}"/> 的双元素条目严格替身；
-        /// 值用 SetupProperty 提供可读写的已提交值存储。
+        /// 创建值为 <see cref="EntryValue{T1, T2}"/> 的双元素多元素绑定严格替身；
+        /// 值用 SetupProperty 提供可读写的已提交值存储，分元素说明按静态实例提供。
         /// </summary>
-        private static Mock<IEntryBinding> CreateDualEntryMock(
-            EntryValue<int, string> value, IUiMetadata metadata = null)
+        private static Mock<IEntryMultipleBinding> CreateDualEntryMock(
+            EntryValue<int, string> value,
+            IUiMetadata metadata = null)
         {
-            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            var entryMock = new Mock<IEntryMultipleBinding>(MockBehavior.Strict);
             entryMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
             entryMock.SetupProperty(x => x.Value, value);
             entryMock.SetupGet(x => x.Metadata).Returns(metadata);
+            entryMock.SetupGet(x => x.Count).Returns(2);
+            entryMock.SetupGet(x => x.BaseDescription).Returns(BaseDescription);
+            entryMock.SetupGet(x => x.ValueDescription)
+                .Returns(new[] { Slot0Description, Slot1Description });
             return entryMock;
         }
 

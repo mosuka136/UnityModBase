@@ -71,9 +71,14 @@ namespace UnityModBase.Test.HControlGUI
             var hotkeyBinding = new Mock<IEntryBinding>(MockBehavior.Strict);
             hotkeyBinding.SetupGet(x => x.ValueType).Returns(typeof(Hotkey));
             hotkeyBinding.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
-            var dualBinding = new Mock<IEntryBinding>(MockBehavior.Strict);
+            // 双元素值只能通过多元素绑定进入组合编辑器；控制 GUI 复用同一共享编辑器池。
+            var dualBinding = new Mock<IEntryMultipleBinding>(MockBehavior.Strict);
             dualBinding.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
             dualBinding.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            dualBinding.SetupGet(x => x.Count).Returns(2);
+            dualBinding.SetupGet(x => x.BaseDescription).Returns(new Translator());
+            dualBinding.SetupGet(x => x.ValueDescription)
+                .Returns(new[] { new Translator(), new Translator() });
 
             Assert.IsType<UnsupportedEditor>(editor.GroupEditor.ValueEditors.GetEditor(hotkeyBinding.Object));
             Assert.IsType<DualValueEditor>(editor.GroupEditor.ValueEditors.GetEditor(dualBinding.Object));

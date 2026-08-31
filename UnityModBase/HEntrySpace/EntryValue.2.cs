@@ -13,10 +13,10 @@ namespace UnityModBase.HEntrySpace
     /// <remarks>
     /// 配置文件中编码为无外层定界符的 <c>v1,v2</c> 平铺文本；该格式无法区分内外层逗号，
     /// 因此元素类型不允许再嵌套多元素条目值，绑定阶段由
-    /// <see cref="EntryModel.IsEntryMultipleValueType(System.Type)"/> 与 <see cref="HConfigSpace.ConfigService"/> 拒绝。
+    /// <see cref="EntryModel.IsEntryMultipleValueType(Type)"/> 与 <see cref="HConfigSpace.ConfigService"/> 拒绝。
     /// 等值判断按元素委托 <see cref="EntryModel.ValueEqual(object, object)"/>，与单值条目遵循同一套规则。
     /// </remarks>
-    public sealed class EntryValue<T1, T2> : IEntryValue, IEntryMultipleValue, IEquatable<EntryValue<T1, T2>>
+    public sealed class EntryValue<T1, T2> : IEntryMultipleValue, IEquatable<EntryValue<T1, T2>>
     {
         /// <summary>获取第一个元素。</summary>
         public T1 Value1 { get; }

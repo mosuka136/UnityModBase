@@ -66,30 +66,46 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         {
             // Arrange
             var name = new Translator("名称", "Name");
-            var description = new Translator("说明", "Description");
+            var slot0Description = new Translator("元素一", "First");
+            var slot1Description = new Translator("元素二", "Second");
             var sliderMetadata = new UiSliderMetadata(0f, 10f, 1f);
             var metadata = new UiCompositeMetadata(new IUiMetadata[] { null, sliderMetadata });
             var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"), metadata);
             parentMock.SetupGet(x => x.Name).Returns(name);
-            parentMock.SetupGet(x => x.Description).Returns(description);
 
             // Act
-            var slot0 = new DualValueSlotBinding(parentMock.Object, 0);
-            var slot1 = new DualValueSlotBinding(parentMock.Object, 1);
+            var slot0 = new DualValueSlotBinding(parentMock.Object, 0, description: slot0Description);
+            var slot1 = new DualValueSlotBinding(parentMock.Object, 1, description: slot1Description);
 
-            // Assert：槽位值类型对应各自元素，展示信息透传父条目，键彼此不同且不与父键冲突。
+            // Assert：槽位值类型和说明对应各自元素，名称透传父条目，键彼此不同且不与父键冲突。
             Assert.Equal(typeof(int), slot0.ValueType);
             Assert.Equal(typeof(string), slot1.ValueType);
             Assert.Same(name, slot0.Name);
             Assert.Same(name, slot1.Name);
-            Assert.Same(description, slot0.Description);
-            Assert.Same(description, slot1.Description);
+            Assert.Same(slot0Description, slot0.Description);
+            Assert.Same(slot1Description, slot1.Description);
             Assert.Equal("DualEntry", parentMock.Object.Key);
             Assert.NotEqual(parentMock.Object.Key, slot0.Key);
             Assert.NotEqual(slot0.Key, slot1.Key);
             Assert.NotNull(slot0.EditBuffer);
             Assert.NotNull(slot1.EditBuffer);
             Assert.NotSame(slot0.EditBuffer, slot1.EditBuffer);
+        }
+
+        [Fact]
+        public void Constructor_WhenDescriptionOmitted_UsesBlankDescription()
+        {
+            // Arrange：省略说明的槽位（如手工构造的投影）退化为空说明，而不是回退父条目组合说明。
+            var parentMock = CreateParentMock(new EntryValue<int, string>(1, "a"));
+            parentMock.SetupGet(x => x.Description).Returns(new Translator("组合说明", "Pair description"));
+
+            // Act
+            var slot = new DualValueSlotBinding(parentMock.Object, 0);
+
+            // Assert
+            Assert.NotNull(slot.Description);
+            Assert.Equal(string.Empty, slot.Description.Chinese);
+            Assert.Equal(string.Empty, slot.Description.English);
         }
 
         [Fact]

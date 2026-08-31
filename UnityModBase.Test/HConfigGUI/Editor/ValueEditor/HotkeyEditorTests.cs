@@ -9,6 +9,7 @@ using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
 {
@@ -153,6 +154,41 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
             Assert.NotNull(editor.Session.WorkingValue);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button(displayedValue, It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_UsesDescriptionAsButtonTooltip()
+        {
+            // Arrange
+            GUILayoutOption expandWidth = null;
+            GUIStyle buttonStyle = null;
+            var description = new Translator("热键说明", "Hotkey description");
+            var hotkey = CreateHotkey(UnityProvider.Instance, Key.A);
+            var displayedValue = hotkey.ToString();
+            var content = new GUIContent(displayedValue, description);
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns(expandWidth);
+            unityGuiMock.SetupGet(x => x.ButtonStyle).Returns(buttonStyle);
+            unityGuiMock
+                .Setup(x => x.GetContent(displayedValue, description.ToString()))
+                .Returns(content);
+            unityGuiMock
+                .Setup(x => x.Button(content, buttonStyle, It.IsAny<GUILayoutOption[]>()))
+                .Returns(false);
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<Hotkey, int>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<Hotkey, int>(hotkey, 1));
+            parentMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+            var editor = CreateEditor(unityGuiMock);
+
+            // Act
+            editor.DrawValue(slot, new GuiStateStore());
+
+            // Assert
+            unityGuiMock.Verify(
+                x => x.Button(content, buttonStyle, It.IsAny<GUILayoutOption[]>()),
+                Times.Once);
         }
 
         [Fact]

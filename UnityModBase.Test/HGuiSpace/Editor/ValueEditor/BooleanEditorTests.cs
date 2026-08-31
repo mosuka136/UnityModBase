@@ -4,6 +4,7 @@ using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HGuiSpace.Resource;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 using Moq;
 using UnityEngine;
 
@@ -109,19 +110,24 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Arrange：复合条目由父编辑器占满值区域，布尔槽位只应占用 toggle 内容宽度。
             const bool currentValue = true;
             GUILayoutOption compactWidth = null;
+            var description = new Translator("开关说明", "Toggle description");
+            var content = new GUIContent(TranslatorResource.On, description);
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
             unityGuiMock.Setup(x => x.ExpandWidth(false)).Returns(compactWidth);
             unityGuiMock
+                .Setup(x => x.GetContent(TranslatorResource.On.ToString(), description.ToString()))
+                .Returns(content);
+            unityGuiMock
                 .Setup(x => x.Toggle(
                     currentValue,
-                    TranslatorResource.On.ToString(),
+                    content,
                     It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))))
                 .Returns(currentValue);
             var parentEntry = new Mock<IEntryBinding>(MockBehavior.Strict);
             parentEntry.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<bool, int>));
             parentEntry.SetupProperty(x => x.Value, new EntryValue<bool, int>(currentValue, 50));
             parentEntry.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
-            var slot = new DualValueSlotBinding(parentEntry.Object, 0);
+            var slot = new DualValueSlotBinding(parentEntry.Object, 0, description: description);
             var editor = new BooleanEditor(unityGuiMock.Object);
 
             // Act
@@ -132,7 +138,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Never);
             unityGuiMock.Verify(x => x.Toggle(
                 currentValue,
-                TranslatorResource.On.ToString(),
+                content,
                 It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))), Times.Once);
         }
 

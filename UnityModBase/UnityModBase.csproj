@@ -47,6 +47,8 @@
     <Compile Include="HClassAttribute\IEntryGuiAttribute.cs" />
     <Compile Include="HClassAttribute\InitializeOnGameBootAttribute.cs" />
     <Compile Include="HClassAttribute\RegisterOnGameBootAttribute.cs" />
+    <Compile Include="HConfigGUI\Bindings\EntryMultipleBinding.cs" />
+    <Compile Include="HEntrySpace\IEntryMultiple.cs" />
     <Compile Include="HEntrySpace\IEntryMultipleValue.cs" />
     <Compile Include="HControlGUI\Bindings\EntryBinding.cs" />
     <Compile Include="HControlGUI\Bindings\GroupBindingFactory.cs" />
@@ -104,6 +106,7 @@
     <Compile Include="HGuiSpace\Bindings\DualValueSlotBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\GroupBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\IEntryBinding.cs" />
+    <Compile Include="HGuiSpace\Bindings\IEntryMultipleBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\INodeBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\IResettableEntryBinding.cs" />
     <Compile Include="HGuiSpace\EditableGuiContext.cs" />

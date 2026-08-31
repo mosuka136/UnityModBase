@@ -19,6 +19,8 @@ namespace UnityModBase.Test
         {
             var expected = new[]
             {
+                // 配置条目绑定是扩展基类：多元素绑定 EntryMultipleBinding 从它派生以复用单值编辑行为。
+                "UnityModBase.HConfigGUI.Bindings.EntryBinding",
                 "UnityModBase.HGuiSpace.EditableGuiContext",
                 "UnityModBase.HGuiSpace.EditableUserEditorBase",
                 "UnityModBase.HGuiSpace.Editor.EntryEditor",

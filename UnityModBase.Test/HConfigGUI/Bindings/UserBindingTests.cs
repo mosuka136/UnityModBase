@@ -91,6 +91,43 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             Assert.Empty(secondTableBinding.Children);
         }
 
+        [Fact]
+        public void CreateRoot_WithMultipleValueEntry_RoutesToEntryMultipleBinding()
+        {
+            // Arrange：双元素条目实现 IEntryMultiple，工厂应改用多元素绑定透出分元素说明，
+            // 供组合编辑器绘制带独立提示的槽位；单值条目仍走普通绑定。
+            var context = CreateUser();
+            context.Service.RegisterConfig<TestConfig>(Path.Combine(Path.GetTempPath(), $"UnityModBase.Test.{Guid.NewGuid():N}.cfg"));
+            context.Service.Config.SaveOnConfigSet = false;
+            context.Service.Config.CreateTable("FirstTable", new Translator("表一", "Table One"));
+            context.Service.Config.Bind(
+                "FirstTable", nameof(TestConfig.EnableHLog), false,
+                new Translator("条目一", "Entry One"), new Translator("第一个条目", "First entry"));
+            var baseDescription = new Translator("组合说明", "Pair description");
+            var firstDescription = new Translator("元素一", "First");
+            var secondDescription = new Translator("元素二", "Second");
+            context.Service.Config.Bind<int, string>(
+                "FirstTable", "Pair", 1, "a",
+                new Translator("组合", "Pair"), baseDescription, firstDescription, secondDescription);
+
+            // Act
+            var result = GroupBindingFactory.CreateRoot(context);
+
+            // Assert
+            var group = Assert.IsType<GroupBinding>(Assert.Single(result.Children));
+            Assert.Equal(2, group.Children.Count);
+            var singleBinding = Assert.IsAssignableFrom<IEntryBinding>(group.Children[0]);
+            Assert.False(singleBinding is IEntryMultipleBinding);
+
+            var multipleBinding = Assert.IsType<EntryMultipleBinding>(group.Children[1]);
+            Assert.Equal("Pair", multipleBinding.Key);
+            Assert.Equal(2, multipleBinding.Count);
+            Assert.Same(baseDescription, multipleBinding.BaseDescription);
+            Assert.Same(firstDescription, multipleBinding.ValueDescription[0]);
+            Assert.Same(secondDescription, multipleBinding.ValueDescription[1]);
+            Assert.Same(baseDescription, multipleBinding.Description);
+        }
+
         public void Dispose()
         {
             foreach (var userId in _registeredUserIds)

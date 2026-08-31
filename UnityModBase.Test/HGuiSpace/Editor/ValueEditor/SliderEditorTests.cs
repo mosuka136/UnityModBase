@@ -5,6 +5,7 @@ using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HGuiSpace.Resource;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
@@ -305,6 +306,42 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 
             // Assert
             Assert.Equal(sliderValue, entryMock.Object.Value);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_SetsTooltipOnSliderAndTextField()
+        {
+            // Arrange
+            const int currentValue = 5;
+            var metadata = new UiSliderMetadata(0f, 10f, 1f);
+            var description = new Translator("滑条说明", "Slider description");
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var editor = CreateDrawableEditor(unityGuiMock);
+            unityGuiMock
+                .Setup(x => x.HorizontalSlider(
+                    currentValue,
+                    metadata.Min,
+                    metadata.Max,
+                    editor.StyleProvider.SliderStyle,
+                    editor.StyleProvider.SliderThumbStyle,
+                    It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue);
+            unityGuiMock
+                .Setup(x => x.TextField(currentValue.ToString(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue.ToString());
+            unityGuiMock.Setup(x => x.SetLastControlTooltip(description.ToString()));
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<int, string>(currentValue, "value"));
+            parentMock.SetupGet(x => x.Metadata).Returns(
+                new UiCompositeMetadata(new IUiMetadata[] { metadata, null }));
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+
+            // Act
+            editor.DrawValue(slot, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.Verify(x => x.SetLastControlTooltip(description.ToString()), Times.Exactly(2));
         }
 
         private static SliderEditor CreateEditor()

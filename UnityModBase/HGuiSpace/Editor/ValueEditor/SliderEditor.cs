@@ -69,7 +69,12 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             var metadata = entry.Metadata as UiSliderMetadata;
             if (metadata == null)
             {
-                UnityGui.Label(UnityGui.GetContent(TranslatorResource.InvalidSliderMetadata), UnityGui.ExpandWidth(true));
+                if (entry is DualValueSlotBinding)
+                    UnityGui.Label(
+                        UnityGui.GetContent(TranslatorResource.InvalidSliderMetadata, entry.Description),
+                        UnityGui.ExpandWidth(true));
+                else
+                    UnityGui.Label(UnityGui.GetContent(TranslatorResource.InvalidSliderMetadata), UnityGui.ExpandWidth(true));
                 return;
             }
 
@@ -82,6 +87,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 StyleProvider.SliderStyle,
                 StyleProvider.SliderThumbStyle,
                 UnityGui.ExpandWidth(true));
+            SetSlotTooltip(entry);
 
             // IMGUI 抽象没有暴露独立的滑条变更标记，只能比较返回值与传入值；
             // 在 Unity 浮点容差内相等时，视为本帧没有产生可观察的滑条值变化。
@@ -113,6 +119,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 sliderString = valueString;
 
             var newValueString = UnityGui.TextField(sliderString, UnityGui.MinWidth(50f), UnityGui.ExpandWidth(false));
+            SetSlotTooltip(entry);
 
             if (valueString != newValueString)
                 context.ChangeSink.SetConvertedValue(entry, newValueString, DelayApplyDuration);

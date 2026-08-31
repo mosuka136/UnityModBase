@@ -50,7 +50,19 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 return;
 
             var value = ValueProvider.GetValidValue<Enum>(entry);
-            if (UnityGui.Button(EnumHelper.GetDescription(entry.ValueType, value), UnityGui.ExpandWidth(true)))
+            var valueDescription = EnumHelper.GetDescription(entry.ValueType, value);
+            // 槽位控件没有独立的名称标签，分元素说明只能以悬停提示呈现；
+            // GUIContent 按钮重载要求显式样式，传入 ButtonStyle 以保持默认按钮外观。
+            bool buttonClicked;
+            if (entry is DualValueSlotBinding)
+                buttonClicked = UnityGui.Button(
+                    UnityGui.GetContent(valueDescription, entry.Description),
+                    UnityGui.ButtonStyle,
+                    UnityGui.ExpandWidth(true));
+            else
+                buttonClicked = UnityGui.Button(valueDescription, UnityGui.ExpandWidth(true));
+
+            if (buttonClicked)
             {
                 if (entry.Key == context.ExpandedEnumKey)
                     context.ExpandedEnumKey = string.Empty;

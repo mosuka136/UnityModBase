@@ -10,6 +10,7 @@ using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 using Moq;
 using DualValueEditor = UnityModBase.HGuiSpace.Editor.DualValueEditor;
 
@@ -44,7 +45,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             Assert.IsType<EnumEditor>(editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(TestEnum)).Object));
             Assert.Same(editor.HotkeyEditor, editor.ValueEditors.GetEditor(CreateEntryBindingMock(typeof(Hotkey)).Object));
             Assert.IsType<DualValueEditor>(editor.ValueEditors.GetEditor(
-                CreateEntryBindingMock(typeof(EntryValue<int, string>)).Object));
+                CreateMultipleEntryBindingMock(typeof(EntryValue<int, string>)).Object));
         }
 
         [Fact]
@@ -311,6 +312,22 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             mock.SetupGet(x => x.ValueType).Returns(valueType);
             mock.SetupGet(x => x.Value).Returns(value);
             mock.SetupGet(x => x.Metadata).Returns(metadata);
+            return mock;
+        }
+
+        // 双元素条目在配置 GUI 中以多元素绑定呈现；组合编辑器只认 IEntryMultipleBinding 形状。
+        private static Mock<IEntryMultipleBinding> CreateMultipleEntryBindingMock(System.Type valueType)
+        {
+            var mock = new Mock<IEntryMultipleBinding>(MockBehavior.Strict);
+            mock.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            mock.SetupGet(x => x.Key).Returns("Entry");
+            mock.SetupGet(x => x.ValueType).Returns(valueType);
+            mock.SetupGet(x => x.Value).Returns(null);
+            mock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            mock.SetupGet(x => x.Count).Returns(2);
+            mock.SetupGet(x => x.BaseDescription).Returns(new Translator());
+            mock.SetupGet(x => x.ValueDescription)
+                .Returns(new[] { new Translator(), new Translator() });
             return mock;
         }
 

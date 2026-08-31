@@ -4,6 +4,7 @@ using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
@@ -161,6 +162,32 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             unityGuiMock.Verify(
                 x => x.TextField(invalidValueText, It.IsAny<GUILayoutOption[]>()),
                 Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_SetsTooltipOnTextField()
+        {
+            // Arrange
+            const int currentValue = 123;
+            var description = new Translator("数值说明", "Number description");
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.TextField(currentValue.ToString(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue.ToString());
+            unityGuiMock.Setup(x => x.SetLastControlTooltip(description.ToString()));
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<int, string>(currentValue, "value"));
+            parentMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+            var editor = new NumberEditor(unityGuiMock.Object);
+
+            // Act
+            editor.DrawValue(slot, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.Verify(x => x.SetLastControlTooltip(description.ToString()), Times.Once);
         }
 
         private static NumberEditor CreateEditor()

@@ -534,8 +534,13 @@ namespace UnityModBase.Test.HControlSpace
                 Description);
         }
 
+        // 仅实现接口但违反 Value1..ValueN 属性契约的形状，用于验证注册入口的类型校验。
         private sealed class MalformedMultipleValue<T1, T2> : IEntryMultipleValue
         {
+            public bool Equals(IEntryValue other)
+            {
+                return ReferenceEquals(this, other);
+            }
         }
     }
 }

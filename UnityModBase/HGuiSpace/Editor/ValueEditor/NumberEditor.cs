@@ -50,8 +50,19 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 
             var valueString = ValueProvider.GetValue(entry).ToString();
             string newValueString = UnityGui.TextField(valueString, UnityGui.ExpandWidth(true));
+            SetSlotTooltip(entry);
             if (valueString != newValueString)
                 context.ChangeSink.SetConvertedValue(entry, newValueString, DelayApplyDuration);
+        }
+
+        /// <summary>
+        /// 若绑定为双元素槽位，把其分元素说明设置为刚绘制控件的悬停提示；其他绑定不处理，
+        /// 其提示由条目行的名称标签承担。必须在目标控件绘制后立即调用，供数值与滑条编辑器复用。
+        /// </summary>
+        protected void SetSlotTooltip(IEntryBinding entry)
+        {
+            if (entry is DualValueSlotBinding)
+                UnityGui.SetLastControlTooltip(entry.Description);
         }
 
         /// <inheritdoc/>

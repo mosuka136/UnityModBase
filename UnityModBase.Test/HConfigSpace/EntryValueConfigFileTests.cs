@@ -424,11 +424,24 @@ namespace UnityModBase.Test.HConfigSpace
                 Value2 = value2;
                 Value3 = value3;
             }
+
+            public bool Equals(IEntryValue other)
+            {
+                return other is TripleValue<T1, T2, T3> triple
+                    && EqualityComparer<T1>.Default.Equals(Value1, triple.Value1)
+                    && EqualityComparer<T2>.Default.Equals(Value2, triple.Value2)
+                    && EqualityComparer<T3>.Default.Equals(Value3, triple.Value3);
+            }
         }
 
         // 实现了 IEntryMultipleValue 但违反 Value1..ValueN 属性契约的形状，用于验证编解码入口的契约校验。
+        // 等值判断仅用引用相等：本形状只服务于编解码契约校验，不参与业务等值。
         private sealed class NoPropertyMultipleValue<T1, T2> : IEntryMultipleValue
         {
+            public bool Equals(IEntryValue other)
+            {
+                return ReferenceEquals(this, other);
+            }
         }
 
         private sealed class MismatchedPropertyMultipleValue<T1, T2> : IEntryMultipleValue
@@ -442,6 +455,11 @@ namespace UnityModBase.Test.HConfigSpace
                 Value1 = value1;
                 Value2 = value2;
             }
+
+            public bool Equals(IEntryValue other)
+            {
+                return ReferenceEquals(this, other);
+            }
         }
 
         private sealed class ThrowingCtorMultipleValue<T1, T2> : IEntryMultipleValue
@@ -453,6 +471,11 @@ namespace UnityModBase.Test.HConfigSpace
             public ThrowingCtorMultipleValue(T1 value1, T2 value2)
             {
                 throw new InvalidOperationException("constructor rejected the combination");
+            }
+
+            public bool Equals(IEntryValue other)
+            {
+                return ReferenceEquals(this, other);
             }
         }
     }

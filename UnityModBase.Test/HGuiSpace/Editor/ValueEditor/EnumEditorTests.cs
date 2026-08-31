@@ -6,6 +6,7 @@ using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HEnumHelper;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
@@ -155,6 +156,39 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             Assert.Equal(entryMock.Object.Key, state.ExpandedEnumKey);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Button("Visible Option", It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], expandWidth))), Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_UsesDescriptionAsButtonTooltip()
+        {
+            // Arrange
+            GUILayoutOption expandWidth = null;
+            GUIStyle buttonStyle = null;
+            var description = new Translator("枚举说明", "Enum description");
+            var content = new GUIContent("Visible Option", description);
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns(expandWidth);
+            unityGuiMock.SetupGet(x => x.ButtonStyle).Returns(buttonStyle);
+            unityGuiMock
+                .Setup(x => x.GetContent("Visible Option", description.ToString()))
+                .Returns(content);
+            unityGuiMock
+                .Setup(x => x.Button(content, buttonStyle, It.IsAny<GUILayoutOption[]>()))
+                .Returns(false);
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<VisibleEnum, int>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<VisibleEnum, int>(VisibleEnum.Visible, 1));
+            parentMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+            var editor = new EnumEditor(unityGuiMock.Object);
+
+            // Act
+            editor.DrawValue(slot, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.Verify(
+                x => x.Button(content, buttonStyle, It.IsAny<GUILayoutOption[]>()),
+                Times.Once);
         }
 
         [Fact]

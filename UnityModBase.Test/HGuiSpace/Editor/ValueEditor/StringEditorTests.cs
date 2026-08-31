@@ -4,6 +4,7 @@ using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
 using UnityModBase.HProvider;
+using UnityModBase.HTranslatorSpace;
 
 namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 {
@@ -115,6 +116,32 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.TextField(currentValue, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEntryIsDualValueSlot_SetsTooltipOnTextField()
+        {
+            // Arrange
+            const string currentValue = "value";
+            var description = new Translator("字符串说明", "String description");
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.TextField(currentValue, It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue);
+            unityGuiMock.Setup(x => x.SetLastControlTooltip(description.ToString()));
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<string, int>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<string, int>(currentValue, 1));
+            parentMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+            var editor = new StringEditor(unityGuiMock.Object);
+
+            // Act
+            editor.DrawValue(slot, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.Verify(x => x.SetLastControlTooltip(description.ToString()), Times.Once);
         }
 
         private static StringEditor CreateEditor()

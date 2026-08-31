@@ -37,10 +37,24 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
             var value = ValueProvider.GetValidValue<bool>(entry);
+
             // 双元素槽位在父编辑器的复合横向区域内绘制，剩余宽度由该区域统一分配；
             // 开关若再展开占满宽度会挤压另一槽位，因此槽位绑定只按文本宽度渲染。
-            var expandWidth = !(entry is DualValueSlotBinding);
-            bool newValue = UnityGui.Toggle(value, value ? TranslatorResource.On : TranslatorResource.Off, UnityGui.ExpandWidth(expandWidth));
+            // 槽位没有独立的名称标签，分元素说明改经 GUIContent 作为开关的悬停提示。
+            var isDualValueSlot = entry is DualValueSlotBinding;
+
+            bool newValue;
+            if (isDualValueSlot)
+                newValue = UnityGui.Toggle(
+                    value,
+                    UnityGui.GetContent(value ? TranslatorResource.On : TranslatorResource.Off, entry.Description),
+                    UnityGui.ExpandWidth(false));
+            else
+                newValue = UnityGui.Toggle(
+                    value,
+                    value ? TranslatorResource.On : TranslatorResource.Off,
+                    UnityGui.ExpandWidth(true));
+
             if (newValue != value)
                 context.ChangeSink.SetValue(entry, newValue);
         }

@@ -171,9 +171,27 @@ namespace UnityModBase.HProvider
         }
 
         /// <inheritdoc />
+        public bool Toggle(bool value, GUIContent content, params GUILayoutOption[] options)
+        {
+            return GUILayout.Toggle(value, content, options);
+        }
+
+        /// <inheritdoc />
         public string TextField(string text, params GUILayoutOption[] options)
         {
             return GUILayout.TextField(text, options);
+        }
+
+        /// <inheritdoc />
+        public void SetLastControlTooltip(string tooltip)
+        {
+            if (string.IsNullOrEmpty(tooltip))
+                return;
+
+            // IMGUI 没有给已绘制控件补设提示的 API，只能在控件矩形上覆盖一个空文本、
+            // GUIStyle.none 的标签：不占布局也不绘制内容，仅让悬停命中提示；
+            // 因此必须在目标控件绘制后立即调用，GetLastRect 才指向该控件。
+            GUI.Label(GUILayoutUtility.GetLastRect(), new GUIContent(string.Empty, tooltip), GUIStyle.none);
         }
 
         /// <inheritdoc />

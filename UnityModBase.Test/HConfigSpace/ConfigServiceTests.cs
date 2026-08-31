@@ -700,9 +700,10 @@ namespace UnityModBase.Test.HConfigSpace
 
             Assert.Equal("Candidate", entry.Name.Chinese);
             Assert.Equal("Candidate", entry.Name.English);
-            // 整体说明为空总体说明与两个空分元素说明的换行拼接，裁剪后不含任何可见文本。
-            Assert.Equal(string.Empty, entry.Description.Chinese.Trim());
-            Assert.Equal(string.Empty, entry.Description.English.Trim());
+            // 省略元数据时总体说明与分元素说明均为空；分元素行连同“值1/值2”标签一起按语言省略，
+            // 组合说明只剩空的总说明行与两个空行，文件注释不出现无文本的结构标签。
+            Assert.Equal($"{Environment.NewLine}{Environment.NewLine}", entry.Description.Chinese);
+            Assert.Equal($"{Environment.NewLine}{Environment.NewLine}", entry.Description.English);
         }
 
         [Fact]

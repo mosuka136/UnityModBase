@@ -10,8 +10,9 @@ namespace UnityModBase.HConfigGUI.Bindings
     /// <summary>
     /// 将 <see cref="IConfigEntry"/> 适配为配置 GUI 可编辑节点，并为其持有独立的暂存输入缓冲区。
     /// 本类不负责延迟提交或通知 UI；这些职责分别由 <see cref="EntryChangeSink"/> 和 GUI 上下文承担。
+    /// 本类同时作为多元素条目绑定 <see cref="EntryMultipleBinding"/> 的基类，因此未密封。
     /// </summary>
-    internal sealed class EntryBinding : IResettableEntryBinding
+    internal class EntryBinding : IResettableEntryBinding
     {
         /// <summary>
         /// 获取被适配的底层配置项。

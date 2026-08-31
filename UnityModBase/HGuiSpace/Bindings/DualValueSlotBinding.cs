@@ -14,7 +14,7 @@ namespace UnityModBase.HGuiSpace.Bindings
     /// <remarks>
     /// 槽位键形如 <c>'\0'Dual_{父键}_{下标}</c>：合法配置键仅允许字母、数字和下划线，而 <c>'\0'</c> 在复合值拆分器中
     /// 保留为“无外层定界符”哨兵，不会出现在任何真实配置键中；因此槽位键不会与真实条目键冲突，两槽位之间也互不相同。
-    /// 名称与说明透传父条目，使变更提示仍显示真实条目；槽位子元数据从父条目的
+    /// 名称透传父条目，使变更提示仍显示真实条目；说明由组合编辑器按下标提供，使值控件显示对应槽位的提示；槽位子元数据从父条目的
     /// <see cref="UiCompositeMetadata"/> 按下标解析，父元数据缺失或槽位未声明时为 null，子编辑器走通用分支。
     /// </remarks>
     internal sealed class DualValueSlotBinding : IEntryBinding
@@ -36,7 +36,7 @@ namespace UnityModBase.HGuiSpace.Bindings
         public Translator Name => Parent.Name;
 
         /// <inheritdoc/>
-        public Translator Description => Parent.Description;
+        public Translator Description { get; }
 
         /// <inheritdoc/>
         public Type ValueType { get; }
@@ -80,10 +80,15 @@ namespace UnityModBase.HGuiSpace.Bindings
         /// <param name="parent">值类型为封闭 <see cref="EntryValue{T1,T2}"/> 泛型的父条目绑定。</param>
         /// <param name="slotIndex">元素下标，必须为 0 或 1。</param>
         /// <param name="onParentValueWritten">本槽位向父条目写入整体值后的可选通知回调。</param>
+        /// <param name="description">本槽位对应的说明；为 <c>null</c> 时使用空说明。</param>
         /// <exception cref="ArgumentNullException"><paramref name="parent"/> 为 null。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="slotIndex"/> 不为 0 或 1。</exception>
         /// <exception cref="ArgumentException"><paramref name="parent"/> 的值类型不是封闭 <see cref="EntryValue{T1,T2}"/>。</exception>
-        public DualValueSlotBinding(IEntryBinding parent, int slotIndex, Action onParentValueWritten = null)
+        public DualValueSlotBinding(
+            IEntryBinding parent,
+            int slotIndex,
+            Action onParentValueWritten = null,
+            Translator description = null)
         {
             if (parent == null)
                 throw new ArgumentNullException(nameof(parent));
@@ -96,6 +101,7 @@ namespace UnityModBase.HGuiSpace.Bindings
 
             Parent = parent;
             SlotIndex = slotIndex;
+            Description = description ?? new Translator();
             ValueType = parentValueType.GetGenericArguments()[slotIndex];
             _ownValueProperty = GetSlotProperty(parentValueType, slotIndex);
             _otherValueProperty = GetSlotProperty(parentValueType, slotIndex == 0 ? 1 : 0);
