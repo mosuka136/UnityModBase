@@ -1,14 +1,17 @@
 using System;
+using System.Linq;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
+using UnityModBase.HUserSpace;
 
 namespace UnityModBase.BSpace
 {
     /// <summary>
     /// 声明 UnityModBase 自身使用的配置表和配置项，并把语言与配置重载热键接入运行时事件。
+    /// 重载热键作用于全部已注册用户的配置文件，而不限于框架自身（见 <see cref="ReloadConfig"/>）。
     /// 配置文件的创建、解析和持久化由 <see cref="ConfigService"/> 负责，本类型只维护配置项的静态引用。
     /// </summary>
     internal static class BConfigManager
@@ -50,7 +53,7 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<Hotkey> ControlUIHotkey { get; private set; }
 
         /// <summary>
-        /// 从磁盘重新加载配置的热键，默认值为 <c>Ctrl+R</c>。
+        /// 从磁盘重新加载全部已注册用户配置的热键，默认值为 <c>Ctrl+R</c>。
         /// </summary>
         internal static ConfigEntry<Hotkey> ReloadConfigHotkey { get; set; }
 
@@ -275,7 +278,11 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 从当前配置路径重新读取文件，并根据重载及规范化写入结果记录成功或失败日志。
+        /// 遍历 <see cref="UserManager.UserContexts"/> 中的全部用户上下文，逐个从磁盘重新读取
+        /// 各用户配置服务对应的文件，并按文件记录成功或失败日志；框架自身的上下文包含在内
+        /// （<see cref="BService"/> 初始化时已把框架登记为普通用户）。
+        /// 尚未登记配置文件的用户（<see cref="UserService.Config"/> 为 <c>null</c>）没有可重载的文件，直接跳过。
+        /// 单个文件重载失败（<see cref="ConfigService.Reload"/> 返回 false）只记录错误，不中断其余用户的重载。
         /// 配置应用的原子性边界与失败后的内存状态由 <see cref="ConfigService.Reload"/> 定义。
         /// 因此失败日志也可能仅表示事件发布或最终写入失败，此时已提交的运行时配置仍然有效。
         /// </summary>
@@ -283,10 +290,17 @@ namespace UnityModBase.BSpace
         {
             lock (_lock)
             {
-                if (Config.Reload())
-                    BLog.Info($"Config file reloaded. Path='{Config.FilePath}'.");
-                else
-                    BLog.Error($"Failed to reload config file. Path='{Config.FilePath}'. See earlier diagnostics for the failing stage.");
+                // UserContexts 是注册表的实时视图而非快照，注册/移除用户与重载并发时枚举可能失效；
+                // 由此产生的异常会中止剩余重载，由唯一调用方（热键帧回调）统一捕获记录。
+                var configs = UserManager.UserContexts.Select(u => u.Service.Config).Where(c => c != null);
+
+                foreach (var config in configs)
+                {
+                    if (config.Reload())
+                        BLog.Info($"Config file reloaded. Path='{config.FilePath}'.");
+                    else
+                        BLog.Error($"Failed to reload config file. Path='{config.FilePath}'. See earlier diagnostics for the failing stage.");
+                }
             }
         }
 
@@ -303,7 +317,7 @@ namespace UnityModBase.BSpace
                 }
                 catch (Exception ex)
                 {
-                    BLog.Error($"Unexpected error while processing the config reload hotkey. Path='{Config?.FilePath ?? "<unavailable>"}'.", ex);
+                    BLog.Error($"Unexpected error while processing the config reload hotkey.", ex);
                 }
             }
         }
