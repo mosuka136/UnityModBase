@@ -59,6 +59,11 @@ namespace UnityModBase.HConfigGUI.Editor.ValueEditor
             if (!typeof(Hotkey).IsAssignableFrom(entry.ValueType))
                 return;
 
+            // 条目展开期间值可能被会话外部改写（如行尾重置按钮恢复默认值）；
+            // 先同步会话基准再取显示文本，避免按钮和组合列表继续展示过期的工作副本。
+            if (Session.Entry == entry)
+                Session.SyncEntryValue();
+
             var valueString = GetHotkeyDisplayString(entry);
             if (valueString == null)
                 return;

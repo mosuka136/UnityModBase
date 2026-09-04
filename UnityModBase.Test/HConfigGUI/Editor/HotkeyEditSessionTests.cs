@@ -263,6 +263,93 @@ namespace UnityModBase.Test.HConfigGUI.Editor
         }
 
         [Fact]
+        public void SyncEntryValue_WhenNotEditing_DoesNothing()
+        {
+            var session = new HotkeyEditSession
+            {
+                State = HotkeyEditState.Idle
+            };
+
+            session.SyncEntryValue();
+
+            Assert.Null(session.OriginalValue);
+            Assert.Null(session.WorkingValue);
+            Assert.Equal(HotkeyEditState.Idle, session.State);
+        }
+
+        [Fact]
+        public void SyncEntryValue_WhenEntryValueMatchesBaseline_KeepsSessionUntouched()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey();
+            originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            var workingValueBeforeSync = session.WorkingValue;
+
+            session.SyncEntryValue();
+
+            Assert.Same(originalValue, session.OriginalValue);
+            Assert.Same(workingValueBeforeSync, session.WorkingValue);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void SyncEntryValue_WhenEntryValueWasResetExternally_RebuildsBaselineAndWorkingCopy()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey();
+            originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var session = new HotkeyEditSession();
+
+            session.BeginEdit(entry.Object);
+            var defaultValue = new Hotkey();
+            defaultValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.F9, unityProvider)), unityProvider));
+            entry.Object.Value = defaultValue;
+
+            session.SyncEntryValue();
+
+            Assert.Same(defaultValue, session.OriginalValue);
+            Assert.NotSame(defaultValue, session.WorkingValue);
+            Assert.Equal(defaultValue.ToString(), session.WorkingValue.ToString());
+            Assert.False(session.WorkingValue.Valid);
+            Assert.Null(session.WorkingChord);
+            Assert.Null(session.PreviewGamepadChord);
+            Assert.Null(session.PreviewKeyboardChord);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
+        public void SyncEntryValue_WhileRecording_CancelsRecordAndRebuildsFromNewValue()
+        {
+            var unityProvider = UnityProvider.Instance;
+            var originalValue = new Hotkey();
+            originalValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.A, unityProvider)), unityProvider));
+            var entry = CreateEntryBinding(originalValue);
+            var session = new HotkeyEditSession();
+            Hotkey.GlobalValid = true;
+
+            session.BeginEdit(entry.Object);
+            session.BeginRecord(session.WorkingValue.Hotkeys[0]);
+            var defaultValue = new Hotkey();
+            defaultValue.Add(new HotkeyChord(new KeyboardChord(unityProvider, new KeyboardTrigger(Key.F9, unityProvider)), unityProvider));
+            entry.Object.Value = defaultValue;
+
+            session.SyncEntryValue();
+
+            Assert.True(Hotkey.GlobalValid);
+            Assert.True(originalValue.Valid);
+            Assert.Same(defaultValue, session.OriginalValue);
+            Assert.Equal(defaultValue.ToString(), session.WorkingValue.ToString());
+            Assert.False(session.WorkingValue.Valid);
+            Assert.Null(session.WorkingChord);
+            Assert.Equal(HotkeyEditState.Expanded, session.State);
+        }
+
+        [Fact]
         public void BeginRecord_WhenSessionIsNotExpanded_DoesNothing()
         {
             var unityProvider = UnityProvider.Instance;

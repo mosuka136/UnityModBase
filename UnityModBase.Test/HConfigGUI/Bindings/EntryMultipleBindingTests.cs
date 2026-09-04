@@ -52,8 +52,11 @@ namespace UnityModBase.Test.HConfigGUI.Bindings
             // Act
             var binding = new EntryMultipleBinding(typeof(TestConfig), entryMock.Object);
 
-            // Assert
+            // Assert：条目行与组合编辑器都经 IEntryBinding 视图读取说明；
+            // 接口访问与类访问必须一致命中基础说明，而不是回落到基类的拼接透传实现。
             Assert.Same(baseDescription, binding.Description);
+            Assert.Same(baseDescription, ((IEntryBinding)binding).Description);
+            Assert.Same(baseDescription, ((IEntryMultipleBinding)binding).Description);
         }
 
         [Fact]

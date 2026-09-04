@@ -1,4 +1,5 @@
 using System.Reflection;
+using Moq;
 using UnityModBase.BSpace;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
@@ -133,6 +134,134 @@ namespace UnityModBase.Test.BSpace
                 log.Message.StartsWith("Config file reloaded.", StringComparison.Ordinal));
         }
 
+        [Fact]
+        public void ReloadConfig_WithMultipleRegisteredUsers_ReloadsEveryUsersConfig()
+        {
+            // Arrange：重载热键面向注册表中的全部用户，而不只是框架自身的配置服务。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            var otherEntry = RegisterUserWithReloadableEntry(scope, "OtherUser", out var otherConfigPath);
+
+            // Act
+            scope.ReloadConfig();
+
+            // Assert
+            Assert.Equal(7, otherEntry.Value);
+            var frameworkLog = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{scope.ConfigFilePath}'."));
+            var otherLog = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{otherConfigPath}'."));
+            Assert.Equal(LogLevel.Info, frameworkLog.Level);
+            Assert.Equal(LogLevel.Info, otherLog.Level);
+        }
+
+        [Fact]
+        public void ReloadConfig_WhenOneUserFailsToReload_LogsFailureAndContinuesWithRemainingUsers()
+        {
+            // Arrange：框架用户注册在先且其配置文件损坏；单个用户失败不得中断其余用户的重载。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            var otherEntry = RegisterUserWithReloadableEntry(scope, "OtherUser", out var otherConfigPath);
+            File.WriteAllText(scope.ConfigFilePath, string.Empty);
+
+            // Act
+            scope.ReloadConfig();
+
+            // Assert
+            Assert.Equal(7, otherEntry.Value);
+            var failureLog = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Failed to reload config file. Path='{scope.ConfigFilePath}'. See earlier diagnostics for the failing stage."));
+            Assert.Equal(LogLevel.Error, failureLog.Level);
+            Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{otherConfigPath}'."));
+        }
+
+        [Fact]
+        public void ReloadConfig_WhenRegisteredUserHasNoConfig_SkipsItAndReloadsRemainingUsers()
+        {
+            // 契约：注册表允许存在尚未登记配置文件的用户（UserService.Config 为 null），
+            // 与 GuiHost 为无配置用户挂载空绑定树的处理一致；重载应跳过这类用户并继续处理其余用户。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            scope.RegisterAdditionalUser("NoConfigUser");
+            var otherEntry = RegisterUserWithReloadableEntry(scope, "OtherUser", out var otherConfigPath);
+
+            // Act
+            var exception = Record.Exception(() => scope.ReloadConfig());
+
+            // Assert
+            Assert.Null(exception);
+            Assert.Equal(7, otherEntry.Value);
+            Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{otherConfigPath}'."));
+            Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{scope.ConfigFilePath}'."));
+        }
+
+        [Fact]
+        public void ReloadConfigOnUserOrder_WhenReloadThrows_LogsUnexpectedErrorAndDoesNotPropagate()
+        {
+            // Arrange：重载遍历的注册表是实时视图，遍历期间的新用户注册会使枚举失效
+            //（框架配置重载完成的 OnConfigChanged 里注册迟到用户），由此抛出的异常
+            // 必须由帧回调捕获记录，不得传播给帧更新派发器。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            var config = Assert.IsType<ConfigService>(scope.GetStaticProperty(nameof(BConfigManager.Config)));
+            config.OnConfigChanged += RegisterLateUserDuringReload;
+
+            // 用报告“本帧已按下”的替身组合替换重载热键的组合，使帧回调进入重载分支；
+            // ToString 须与文件中的规范化文本一致，重载准备阶段的等值比较会按组合文本对比新旧热键。
+            var pressedChord = new Mock<IHotkeyChord>(MockBehavior.Strict);
+            pressedChord.Setup(chord => chord.WasPressedThisFrame()).Returns(true);
+            pressedChord.Setup(chord => chord.ToString()).Returns("Ctrl+R");
+            var hotkey = BConfigManager.ReloadConfigHotkey.Value;
+            hotkey.Hotkeys.Clear();
+            hotkey.Hotkeys.Add(new HotkeyChord(pressedChord.Object, UnityProvider.Instance));
+            var frameHandler = scope.GetFrameUpdateHandlers().Single(handler =>
+                handler.Method.DeclaringType == typeof(BConfigManager)
+                && handler.Method.Name == "ReloadConfigOnUserOrder");
+
+            // Act
+            var exception = Record.Exception(() => frameHandler());
+
+            // Assert
+            Assert.Null(exception);
+            // 中断发生在框架自身重载完成之后：成功日志已保留，异常只阻断其后的用户。
+            Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == $"Config file reloaded. Path='{scope.ConfigFilePath}'."));
+            var failureLog = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                log.Message == "Unexpected error while processing the config reload hotkey."));
+            Assert.Equal(LogLevel.Error, failureLog.Level);
+            Assert.IsType<InvalidOperationException>(failureLog.Exception);
+
+            config.OnConfigChanged -= RegisterLateUserDuringReload;
+        }
+
+        // 框架配置重载完成时向注册表追加用户，模拟重载遍历期间的并发注册，使注册表枚举失效。
+        private static void RegisterLateUserDuringReload()
+        {
+            UserManager.CreateUser("LateUser", new Translator("迟到用户", "Late User"));
+        }
+
+        // 为附加用户登记一个含单个整型项的配置文件，并把磁盘值改写为 7；返回该配置项用于断言重载是否生效。
+        private static ConfigEntry<int> RegisterUserWithReloadableEntry(
+            BConfigManagerStateScope scope,
+            string userId,
+            out string configPath)
+        {
+            configPath = scope.GetAdditionalUserConfigPath(userId);
+            var user = scope.RegisterAdditionalUser(userId, configPath);
+            var config = user.Service.Config;
+            config.CreateTable("OtherTable", new Translator("其他表", "Other Table"));
+            var entry = config.Bind(
+                "OtherTable",
+                "OtherKey",
+                0,
+                new Translator("其他项", "Other Entry"));
+            File.WriteAllText(configPath, "[OtherTable]\nOtherKey = 7\n");
+            return entry;
+        }
+
         private sealed class BConfigManagerStateScope : IDisposable
         {
             private static readonly Type BConfigManagerType = typeof(BConfigManager);
@@ -143,6 +272,7 @@ namespace UnityModBase.Test.BSpace
             private static readonly FieldInfo DefaultLanguageField = GetRequiredField(typeof(Translator), "_defaultLanguage");
             private static readonly FieldInfo DefaultLanguageHandlersField = GetRequiredField(typeof(Translator), nameof(Translator.OnDefaultLanguageChanged));
             private static readonly MethodInfo ReloadConfigMethod = GetRequiredMethod(BConfigManagerType, "ReloadConfig");
+            private static readonly FieldInfo UserContextsField = GetRequiredField(typeof(UserManager), "_userContexts");
             private static readonly PropertyInfo[] StaticProperties =
             {
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.Config)),
@@ -157,6 +287,9 @@ namespace UnityModBase.Test.BSpace
 
             private readonly bool _originalInitialized;
             private readonly UserContext _originalContext;
+            // 隔离开始前 UserManager 注册表的内容快照；Dispose 时对同一个实时字典实例清空后回填，
+            // 而非替换字段（内部注册表为 readonly，UserManager 也只暴露实时视图）。
+            private readonly Dictionary<string, UserContext> _originalUserContexts;
             private readonly object[] _originalStaticPropertyValues;
             private readonly Action _originalFrameUpdateHandlers;
             private readonly LanguageType _originalDefaultLanguage;
@@ -167,6 +300,7 @@ namespace UnityModBase.Test.BSpace
             private BConfigManagerStateScope(
                 bool originalInitialized,
                 UserContext originalContext,
+                Dictionary<string, UserContext> originalUserContexts,
                 object[] originalStaticPropertyValues,
                 Action originalFrameUpdateHandlers,
                 LanguageType originalDefaultLanguage,
@@ -176,6 +310,7 @@ namespace UnityModBase.Test.BSpace
             {
                 _originalInitialized = originalInitialized;
                 _originalContext = originalContext;
+                _originalUserContexts = originalUserContexts;
                 _originalStaticPropertyValues = originalStaticPropertyValues;
                 _originalFrameUpdateHandlers = originalFrameUpdateHandlers;
                 _originalDefaultLanguage = originalDefaultLanguage;
@@ -202,7 +337,20 @@ namespace UnityModBase.Test.BSpace
             public void Dispose()
             {
                 BConfigManager.Dispose();
+
+                var userContexts = GetUserContexts();
+                // 只释放测试期间新增的上下文：快照成员的所有权属于其他测试或宿主，不得代为释放；
+                // 测试上下文跳过本循环，由下一行单独释放。
+                foreach (var context in userContexts.Values)
+                {
+                    if (!_originalUserContexts.Values.Contains(context) && !ReferenceEquals(context, _testContext))
+                        context.Dispose();
+                }
                 _testContext?.Dispose();
+                // 注册表字典实例不可替换，只能清空后按快照回填，恢复隔离前的注册项。
+                userContexts.Clear();
+                foreach (var pair in _originalUserContexts)
+                    userContexts.Add(pair.Key, pair.Value);
 
                 for (var index = 0; index < StaticProperties.Length; index++)
                     StaticProperties[index].SetValue(null, _originalStaticPropertyValues[index]);
@@ -243,6 +391,37 @@ namespace UnityModBase.Test.BSpace
                     ?? Array.Empty<Action>();
             }
 
+            public string GetAdditionalUserConfigPath(string userId)
+            {
+                return Path.Combine(_tempDirectory, $"{userId}.cfg");
+            }
+
+            /// <summary>
+            /// 在 <see cref="UserManager"/> 注册表中追加一个附加用户；
+            /// <paramref name="configFilePath"/> 为 <c>null</c> 时不登记配置文件，模拟仅有用户服务的注册项。
+            /// 直接写入内部注册表而不经 <see cref="UserManager.Register"/>，
+            /// 以避免触发静态的 <see cref="UserManager.OnUserRegistered"/> 事件和配置变化转发接线，维持测试隔离。
+            /// </summary>
+            public UserContext RegisterAdditionalUser(string userId, string configFilePath = null)
+            {
+                var service = CreateServiceWithTestLogDatabase();
+                if (configFilePath != null)
+                    service.RegisterConfig(typeof(BConfigManagerTests), configFilePath);
+
+                var context = new UserContext(userId, new Translator(userId, userId))
+                {
+                    Service = service
+                };
+                GetUserContexts().Add(userId, context);
+                return context;
+            }
+
+            // 取 UserManager 的内部注册表字典本身（非副本）；对它的增删立即反映到全部实时视图。
+            private static Dictionary<string, UserContext> GetUserContexts()
+            {
+                return (Dictionary<string, UserContext>)UserContextsField.GetValue(null);
+            }
+
             private static BConfigManagerStateScope CreateCore(bool withConfigService)
             {
                 var originalStaticPropertyValues = StaticProperties
@@ -266,9 +445,16 @@ namespace UnityModBase.Test.BSpace
                     Service = service
                 };
                 Action sentinelFrameUpdateHandler = () => { };
+                // ReloadConfig 遍历 UserManager 注册表；测试把注册表清空后只放入测试上下文，形成隔离视图，
+                // 释放夹具时先释放测试期间新增的上下文，再按快照回填同一个字典实例。
+                var userContexts = GetUserContexts();
+                var originalUserContexts = userContexts.ToDictionary(pair => pair.Key, pair => pair.Value);
+                userContexts.Clear();
+                userContexts.Add(testContext.UserId, testContext);
                 var scope = new BConfigManagerStateScope(
                     (bool)InitializedField.GetValue(null),
                     (UserContext)ContextProperty.GetValue(null),
+                    originalUserContexts,
                     originalStaticPropertyValues,
                     (Action)FrameUpdateHandlersField.GetValue(null),
                     (LanguageType)DefaultLanguageField.GetValue(null),
@@ -291,6 +477,8 @@ namespace UnityModBase.Test.BSpace
                 return scope;
             }
 
+            // UserService 默认以全局 UnityProvider 构造日志数据库（用于日志附帧号和场景名）；
+            // setter 非公开，经反射替换为无提供器的纯内存实例，供测试通过 Logs 快照断言日志内容。
             private static UserService CreateServiceWithTestLogDatabase()
             {
                 var service = new UserService("UnityModBase.Test");

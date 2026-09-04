@@ -157,6 +157,32 @@ namespace UnityModBase.Test.HConfigGUI.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenEntryValueWasResetWhileExpanded_ShowsResetValueWithoutCollapsing()
+        {
+            // Arrange
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            var editor = CreateEditor(unityGuiMock);
+            var unityProvider = UnityProvider.Instance;
+            var hotkey = CreateHotkey(unityProvider, Key.A);
+            var entryMock = CreateHotkeyEntry(hotkey);
+            editor.Session.BeginEdit(entryMock.Object);
+
+            var defaultValue = CreateHotkey(unityProvider, Key.F9);
+            entryMock.Object.Value = defaultValue;
+            unityGuiMock.Setup(x => x.Button(defaultValue.ToString(), It.IsAny<GUILayoutOption[]>())).Returns(false);
+
+            // Act
+            editor.DrawValue(entryMock.Object, new GuiStateStore());
+
+            // Assert
+            Assert.Same(entryMock.Object, editor.Session.Entry);
+            Assert.Equal(HotkeyEditState.Expanded, editor.Session.State);
+            Assert.Equal(defaultValue.ToString(), editor.Session.WorkingValue.ToString());
+            unityGuiMock.Verify(x => x.Button(defaultValue.ToString(), It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
         public void DrawValue_WhenEntryIsDualValueSlot_UsesDescriptionAsButtonTooltip()
         {
             // Arrange

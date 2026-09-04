@@ -129,6 +129,31 @@ namespace UnityModBase.HConfigGUI.Editor
         }
 
         /// <summary>
+        /// 检查会话条目的当前有效值是否已被会话外部改写（如行尾重置按钮恢复默认值），
+        /// 不一致时以最新值重建基准和工作副本，丢弃尚未确认的工作副本改动并保持展开状态。
+        /// 正在录制时会先按取消录制流程恢复原热键及全局开关；值与基准仍一致时不做处理。
+        /// </summary>
+        public void SyncEntryValue()
+        {
+            if (!IsEditing)
+                return;
+
+            var currentValue = ValueProvider.GetValidValue<Hotkey>(Entry);
+            if (OriginalValue != null && OriginalValue.HasSameHotkey(currentValue))
+                return;
+
+            if (IsRecording)
+                CancelRecord();
+
+            OriginalValue = currentValue;
+            WorkingValue = OriginalValue.Clone();
+            WorkingValue.Valid = false;
+            WorkingChord = null;
+            PreviewGamepadChord = null;
+            PreviewKeyboardChord = null;
+        }
+
+        /// <summary>
         /// 开始录制指定组合键，禁用原热键和全局热键响应，并等待首次设备按下。
         /// 仅在会话已展开且尚未录制时生效；禁用前的有效状态会保留到本轮录制结束并按快照恢复。
         /// </summary>

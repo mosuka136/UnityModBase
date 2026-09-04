@@ -37,6 +37,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
             var text = "Unsupported type: " + entry.ValueType.FullName;
+            // 槽位控件没有独立的名称标签，分元素说明只能以悬停提示呈现。
             if (entry is DualValueSlotBinding)
                 UnityGui.Label(UnityGui.GetContent(text, entry.Description));
             else

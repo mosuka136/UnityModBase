@@ -101,6 +101,37 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenMetadataIsMissingAndEntryIsDualValueSlot_UsesDescriptionAsInvalidMetadataLabelTooltip()
+        {
+            // Arrange：槽位缺少滑条元数据时的占位错误标签没有条目行名称标签可依托，
+            // 分元素说明只能并入错误标签的悬停提示。
+            var invalidMetadataText = TranslatorResource.InvalidSliderMetadata.ToString();
+            var description = new Translator("滑条说明", "Slider description");
+            var content = new GUIContent(invalidMetadataText, description);
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock
+                .Setup(x => x.GetContent(invalidMetadataText, description.ToString()))
+                .Returns(content);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.Label(content, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)));
+            var editor = new SliderEditor(unityGuiMock.Object, new Mock<IUnityProvider>(MockBehavior.Strict).Object, new EntryStyleResource(null));
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(EntryValue<int, string>));
+            parentMock.SetupProperty(x => x.Value, new EntryValue<int, string>(5, "value"));
+            parentMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+            var slot = new DualValueSlotBinding(parentMock.Object, 0, description: description);
+
+            // Act
+            editor.DrawValue(slot, new EditableGuiContext());
+
+            // Assert
+            unityGuiMock.Verify(
+                x => x.Label(content, It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)),
+                Times.Once);
+        }
+
+        [Fact]
         public void DrawValue_WhenSliderIsUnchanged_PreservesInvalidBufferedText()
         {
             // Arrange
