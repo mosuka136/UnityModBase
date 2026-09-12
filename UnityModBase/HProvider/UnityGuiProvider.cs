@@ -271,5 +271,11 @@ namespace UnityModBase.HProvider
         {
             return new GUIContent(content, tooltip);
         }
+
+        /// <inheritdoc />
+        public float CalcSizeWidth(GUIStyle style, string text)
+        {
+            return (style ?? GUIStyle.none).CalcSize(GetContent(text ?? string.Empty)).x;
+        }
     }
 }

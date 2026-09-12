@@ -59,6 +59,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                     UnityGui.GetContent(valueDescription, entry.Description),
                     UnityGui.ButtonStyle,
                     UnityGui.ExpandWidth(true));
+            else if (entry is TupleElementBinding tupleElement && tupleElement.TryGetSuggestedWidth(out var suggestedWidth))
+                // 元组元素按元组编辑器测量的本列宽度绘制，使同一列表内同列的各行元素等宽对齐。
+                buttonClicked = UnityGui.Button(valueDescription, UnityGui.Width(suggestedWidth));
             else
                 buttonClicked = UnityGui.Button(valueDescription, UnityGui.ExpandWidth(true));
 

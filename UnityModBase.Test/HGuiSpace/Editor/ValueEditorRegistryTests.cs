@@ -1,7 +1,10 @@
 using Moq;
+using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
+using UnityModBase.HGuiSpace.Resource;
+using UnityModBase.HProvider;
 
 namespace UnityModBase.Test.HGuiSpace.Editor
 {
@@ -98,6 +101,44 @@ namespace UnityModBase.Test.HGuiSpace.Editor
 
             Assert.Same(secondEditor.Object, other.GetEditor(entry.Object));
             other.Dispose();
+        }
+
+        [Fact]
+        public void CreateDefault_WhenEntryIsOrderedCollection_ResolvesCollectionEditor()
+        {
+            // Arrange：默认注册表应把有序集合条目路由到集合编辑器（位于双元素编辑器之前注册）。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(System.Collections.Generic.List<int>));
+            entryMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+
+            using (var registry = ValueEditorRegistry.CreateDefault(
+                new Mock<IUnityProvider>(MockBehavior.Strict).Object,
+                unityGuiMock.Object,
+                new Mock<IEntryStyleResource>(MockBehavior.Strict).Object))
+            {
+                // Act & Assert
+                Assert.IsType<CollectionEditor>(registry.GetEditor(entryMock.Object));
+            }
+        }
+
+        [Fact]
+        public void CreateDefault_WhenEntryIsSupportedTuple_ResolvesTupleEditor()
+        {
+            // Arrange：默认注册表应把封闭元组条目路由到元组编辑器（位于双元素编辑器之前注册）。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof((int, string)));
+            entryMock.SetupGet(x => x.Metadata).Returns((IUiMetadata)null);
+
+            using (var registry = ValueEditorRegistry.CreateDefault(
+                new Mock<IUnityProvider>(MockBehavior.Strict).Object,
+                unityGuiMock.Object,
+                new Mock<IEntryStyleResource>(MockBehavior.Strict).Object))
+            {
+                // Act & Assert
+                Assert.IsType<TupleEditor>(registry.GetEditor(entryMock.Object));
+            }
         }
 
         public void Dispose()

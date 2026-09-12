@@ -28,6 +28,9 @@ namespace UnityModBase.HGuiSpace
         /// <summary>获取或设置当前展开的枚举条目键。</summary>
         public string ExpandedEnumKey { get; set; } = string.Empty;
 
+        /// <summary>获取或设置当前展开的集合条目键。</summary>
+        public string ExpandedCollectionKey { get; set; } = string.Empty;
+
         /// <summary>获取或设置当前选中的分组键。</summary>
         public string SelectedGroupKey { get; set; } = string.Empty;
 

@@ -192,6 +192,32 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenTupleElementHasSuggestedWidth_UsesFixedWidthButton()
+        {
+            // Arrange：元组元素绑定带建议宽度时，枚举按钮用固定宽度代替弹性宽度；
+            // 元素没有独立名称标签，不走带悬停提示的内容重载和显式样式。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.Width(96f)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.Button("Visible Option", It.IsAny<GUILayoutOption[]>()))
+                .Returns(false);
+            var editor = new EnumEditor(unityGuiMock.Object);
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof((VisibleEnum, int)));
+            parentMock.SetupProperty(x => x.Value, (VisibleEnum.Visible, 1));
+            var element = new TupleElementBinding(parentMock.Object, 0) { SuggestedWidth = 96f };
+
+            // Act
+            editor.DrawValue(element, new EditableGuiContext());
+
+            // Assert：布局约束来自建议宽度而非弹性扩展，按钮文本为当前值描述，不改变展开状态。
+            unityGuiMock.Verify(x => x.Width(96f), Times.Once);
+            unityGuiMock.Verify(x => x.ExpandWidth(It.IsAny<bool>()), Times.Never);
+            unityGuiMock.Verify(x => x.GetContent(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            unityGuiMock.Verify(x => x.Button("Visible Option", It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
         public void DrawExtra_WhenEntryTypeIsNotEnum_DoesNothing()
         {
             // Arrange

@@ -142,6 +142,34 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
                 It.Is<GUILayoutOption[]>(options => options.Length == 1 && ReferenceEquals(options[0], compactWidth))), Times.Once);
         }
 
+        [Fact]
+        public void DrawValue_WhenTupleElementHasSuggestedWidth_UsesFixedWidthToggle()
+        {
+            // Arrange：元组元素绑定带建议宽度时，开关用固定宽度代替弹性宽度，使同列各行元素等宽对齐；
+            // 元素没有独立名称标签，不走带悬停提示的内容重载。
+            const bool currentValue = false;
+            var offLabel = TranslatorResource.Off.ToString();
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.Width(64f)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.Toggle(currentValue, offLabel, It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue);
+            var editor = new BooleanEditor(unityGuiMock.Object);
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof((bool, int)));
+            parentMock.SetupProperty(x => x.Value, (currentValue, 50));
+            var element = new TupleElementBinding(parentMock.Object, 0) { SuggestedWidth = 64f };
+
+            // Act
+            editor.DrawValue(element, new EditableGuiContext());
+
+            // Assert：布局约束来自建议宽度而非弹性扩展，回显值不变不产生提交。
+            unityGuiMock.Verify(x => x.Width(64f), Times.Once);
+            unityGuiMock.Verify(x => x.ExpandWidth(It.IsAny<bool>()), Times.Never);
+            unityGuiMock.Verify(x => x.GetContent(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            unityGuiMock.Verify(x => x.Toggle(currentValue, offLabel, It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
         private static BooleanEditor CreateEditor()
         {
             return new BooleanEditor(new Mock<IUnityGuiProvider>(MockBehavior.Strict).Object);

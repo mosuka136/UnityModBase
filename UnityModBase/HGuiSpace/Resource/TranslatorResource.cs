@@ -21,5 +21,17 @@ namespace UnityModBase.HGuiSpace.Resource
 
         /// <summary>滑动条元数据无效提示。</summary>
         public static readonly Translator InvalidSliderMetadata = new Translator("无效的滑动条元数据", "Invalid slider metadata");
+
+        /// <summary>集合条目为空时的摘要文案；参数为元素数。</summary>
+        public static readonly Translator CollectionCount = new Translator("{0} 项", "{0} items");
+
+        /// <summary>集合条目摘要文案；参数为元素数和元素预览。</summary>
+        public static readonly Translator CollectionSummary = new Translator("{0} 项：{1}", "{0} items: {1}");
+
+        /// <summary>集合元素添加按钮文案。</summary>
+        public static readonly Translator CollectionAdd = new Translator("增加", "Add");
+
+        /// <summary>集合元素移除按钮文案。</summary>
+        public static readonly Translator CollectionRemove = new Translator("移除", "Remove");
     }
 }

@@ -318,6 +318,10 @@ size.Value2 = 768;
 
 The configuration format does not support `null`. Collection and tuple elements must also be recursively encodable. Strings use double quotes and support `\\`, `\"`, `\n`, `\r`, and `\t` escapes.
 
+Collection entries are presented by the collection editor in the configuration GUI: when an ordered collection such as a one-dimensional array, `List<T>`, or `IList<T>` has elements of primitive types, enums, or tuples that are editable as a whole (such as `List<(int, string)>`), a summary button expands into per-element editing (reusing the value control of the element type, with remove and append support; tuple elements are drawn side by side in each row by the tuple editor). Unordered collections (such as `HashSet<T>`) and nested collections can still be read from and written to file, but they are displayed as unsupported types in the GUI.
+
+Tuple entries are presented by the tuple editor in the configuration GUI: when a `ValueTuple` has 1 to 7 elements that are all primitive types or enums with no nesting, the element controls are edited horizontally in the same row (reusing the value control of each element type, consistent with dual-element entries). Element controls are measured per column across all rows in the same list and given fixed widths, so the same column is equally wide and aligned across tuple rows; boolean columns are measured by the toggle display word, enum columns by the longest description among all visible values, and the remaining columns by the text field style. Combinations whose elements are collections or nested tuples can still be read from and written to file, but they are displayed as unsupported types in the GUI.
+
 ### Custom configuration values
 
 ```csharp
@@ -669,7 +673,7 @@ Derived classes that override `Awake` or `OnDestroy` must call the base implemen
 | Context | `EditableGuiContext`, `EntryEditBuffer`, `EntryChangeSink` |
 | User editor | `UserEditorBase`, `EditableUserEditorBase` |
 | Binding | `INodeBinding`, `IEntryBinding`, `IResettableEntryBinding`, `GroupBinding` |
-| Value editor | `IValueEditor`, `ValueEditorRegistry`, `BooleanEditor`, `NumberEditor`, `SliderEditor`, `StringEditor`, `EnumEditor`, `UnsupportedEditor` |
+| Value editor | `IValueEditor`, `ValueEditorRegistry`, `BooleanEditor`, `NumberEditor`, `SliderEditor`, `StringEditor`, `EnumEditor`, `CollectionEditor`, `TupleEditor`, `UnsupportedEditor` |
 | Overlay | `ToastEditor`, `TooltipEditor` |
 | Style | `IStyleResource`, `IEntryStyleResource`, `EntryStyleResource` |
 | Conversion | `TypeConvert`, `ValueProvider`, `EntryModel` |

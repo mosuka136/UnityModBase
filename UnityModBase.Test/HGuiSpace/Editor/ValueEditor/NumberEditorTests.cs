@@ -165,6 +165,30 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenTupleElementHasSuggestedWidth_UsesFixedWidthOption()
+        {
+            // Arrange：元组元素绑定带建议宽度时，文本框用固定宽度代替弹性宽度，使同列各行元素等宽对齐。
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.Width(72f)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.TextField(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns("42");
+            var editor = new NumberEditor(unityGuiMock.Object);
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof((int, string)));
+            parentMock.SetupProperty(x => x.Value, (42, "a"));
+            var element = new TupleElementBinding(parentMock.Object, 0) { SuggestedWidth = 72f };
+
+            // Act
+            editor.DrawValue(element, new EditableGuiContext());
+
+            // Assert：布局约束来自建议宽度而非弹性扩展，回显值不变不产生提交。
+            unityGuiMock.Verify(x => x.Width(72f), Times.Once);
+            unityGuiMock.Verify(x => x.ExpandWidth(It.IsAny<bool>()), Times.Never);
+            unityGuiMock.Verify(x => x.TextField("42", It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
         public void DrawValue_WhenEntryIsDualValueSlot_SetsTooltipOnTextField()
         {
             // Arrange

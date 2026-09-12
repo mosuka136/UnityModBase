@@ -316,6 +316,10 @@ size.Value2 = 768;
 
 配置格式不支持 `null`。集合和元组的元素也必须能递归编码。字符串使用双引号，并支持 `\\`、`\"`、`\n`、`\r`、`\t` 转义。
 
+集合条目在配置 GUI 中由集合编辑器呈现：一维数组、`List<T>` 和 `IList<T>` 等有序集合且元素为基础类型、枚举或可整体编辑的元组（如 `List<(int, string)>`）时，可通过摘要按钮展开逐元素编辑（复用元素类型的值控件，支持移除与追加；元组元素在行内由元组编辑器并排绘制）。无序集合（如 `HashSet<T>`）和嵌套集合仍可从文件读写，但在 GUI 中显示为不支持类型。
+
+元组条目在配置 GUI 中由元组编辑器呈现：封闭的 1 至 7 元 `ValueTuple` 且元素全部为基础类型或枚举时，各元素控件在同一行横向排列编辑（复用元素类型的值控件，与双元素条目的交互一致）。元素控件按同一列表内全部行的内容逐列测量固定宽度，各行元组之间同列等宽对齐；布尔列按开关显示词、枚举列按全部可见值的最长描述测量，其余列按文本框样式测量。元素为集合或嵌套元组的组合仍可从文件读写，但在 GUI 中显示为不支持类型。
+
 ### 自定义配置值
 
 ```csharp
@@ -667,7 +671,7 @@ public string GetDefaultUserKey();
 | 上下文 | `EditableGuiContext`、`EntryEditBuffer`、`EntryChangeSink` |
 | 用户编辑器 | `UserEditorBase`、`EditableUserEditorBase` |
 | 绑定 | `INodeBinding`、`IEntryBinding`、`IResettableEntryBinding`、`GroupBinding` |
-| 值编辑器 | `IValueEditor`、`ValueEditorRegistry`、`BooleanEditor`、`NumberEditor`、`SliderEditor`、`StringEditor`、`EnumEditor`、`UnsupportedEditor` |
+| 值编辑器 | `IValueEditor`、`ValueEditorRegistry`、`BooleanEditor`、`NumberEditor`、`SliderEditor`、`StringEditor`、`EnumEditor`、`CollectionEditor`、`TupleEditor`、`UnsupportedEditor` |
 | 浮层 | `ToastEditor`、`TooltipEditor` |
 | 样式 | `IStyleResource`、`IEntryStyleResource`、`EntryStyleResource` |
 | 转换 | `TypeConvert`、`ValueProvider`、`EntryModel` |

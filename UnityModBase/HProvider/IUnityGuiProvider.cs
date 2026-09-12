@@ -338,5 +338,17 @@ namespace UnityModBase.HProvider
         /// <param name="tooltip">悬停提示。</param>
         /// <returns>新的 GUI 内容对象。</returns>
         GUIContent GetContent(string content, string tooltip);
+
+        /// <summary>
+        /// 按指定样式测量文本的首选宽度，单位为像素。
+        /// </summary>
+        /// <param name="style">用于测量的 IMGUI 样式；为 <c>null</c> 时按空样式计算。</param>
+        /// <param name="text">要测量的文本；为 <c>null</c> 时按空字符串计算。</param>
+        /// <returns>该样式渲染文本时的首选宽度。</returns>
+        /// <remarks>
+        /// 对应 <see cref="GUIStyle.CalcSize(GUIContent)"/> 的宽度分量，使用当前皮肤字体、内边距和控件附属图形
+        /// （如开关复选框）；应在有效的 <c>OnGUI</c> 调用链内使用。
+        /// </remarks>
+        float CalcSizeWidth(GUIStyle style, string text);
     }
 }

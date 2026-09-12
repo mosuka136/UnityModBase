@@ -45,16 +45,27 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 
             bool newValue;
             if (isDualValueSlot)
+            {
                 newValue = UnityGui.Toggle(
                     value,
                     UnityGui.GetContent(value ? TranslatorResource.On : TranslatorResource.Off, entry.Description),
                     UnityGui.ExpandWidth(false));
+            }
+            else if (entry is TupleElementBinding tupleElement && tupleElement.TryGetSuggestedWidth(out var suggestedWidth))
+            {
+                // 元组元素按元组编辑器测量的本列宽度绘制，使同一列表内同列的各行元素等宽对齐。
+                newValue = UnityGui.Toggle(
+                    value,
+                    value ? TranslatorResource.On : TranslatorResource.Off,
+                    UnityGui.Width(suggestedWidth));
+            }
             else
+            {
                 newValue = UnityGui.Toggle(
                     value,
                     value ? TranslatorResource.On : TranslatorResource.Off,
                     UnityGui.ExpandWidth(true));
-
+            }
             if (newValue != value)
                 context.ChangeSink.SetValue(entry, newValue);
         }

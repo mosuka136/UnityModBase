@@ -360,6 +360,26 @@ namespace UnityModBase.Test.HConfigSpace
         // 元组与集合共用 SplitCompositeString 词法，但外层定界符为圆括号；编解码按元素声明类型递归。
         // 该功能已通过 Encode/Decode/EncodeValueType 的派发对全部配置项生效，但没有现成测试，这里补全。
 
+        [Fact]
+        public void EncodeDecode_CollectionOfTuple_RoundTrips()
+        {
+            // Arrange：元组作为集合元素时按元素类型递归编解码，圆括号在方括号内配对。
+            var value = new List<(int, string)> { (1, "a"), (2, "b") };
+
+            // Act
+            var encoded = ConfigFileModel.Encode(typeof(List<(int, string)>), value);
+            var decoded = encoded.Success
+                ? ConfigFileModel.Decode(typeof(List<(int, string)>), encoded.Value)
+                : null;
+
+            // Assert
+            Assert.True(encoded.Success);
+            Assert.Equal("[(1,\"a\"),(2,\"b\")]", encoded.Value);
+            Assert.True(decoded.Success);
+            var result = Assert.IsType<List<(int, string)>>(decoded.Value);
+            Assert.Equal(value, result);
+        }
+
         [Theory]
         [InlineData(typeof((int, string)), true)]
         [InlineData(typeof(ValueTuple<int>), true)]

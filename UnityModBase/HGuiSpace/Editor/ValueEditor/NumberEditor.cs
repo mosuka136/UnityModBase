@@ -49,7 +49,12 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 return;
 
             var valueString = ValueProvider.GetValue(entry).ToString();
-            string newValueString = UnityGui.TextField(valueString, UnityGui.ExpandWidth(true));
+            // 元组元素按元组编辑器测量的本列宽度绘制，使同一列表内同列的各行元素等宽对齐。
+            string newValueString = UnityGui.TextField(
+                valueString,
+                entry is TupleElementBinding tupleElement && tupleElement.TryGetSuggestedWidth(out var suggestedWidth)
+                    ? UnityGui.Width(suggestedWidth)
+                    : UnityGui.ExpandWidth(true));
             SetSlotTooltip(entry);
             if (valueString != newValueString)
                 context.ChangeSink.SetConvertedValue(entry, newValueString, DelayApplyDuration);

@@ -103,7 +103,9 @@
     <Compile Include="HEntrySpace\TableBase.cs" />
     <Compile Include="HEnumHelper\DisplayEnumAttribute.cs" />
     <Compile Include="HEnumHelper\EnumHelper.cs" />
+    <Compile Include="HGuiSpace\Bindings\CollectionElementBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\DualValueSlotBinding.cs" />
+    <Compile Include="HGuiSpace\Bindings\TupleElementBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\GroupBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\IEntryBinding.cs" />
     <Compile Include="HGuiSpace\Bindings\IEntryMultipleBinding.cs" />
@@ -116,11 +118,13 @@
     <Compile Include="HGuiSpace\Editor\GroupEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditorRegistry.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\BooleanEditor.cs" />
+    <Compile Include="HGuiSpace\Editor\ValueEditor\CollectionEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\EnumEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\IValueEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\NumberEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\SliderEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\StringEditor.cs" />
+    <Compile Include="HGuiSpace\Editor\ValueEditor\TupleEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\UnsupportedEditor.cs" />
     <Compile Include="HGuiSpace\EntryChangeSink.cs" />
     <Compile Include="HGuiSpace\EntryEditBuffer.cs" />
