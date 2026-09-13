@@ -275,7 +275,7 @@ namespace UnityModBase.HLogGUI
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");
 
-            CheckDrawCondition(context);
+            UpdateLayoutIfNeeded(context);
 
             DrawColumnVisibilityMenu(context);
             DrawColumnLogLevelMenu(context);
@@ -329,10 +329,12 @@ namespace UnityModBase.HLogGUI
         /// <summary>
         /// 延迟创建列编辑器，按日志内容自动显示重复和异常列，并在上下文标脏时重新测量全部列宽。
         /// 自动显示标志在上下文生命周期内只从 false 变为 true；日志移除后不会自动隐藏已出现过的特殊列。
+        /// 本方法只做测量与状态整理，不进入布局栈；日志宿主会在首个 Layout 事件、调用 <c>GUI.Window</c> 之前
+        /// 先执行本方法，使第一帧布局即携带最终列宽，绘制路径重复调用时按脏标记跳过。
         /// </summary>
         /// <param name="context">提供日志分组和列布局状态的 GUI 上下文。</param>
         /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 null。</exception>
-        public void CheckDrawCondition(GuiContext context)
+        public void UpdateLayoutIfNeeded(GuiContext context)
         {
             if (context == null)
                 throw new ArgumentNullException(nameof(context), "Context cannot be null.");

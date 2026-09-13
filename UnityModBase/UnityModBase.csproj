@@ -161,6 +161,7 @@
     <Compile Include="HotkeyManager\HotkeyChord.cs" />
     <Compile Include="HotkeyManager\HotkeyEditState.cs" />
     <Compile Include="HotkeyManager\HotkeyResult.cs" />
+    <Compile Include="HotkeyManager\HotkeyTriggerGate.cs" />
     <Compile Include="HotkeyManager\IHotkeyChord.cs" />
     <Compile Include="HotkeyManager\IHotkeyTrigger.cs" />
     <Compile Include="HotkeyManager\KeyboardChord.cs" />

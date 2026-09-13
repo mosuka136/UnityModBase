@@ -149,14 +149,20 @@ namespace UnityModBase.HLogGUI
         }
 
         /// <summary>
-        /// 根据当前列总宽度调整窗口宽度到屏幕的 50%～90%，再交由通用宿主绘制。
-        /// 尚未完成第一次列宽测量时保持已有宽度，且只在 Layout 事件写入，避免 Layout/Repaint 使用不同宽度。
+        /// 在 Layout 事件先完成列宽测量再把窗口宽度调整到屏幕的 50%～90%，随后交由通用宿主绘制。
+        /// 测量前置到 <c>GUI.Window</c> 之前，使窗口唤出的首个布局趟就携带最终宽度，
+        /// 同帧 Repaint 直接以最终宽度渲染，避免首帧旧宽度、次帧自适应宽度的两段式跳变；
+        /// 未完成第一次测量时保持已有宽度。宽度只在 Layout 事件写入，Layout/Repaint 不会使用不同宽度。
         /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变；当前模块上下文缺失时跳过自适应计算。
         /// </summary>
         protected override void OnGUI()
         {
             if (IsVisible && UnityService.EventCurrent?.type == EventType.Layout)
+            {
+                if (CurrentContext is GuiContext context)
+                    (UserEditor as UserEditor)?.GroupEditor.UpdateLayoutIfNeeded(context);
                 TryApplyMeasuredColumnWidth();
+            }
 
             base.OnGUI();
         }

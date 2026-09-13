@@ -293,15 +293,53 @@ namespace UnityModBase.Test.HGuiSpace
         }
 
         [Fact]
-        public void ApplyReturnedWindowRect_WhenFirstLayoutAfterShowReturnsJitteredPosition_KeepsRequestedRect()
+        public void ApplyReturnedWindowRect_WhenReturnedRectNotSettled_IgnoresJitterAcrossPasses()
         {
             var sut = CreateHostWithFrameProvider();
             var requested = new Rect(100f, 200f, 300f, 400f);
             sut.SetWindowRect(requested);
             sut.ToggleVisibility();
-            sut.ShouldDrawVisibleWindowForTest(EventType.Layout);
 
-            // 首次 Layout 当趟的返回矩形被跳过一次，之后的抖动不再出现于真实流程。
+            // 热键唤出首帧会经历 Layout 与 KeyDown 等多个事件趟，引擎未校正矩形可能持续多趟；
+            // 收敛之前的位置差异一律视为抖动，不写回、不误判为拖动。
+            sut.ApplyReturnedWindowRectForTest(requested, new Rect(0f, 0f, 300f, 400f));
+            sut.ApplyReturnedWindowRectForTest(requested, new Rect(0f, 0f, 300f, 400f));
+
+            Assert.Equal(requested, sut.WindowRect);
+            Assert.False(sut.HasDraggedWindowSinceOpen);
+        }
+
+        [Fact]
+        public void ApplyReturnedWindowRect_WhenReturnedRectSettles_ResumesAcceptingMoves()
+        {
+            var sut = CreateHostWithFrameProvider();
+            var requested = new Rect(100f, 200f, 300f, 400f);
+            sut.SetWindowRect(requested);
+            sut.ToggleVisibility();
+
+            sut.ApplyReturnedWindowRectForTest(requested, new Rect(0f, 0f, 300f, 400f));
+            sut.ApplyReturnedWindowRectForTest(requested, requested);
+
+            var dragged = new Rect(110f, 210f, 300f, 400f);
+            sut.ApplyReturnedWindowRectForTest(requested, dragged);
+
+            Assert.Equal(dragged, sut.WindowRect);
+            Assert.True(sut.HasDraggedWindowSinceOpen);
+        }
+
+        [Fact]
+        public void ApplyReturnedWindowRect_AfterHideAndShowAgain_AwaitsSettleAgain()
+        {
+            var sut = CreateHostWithFrameProvider();
+            var requested = new Rect(100f, 200f, 300f, 400f);
+            sut.SetWindowRect(requested);
+            sut.ToggleVisibility();
+            sut.ApplyReturnedWindowRectForTest(requested, requested);
+
+            sut.Hide();
+            sut.ToggleVisibility();
+
+            // 隐藏期间引擎窗口布局状态失效，再次唤出后需重新等待返回矩形收敛。
             sut.ApplyReturnedWindowRectForTest(requested, new Rect(0f, 0f, 300f, 400f));
 
             Assert.Equal(requested, sut.WindowRect);

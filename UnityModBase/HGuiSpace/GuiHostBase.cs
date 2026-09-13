@@ -145,8 +145,10 @@ namespace UnityModBase.HGuiSpace
         // 本次打开后是否已经用 Layout 事件调用过 GUI.Window。未完成前跳过 KeyDown/Repaint，
         // 避免热键在 Update 中打开窗口后，同一帧用没有配对 Layout 的事件画出错位内容。
         private bool _hasLaidOutSinceShow;
-        // 跳过下一次 GUI.Window 返回矩形写回：首次 Layout 当趟的返回值可能未经引擎校正。
-        private bool _skipNextReturnedRect;
+        // 是否仍在等待 GUI.Window 返回矩形收敛。窗口隐藏期间引擎内部布局状态失效，
+        // 重新打开首帧的返回矩形可能未经校正，且抖动可能持续多个事件趟；
+        // 收敛（返回位置与请求一致）之前的位置差异一律视为引擎抖动，不写回。
+        private bool _awaitingReturnedRectSettle;
         // 打开窗口的帧序号；该帧内的窗外 MouseDown 不触发自动隐藏。
         private int _shownOnFrame = int.MinValue;
 
@@ -157,12 +159,10 @@ namespace UnityModBase.HGuiSpace
         private ConfigEntry<float> _windowHeightEntry;
         // 最近一次写入或从持久化恢复的矩形；保存时与之相同则跳过全部写入。
         private Rect _lastSavedWindowRect;
-        // 窗口布局脏标记与停顿计时。位置或尺寸变化时置脏并重置计时，持续变化期间不写盘，
-        // 停止移动超过 WindowLayoutSaveDelaySeconds 后由 Update 统一写一次。
-        // 不依赖鼠标事件类型判断交互结束：热控件消费过的释放事件在外层已不是 MouseUp。
         private bool _windowLayoutDirty;
         private float _windowLayoutDirtyDelay;
         private const float WindowLayoutSaveDelaySeconds = 0.5f;
+        private readonly HotkeyTriggerGate _uiHotkeyGate = new HotkeyTriggerGate();
 
         /// <summary>
         /// 按屏幕比例设置居中的窗口矩形。
@@ -278,10 +278,11 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 在 Unity 更新阶段轮询界面热键、切换窗口显隐状态，并在窗口布局停止变化后写回持久化条目。
+        /// 热键边沿经触发去抖门过滤：引擎把一次物理按下重复报告为连续多帧边沿时不会连开连关窗口。
         /// </summary>
         protected virtual void Update()
         {
-            if (UIHotkey?.WasPressedThisFrame() == true)
+            if (_uiHotkeyGate.ShouldTrigger(UIHotkey, () => UnityService.RealtimeSinceStartup))
             {
                 BLog.Debug($"GUI visibility hotkey triggered. WindowId={WindowID}, Host='{GetType().Name}', WasVisible={IsVisible}.");
                 ToggleVisibility();
@@ -333,15 +334,14 @@ namespace UnityModBase.HGuiSpace
                 return false;
 
             _hasLaidOutSinceShow = true;
-            // 首次 Layout 当趟 GUI.Window 的返回矩形可能尚未经引擎校正，写回时跳过一次。
-            _skipNextReturnedRect = true;
             return true;
         }
 
         /// <summary>
         /// 把 <c>GUI.Window</c> 的返回矩形写回 <see cref="WindowRect"/>。
-        /// 拉伸结果优先；刚打开后的第一次返回矩形被跳过一次以规避引擎首帧抖动，
-        /// 其余位置变化一律接受——拖动产生的位移不能按事件类型过滤，
+        /// 拉伸结果优先；窗口刚打开、返回矩形尚未收敛（返回位置与请求一致）时，
+        /// 位置差异一律视为引擎首帧抖动而不写回——抖动可能持续同一帧的多个事件趟，不能只跳过一次。
+        /// 收敛后的位置变化一律接受——拖动产生的位移不能按事件类型过滤，
         /// 真实引擎中 DragWindow 消费过的事件在外层已不是 <see cref="EventType.MouseDrag"/>。
         /// </summary>
         /// <param name="requested">传给 <c>GUI.Window</c> 的请求矩形。</param>
@@ -358,13 +358,13 @@ namespace UnityModBase.HGuiSpace
             }
 
             if (returned.position == requested.position)
-                return;
-
-            if (_skipNextReturnedRect)
             {
-                _skipNextReturnedRect = false;
+                _awaitingReturnedRectSettle = false;
                 return;
             }
+
+            if (_awaitingReturnedRectSettle)
+                return;
 
             HasDraggedWindowSinceOpen = true;
             WindowRect = returned;
@@ -425,7 +425,7 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 处理窗口边缘拉伸：按下时命中允许的边缘或角即以热控件捕获鼠标，拖动期间按锚点计算新矩形，
         /// 结果暂存到 <see cref="_pendingWindowResizeRect"/> 由 <see cref="OnGUI"/> 统一写回。
-        /// 该方法依赖当前 IMGUI 事件，只应在 <see cref="DrawWindow"/> 调用链中先于 <see cref="GUI.DragWindow"/> 执行；
+        /// 该方法依赖当前 IMGUI 事件，只应在 <see cref="DrawWindow"/> 调用链中先于 <see cref="GUI.DragWindow()"/> 执行；
         /// 热控件捕获保证拖动期间即使鼠标移出窗口，后续拖动与释放事件仍送达本窗口。
         /// </summary>
         private void HandleWindowResize()
@@ -574,6 +574,7 @@ namespace UnityModBase.HGuiSpace
             IsVisible = false;
             HasDraggedWindowSinceOpen = false;
             _hasLaidOutSinceShow = false;
+            _awaitingReturnedRectSettle = false;
             SaveWindowLayout();
 
             BLog.Debug($"GUI hidden. WindowId={WindowID}, Host='{GetType().Name}', User='{SelectedUserKey}'.");
@@ -590,6 +591,7 @@ namespace UnityModBase.HGuiSpace
             {
                 IsVisible = true;
                 _hasLaidOutSinceShow = false;
+                _awaitingReturnedRectSettle = true;
                 _shownOnFrame = UnityService.FrameCount;
                 BLog.Debug($"GUI shown. WindowId={WindowID}, Host='{GetType().Name}', User='{SelectedUserKey}'.");
             }

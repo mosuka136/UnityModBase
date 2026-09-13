@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using UnityModBase.HClassAttribute;
 using UnityModBase.HConfigSpace;
@@ -21,6 +22,10 @@ namespace UnityModBase.BSpace
         // 热键状态读取发生在加锁前，因此该锁不使整个管理器具备线程安全性。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
+        // 时钟用 Stopwatch 而非 Unity 时间：帧回调可能在无播放器上下文的环境中被单元测试直接调用。
+        private static readonly HotkeyTriggerGate _reloadHotkeyGate = new HotkeyTriggerGate();
+        private static readonly Func<float> _reloadHotkeyClock =
+            () => (float)(Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
 
         /// <summary>
         /// 当前配置文件管理器。
@@ -38,13 +43,13 @@ namespace UnityModBase.BSpace
         // 位置负数表示未持久化（该方向屏幕居中）；写回前位置会归一化到屏幕内，持久值不会与哨兵冲突。
 
         /// <summary>
-        /// 配置界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// 配置界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ConfigGuiWidth { get; private set; }
 
         /// <summary>
-        /// 配置界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// 配置界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ConfigGuiHeight { get; private set; }
@@ -62,14 +67,14 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<float> ConfigGuiY { get; private set; }
 
         /// <summary>
-        /// 日志界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认尺寸。
+        /// 日志界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认尺寸。
         /// 日志窗口显示期间宽度按列宽自适应，写回的是隐藏前的最终宽度。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> LogGuiWidth { get; private set; }
 
         /// <summary>
-        /// 日志界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认尺寸。
+        /// 日志界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> LogGuiHeight { get; private set; }
@@ -87,13 +92,13 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<float> LogGuiY { get; private set; }
 
         /// <summary>
-        /// 实时控制界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// 实时控制界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ControlGuiWidth { get; private set; }
 
         /// <summary>
-        /// 实时控制界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// 实时控制界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ControlGuiHeight { get; private set; }
@@ -179,7 +184,7 @@ namespace UnityModBase.BSpace
                     ConfigGuiWidth = Config.Bind(
                         SectionGeneral,
                         nameof(ConfigGuiWidth),
-                        0f,
+                        -1f,
                         new Translator(chinese: "配置界面宽度", english: "Config UI Width"),
                         new Translator(
                             chinese: "配置界面的宽度。",
@@ -188,7 +193,7 @@ namespace UnityModBase.BSpace
                     ConfigGuiHeight = Config.Bind(
                         SectionGeneral,
                         nameof(ConfigGuiHeight),
-                        0f,
+                        -1f,
                         new Translator(chinese: "配置界面高度", english: "Config UI Height"),
                         new Translator(
                             chinese: "配置界面的高度。",
@@ -215,7 +220,7 @@ namespace UnityModBase.BSpace
                     LogGuiWidth = Config.Bind(
                         SectionGeneral,
                         nameof(LogGuiWidth),
-                        0f,
+                        -1f,
                         new Translator(chinese: "日志界面宽度", english: "Log UI Width"),
                         new Translator(
                             chinese: "日志界面的宽度。日志界面实际显示宽度按列宽自适应，本项仅在界面关闭前记录。",
@@ -224,7 +229,7 @@ namespace UnityModBase.BSpace
                     LogGuiHeight = Config.Bind(
                         SectionGeneral,
                         nameof(LogGuiHeight),
-                        0f,
+                        -1f,
                         new Translator(chinese: "日志界面高度", english: "Log UI Height"),
                         new Translator(
                             chinese: "日志界面的高度。",
@@ -251,7 +256,7 @@ namespace UnityModBase.BSpace
                     ControlGuiWidth = Config.Bind(
                         SectionGeneral,
                         nameof(ControlGuiWidth),
-                        0f,
+                        -1f,
                         new Translator(chinese: "实时控制界面宽度", english: "Live Controls UI Width"),
                         new Translator(
                             chinese: "实时控制界面的宽度。",
@@ -260,7 +265,7 @@ namespace UnityModBase.BSpace
                     ControlGuiHeight = Config.Bind(
                         SectionGeneral,
                         nameof(ControlGuiHeight),
-                        0f,
+                        -1f,
                         new Translator(chinese: "实时控制界面高度", english: "Live Controls UI Height"),
                         new Translator(
                             chinese: "实时控制界面的高度。",
@@ -501,11 +506,11 @@ namespace UnityModBase.BSpace
         }
 
         /// <summary>
-        /// 在逐帧回调中检测重载热键；重载期间发生的异常只记录日志，不传播到帧更新派发器。
+        /// 在逐帧回调中检测重载热键，边沿经触发去抖门过滤；重载期间发生的异常只记录日志，不传播到帧更新派发器。
         /// </summary>
         private static void ReloadConfigOnUserOrder()
         {
-            if (ReloadConfigHotkey?.Value?.WasPressedThisFrame() == true)
+            if (_reloadHotkeyGate.ShouldTrigger(ReloadConfigHotkey?.Value, _reloadHotkeyClock))
             {
                 try
                 {

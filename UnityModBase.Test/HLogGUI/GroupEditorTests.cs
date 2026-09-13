@@ -144,9 +144,23 @@ namespace UnityModBase.Test.HLogGUI
             var editor = CreateGroupEditor(out _, out _);
 
             Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => editor.Draw(null)).ParamName);
-            Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => editor.CheckDrawCondition(null)).ParamName);
+            Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => editor.UpdateLayoutIfNeeded(null)).ParamName);
             Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => editor.DrawColumnVisibilityMenu(null)).ParamName);
             Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => editor.DrawColumnLogLevelMenu(null)).ParamName);
+        }
+
+        [Fact]
+        public void UpdateLayoutIfNeeded_WhenColumnWidthNotDirty_SkipsMeasurementWithoutGuiCalls()
+        {
+            var editor = CreateGroupEditor(out var unityGui, out var unityService);
+            SetColumnEditors(editor, new Dictionary<EntryContentType, GroupEditor.ColumnEditor>());
+            var context = new GuiContext { UserData = new GroupBinding(), IsColumnWidthDirty = false };
+
+            editor.UpdateLayoutIfNeeded(context);
+
+            // 列宽未标脏时前置调用是纯状态操作，不产生任何 GUI 交互，可安全放在 GUI.Window 之前每帧执行。
+            unityGui.VerifyNoOtherCalls();
+            unityService.VerifyNoOtherCalls();
         }
 
         [Fact]
