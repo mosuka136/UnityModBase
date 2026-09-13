@@ -66,7 +66,13 @@ namespace UnityModBase.HConfigGUI
                 _uiHotkeyEntry.OnValueChanged += OnConfigUIHotkeyChanged;
 
                 Title = TranslatorResource.Title;
-                SetCenteredWindowRect(0.35f, 0.7f);
+                InitializeWindowRect(
+                    BConfigManager.ConfigGuiX,
+                    BConfigManager.ConfigGuiY,
+                    BConfigManager.ConfigGuiWidth,
+                    BConfigManager.ConfigGuiHeight,
+                    0.35f,
+                    0.7f);
 
                 BLog.Debug($"Config GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={WindowRect.width}x{WindowRect.height}.");
             }
@@ -113,10 +119,14 @@ namespace UnityModBase.HConfigGUI
 
         /// <summary>
         /// 可见时优先绘制当前上下文的模态弹窗；弹窗打开期间暂停普通配置窗口绘制。
+        /// 与基类一样等到 Layout 事件才开始绘制，避免热键打开当帧缺少配对布局。
         /// </summary>
         protected override void OnGUI()
         {
             if (!IsVisible)
+                return;
+
+            if (!ShouldDrawVisibleWindow(UnityService.EventCurrent?.type))
                 return;
 
             var context = CurrentContext as GuiContext;

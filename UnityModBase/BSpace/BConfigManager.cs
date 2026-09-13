@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using UnityModBase.HClassAttribute;
 using UnityModBase.HConfigSpace;
 using UnityModBase.HLogSpace;
 using UnityModBase.HotkeyManager;
@@ -28,14 +29,86 @@ namespace UnityModBase.BSpace
         internal static ConfigService Config { get; set; }
 
         /// <summary>
-        /// 是否向独立日志文件写入内容，默认启用；修改后会同步到当前 <see cref="LogWriter"/>。
+        /// GUI 与配置注释使用的语言，默认值为 <see cref="LanguageType.English"/>；修改后更新全局翻译语言。
         /// </summary>
-        internal static ConfigEntry<bool> EnableLog { get; private set; }
+        internal static ConfigEntry<LanguageType> SetLanguage { get; private set; }
+
+        // 三个 GUI 窗口的布局持久化条目，由通用窗口宿主（GuiHostBase）在布局变化停顿、隐藏或销毁时自动写回。
+        // 哨兵约定与恢复语义见 WindowResizeHelper.TryBuildPersistedRect：宽/高 0 表示未持久化（沿用默认尺寸），
+        // 位置负数表示未持久化（该方向屏幕居中）；写回前位置会归一化到屏幕内，持久值不会与哨兵冲突。
 
         /// <summary>
-        /// 独立日志文件的最低记录等级，默认为 <see cref="HLogSpace.LogLevel.Info"/>。
+        /// 配置界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
-        internal static ConfigEntry<LogLevel> LogLevel { get; private set; }
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ConfigGuiWidth { get; private set; }
+
+        /// <summary>
+        /// 配置界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ConfigGuiHeight { get; private set; }
+
+        /// <summary>
+        /// 配置界面左上角的屏幕横坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ConfigGuiX { get; private set; }
+
+        /// <summary>
+        /// 配置界面左上角的屏幕纵坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ConfigGuiY { get; private set; }
+
+        /// <summary>
+        /// 日志界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认尺寸。
+        /// 日志窗口显示期间宽度按列宽自适应，写回的是隐藏前的最终宽度。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> LogGuiWidth { get; private set; }
+
+        /// <summary>
+        /// 日志界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认尺寸。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> LogGuiHeight { get; private set; }
+
+        /// <summary>
+        /// 日志界面左上角的屏幕横坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> LogGuiX { get; private set; }
+
+        /// <summary>
+        /// 日志界面左上角的屏幕纵坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> LogGuiY { get; private set; }
+
+        /// <summary>
+        /// 实时控制界面的宽度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ControlGuiWidth { get; private set; }
+
+        /// <summary>
+        /// 实时控制界面的高度，单位为像素；0 表示未持久化，首次显示时使用默认比例尺寸。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ControlGuiHeight { get; private set; }
+
+        /// <summary>
+        /// 实时控制界面左上角的屏幕横坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ControlGuiX { get; private set; }
+
+        /// <summary>
+        /// 实时控制界面左上角的屏幕纵坐标，单位为像素；负数表示未持久化，恢复时该方向屏幕居中。
+        /// </summary>
+        [EntrySlider(50f, 4000f, 1f)]
+        internal static ConfigEntry<float> ControlGuiY { get; private set; }
 
         /// <summary>
         /// 打开配置界面的热键，默认值为 <c>F1</c>。
@@ -58,9 +131,14 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<Hotkey> ReloadConfigHotkey { get; set; }
 
         /// <summary>
-        /// GUI 与配置注释使用的语言，默认值为 <see cref="LanguageType.English"/>；修改后更新全局翻译语言。
+        /// 是否向独立日志文件写入内容，默认启用；修改后会同步到当前 <see cref="LogWriter"/>。
         /// </summary>
-        internal static ConfigEntry<LanguageType> SetLanguage { get; private set; }
+        internal static ConfigEntry<bool> EnableLog { get; private set; }
+
+        /// <summary>
+        /// 独立日志文件的最低记录等级，默认为 <see cref="HLogSpace.LogLevel.Info"/>。
+        /// </summary>
+        internal static ConfigEntry<LogLevel> LogLevel { get; private set; }
 
         private const string SectionGeneral = "General";
         private const string SectionHotkey = "Hotkey";
@@ -97,6 +175,114 @@ namespace UnityModBase.BSpace
                         LanguageType.English,
                         new Translator(chinese: "设置语言", english: "Set Language"),
                         new Translator()
+                        );
+                    ConfigGuiWidth = Config.Bind(
+                        SectionGeneral,
+                        nameof(ConfigGuiWidth),
+                        0f,
+                        new Translator(chinese: "配置界面宽度", english: "Config UI Width"),
+                        new Translator(
+                            chinese: "配置界面的宽度。",
+                            english: "The width of config UI.")
+                        );
+                    ConfigGuiHeight = Config.Bind(
+                        SectionGeneral,
+                        nameof(ConfigGuiHeight),
+                        0f,
+                        new Translator(chinese: "配置界面高度", english: "Config UI Height"),
+                        new Translator(
+                            chinese: "配置界面的高度。",
+                            english: "The height of config UI.")
+                        );
+                    ConfigGuiX = Config.Bind(
+                        SectionGeneral,
+                        nameof(ConfigGuiX),
+                        -1f,
+                        new Translator(chinese: "配置界面位置 X", english: "Config UI Position X"),
+                        new Translator(
+                            chinese: "配置界面左上角的屏幕横坐标。",
+                            english: "The screen X coordinate of the config UI top-left corner.")
+                        );
+                    ConfigGuiY = Config.Bind(
+                        SectionGeneral,
+                        nameof(ConfigGuiY),
+                        -1f,
+                        new Translator(chinese: "配置界面位置 Y", english: "Config UI Position Y"),
+                        new Translator(
+                            chinese: "配置界面左上角的屏幕纵坐标。",
+                            english: "The screen Y coordinate of the config UI top-left corner.")
+                        );
+                    LogGuiWidth = Config.Bind(
+                        SectionGeneral,
+                        nameof(LogGuiWidth),
+                        0f,
+                        new Translator(chinese: "日志界面宽度", english: "Log UI Width"),
+                        new Translator(
+                            chinese: "日志界面的宽度。日志界面实际显示宽度按列宽自适应，本项仅在界面关闭前记录。",
+                            english: "The width of log UI. The actual log UI width adapts to column widths; this entry only records the value before the UI closes.")
+                        );
+                    LogGuiHeight = Config.Bind(
+                        SectionGeneral,
+                        nameof(LogGuiHeight),
+                        0f,
+                        new Translator(chinese: "日志界面高度", english: "Log UI Height"),
+                        new Translator(
+                            chinese: "日志界面的高度。",
+                            english: "The height of log UI.")
+                        );
+                    LogGuiX = Config.Bind(
+                        SectionGeneral,
+                        nameof(LogGuiX),
+                        -1f,
+                        new Translator(chinese: "日志界面位置 X", english: "Log UI Position X"),
+                        new Translator(
+                            chinese: "日志界面左上角的屏幕横坐标。",
+                            english: "The screen X coordinate of the log UI top-left corner.")
+                        );
+                    LogGuiY = Config.Bind(
+                        SectionGeneral,
+                        nameof(LogGuiY),
+                        -1f,
+                        new Translator(chinese: "日志界面位置 Y", english: "Log UI Position Y"),
+                        new Translator(
+                            chinese: "日志界面左上角的屏幕纵坐标。",
+                            english: "The screen Y coordinate of the log UI top-left corner.")
+                        );
+                    ControlGuiWidth = Config.Bind(
+                        SectionGeneral,
+                        nameof(ControlGuiWidth),
+                        0f,
+                        new Translator(chinese: "实时控制界面宽度", english: "Live Controls UI Width"),
+                        new Translator(
+                            chinese: "实时控制界面的宽度。",
+                            english: "The width of live controls UI.")
+                        );
+                    ControlGuiHeight = Config.Bind(
+                        SectionGeneral,
+                        nameof(ControlGuiHeight),
+                        0f,
+                        new Translator(chinese: "实时控制界面高度", english: "Live Controls UI Height"),
+                        new Translator(
+                            chinese: "实时控制界面的高度。",
+                            english: "The height of live controls UI.")
+                        );
+                    ControlGuiX = Config.Bind(
+                        SectionGeneral,
+                        nameof(ControlGuiX),
+                        -1f,
+                        new Translator(chinese: "实时控制界面位置 X", english: "Live Controls UI Position X"),
+                        new Translator(
+                            chinese: "实时控制界面左上角的屏幕横坐标。",
+                            english: "The screen X coordinate of the live controls UI top-left corner.")
+                        );
+                    ControlGuiY = Config.Bind(
+                        SectionGeneral,
+                        nameof(ControlGuiY),
+                        -1f,
+                        new Translator(chinese: "实时控制界面位置 Y", english: "Live Controls UI Position Y"),
+                        new Translator(
+                            chinese: "实时控制界面左上角的屏幕纵坐标。",
+                            english: "The screen Y coordinate of the live controls UI top-left corner.")
                         );
 
                     Config.CreateTable(
@@ -156,9 +342,7 @@ namespace UnityModBase.BSpace
                                      "- GamepadStart+GamepadA\n" +
                                      "- Ctrl+Shift+F, GamepadStart+GamepadA")
                         );
-
                     var unityService = UnityProvider.Instance;
-
                     ConfigUIHotkey = Config.Bind(
                         SectionHotkey,
                         nameof(ConfigUIHotkey),
@@ -265,13 +449,25 @@ namespace UnityModBase.BSpace
                 FrameUpdateManager.OnFrameUpdate -= ReloadConfigOnUserOrder;
 
                 Config = null;
-                EnableLog = null;
-                LogLevel = null;
+                SetLanguage = null;
+                ConfigGuiWidth = null;
+                ConfigGuiHeight = null;
+                ConfigGuiX = null;
+                ConfigGuiY = null;
+                LogGuiWidth = null;
+                LogGuiHeight = null;
+                LogGuiX = null;
+                LogGuiY = null;
+                ControlGuiWidth = null;
+                ControlGuiHeight = null;
+                ControlGuiX = null;
+                ControlGuiY = null;
                 ConfigUIHotkey = null;
                 LogUIHotkey = null;
                 ControlUIHotkey = null;
                 ReloadConfigHotkey = null;
-                SetLanguage = null;
+                EnableLog = null;
+                LogLevel = null;
 
                 _initialized = false;
             }

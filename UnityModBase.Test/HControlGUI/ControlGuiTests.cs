@@ -121,6 +121,8 @@ namespace UnityModBase.Test.HControlGUI
         {
             var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
             unityService.SetupGet(x => x.UnscaledDeltaTime).Returns(0.25f);
+            // ToggleVisibility 显示分支会读取 FrameCount 记录打开帧，Strict 替身需要预置该值。
+            unityService.SetupGet(x => x.FrameCount).Returns(1);
             var host = new GuiHost();
             using var first = new UserContext("first", Name);
             using var second = new UserContext("second", Name);
@@ -145,6 +147,7 @@ namespace UnityModBase.Test.HControlGUI
 
             Assert.Equal(20, secondEntry.Value);
             unityService.VerifyGet(x => x.UnscaledDeltaTime, Times.Exactly(2));
+            unityService.VerifyGet(x => x.FrameCount, Times.Once);
             unityService.VerifyNoOtherCalls();
         }
 

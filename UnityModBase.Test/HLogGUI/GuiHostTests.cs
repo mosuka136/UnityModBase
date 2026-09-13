@@ -1,6 +1,9 @@
 using System.Reflection;
+using Moq;
+using UnityEngine;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HLogGUI;
+using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
 using UnityModBase.HUserSpace;
 
@@ -27,6 +30,7 @@ namespace UnityModBase.Test.HLogGUI
         {
             // Arrange
             var sut = new GuiHost();
+            SetUnityService(sut);
             sut.ToggleVisibility();
             SetHasDraggedWindowSinceOpen(sut, true);
 
@@ -43,6 +47,7 @@ namespace UnityModBase.Test.HLogGUI
         {
             // Arrange
             var sut = new GuiHost();
+            SetUnityService(sut);
 
             // Act
             sut.ToggleVisibility();
@@ -56,6 +61,7 @@ namespace UnityModBase.Test.HLogGUI
         {
             // Arrange
             var sut = new GuiHost();
+            SetUnityService(sut);
             sut.ToggleVisibility();
             SetHasDraggedWindowSinceOpen(sut, true);
 
@@ -68,19 +74,66 @@ namespace UnityModBase.Test.HLogGUI
         }
 
         [Fact]
-        public void OnGUI_WhenCurrentContextIsMissing_LeavesWindowBoundsUnchanged()
+        public void TryApplyMeasuredColumnWidth_WhenCurrentContextIsMissing_LeavesWindowBoundsUnchanged()
         {
-            // Arrange
+            // OnGUI 本体现在引用 Event.type（引擎内部调用），在无 Unity 运行时的测试进程中无法被调用；
+            // “上下文缺失时跳过列宽自适应”的行为改为在 TryApplyMeasuredColumnWidth 层验证。
             var sut = new GuiHost();
-            var originalBounds = sut.WindowRect;
+            var originalBounds = new Rect(10f, 20f, 300f, 400f);
+            SetProperty(sut, nameof(GuiHost.WindowRect), originalBounds);
 
-            // Act
-            InvokeNonPublic(sut, "OnGUI");
+            InvokeNonPublic(sut, "TryApplyMeasuredColumnWidth");
 
-            // Assert
             Assert.Null(sut.CurrentContext);
             Assert.Equal(originalBounds, sut.WindowRect);
             Assert.False(sut.IsVisible);
+        }
+
+        [Fact]
+        public void TryApplyMeasuredColumnWidth_WhenColumnWidthUnmeasured_LeavesWindowWidthUnchanged()
+        {
+            var sut = new GuiHost();
+            var originalBounds = new Rect(10f, 20f, 300f, 400f);
+            SetProperty(sut, nameof(GuiHost.WindowRect), originalBounds);
+            SetProperty(sut, nameof(GuiHost.CurrentContext), new GuiContext());
+
+            InvokeNonPublic(sut, "TryApplyMeasuredColumnWidth");
+
+            Assert.Equal(originalBounds, sut.WindowRect);
+        }
+
+        [Theory]
+        [InlineData(1500f, 1500f)]
+        [InlineData(2400f, 1728f)]
+        [InlineData(240f, 960f)]
+        public void TryApplyMeasuredColumnWidth_WhenColumnWidthMeasured_ClampsWidthIntoScreenRange(
+            float measuredWidth,
+            float expectedWidth)
+        {
+            var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
+            unityService
+                .Setup(x => x.Clamp(It.IsAny<float>(), It.IsAny<float>(), It.IsAny<float>()))
+                .Returns((float value, float min, float max) => Math.Max(min, Math.Min(max, value)));
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.SetupGet(x => x.ScreenWidth).Returns(1920f);
+            unityGui.SetupGet(x => x.ScreenHeight).Returns(1080f);
+            var sut = new GuiHost();
+            SetProperty(sut, nameof(GuiHost.UnityService), unityService.Object);
+            SetProperty(sut, nameof(GuiHost.UnityGui), unityGui.Object);
+            SetProperty(sut, nameof(GuiHost.WindowRect), new Rect(10f, 20f, 300f, 400f));
+            SetProperty(sut, nameof(GuiHost.CurrentContext), new GuiContext { TotalColumnWidth = measuredWidth });
+
+            InvokeNonPublic(sut, "TryApplyMeasuredColumnWidth");
+
+            // 只改宽度：位置与高度保持不变。
+            Assert.Equal(expectedWidth, sut.WindowRect.width);
+            Assert.Equal(10f, sut.WindowRect.x);
+            Assert.Equal(20f, sut.WindowRect.y);
+            Assert.Equal(400f, sut.WindowRect.height);
+            unityService.Verify(x => x.Clamp(measuredWidth, 960f, 1728f), Times.Once);
+            unityService.VerifyNoOtherCalls();
+            unityGui.VerifyGet(x => x.ScreenWidth, Times.Exactly(2));
+            unityGui.VerifyNoOtherCalls();
         }
 
         [Fact]
@@ -163,6 +216,15 @@ namespace UnityModBase.Test.HLogGUI
             var property = typeof(GuiHost).GetProperty(nameof(GuiHost.HasDraggedWindowSinceOpen));
             Assert.NotNull(property);
             property.SetValue(sut, value);
+        }
+
+        // ToggleVisibility 显示分支会读取 UnityService.FrameCount 记录打开帧，
+        // 调用显隐切换的测试必须先注入带帧号的运行时服务替身。
+        private static void SetUnityService(GuiHost host, int frameCount = 1)
+        {
+            var unityService = new Mock<IUnityProvider>(MockBehavior.Strict);
+            unityService.SetupGet(x => x.FrameCount).Returns(frameCount);
+            SetProperty(host, nameof(GuiHost.UnityService), unityService.Object);
         }
 
         private static void ConfigureSelection(GuiHost host, string userId, IUserContext context)

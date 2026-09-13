@@ -52,7 +52,13 @@ namespace UnityModBase.HControlGUI
                 _uiHotkeyEntry.OnValueChanged += OnControlUIHotkeyChanged;
 
                 Title = ControlTranslatorResource.Title;
-                SetCenteredWindowRect(0.35f, 0.7f);
+                InitializeWindowRect(
+                    BConfigManager.ControlGuiX,
+                    BConfigManager.ControlGuiY,
+                    BConfigManager.ControlGuiWidth,
+                    BConfigManager.ControlGuiHeight,
+                    0.35f,
+                    0.7f);
 
                 BLog.Debug($"Control GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={WindowRect.width}x{WindowRect.height}.");
             }
@@ -93,8 +99,7 @@ namespace UnityModBase.HControlGUI
             var deltaTime = UnityService.UnscaledDeltaTime;
             foreach (var user in (Users ?? Array.Empty<UserContext>()).ToArray())
             {
-                var context = user?.GetChildContext(GuiContextKey) as GuiContext;
-                if (context != null)
+                if (user?.GetChildContext(GuiContextKey) is GuiContext context)
                     (UserEditor as UserEditor)?.Update(context, deltaTime);
 
                 user?.Service?.Control?.Update(deltaTime, IsVisible, becameVisible);

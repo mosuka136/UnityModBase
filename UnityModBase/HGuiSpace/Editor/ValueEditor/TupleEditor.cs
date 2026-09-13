@@ -127,7 +127,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         }
 
         // 逐列测量固定宽度：布尔列按开关显示词、枚举列按全部可见值的最长描述，都以对应控件样式测量且与行的当前值无关；
-        // 其余列按文本框样式测量测量组内各行文本取最长。
+        // 其余列按文本框样式测量组内各行文本取最长。
         private float[] MeasureElementWidth(IEntryBinding entry, TupleEditorState state)
         {
             var columnCount = state.Elements.Length;

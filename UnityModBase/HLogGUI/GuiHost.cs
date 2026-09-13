@@ -20,7 +20,16 @@ namespace UnityModBase.HLogGUI
     [RegisterOnGameBoot]
     public sealed class GuiHost : GuiHostBase
     {
+        // 保留配置项引用仅为在 OnDestroy 中退订热键变更；实时热键值存于基类 UIHotkey。
         private ConfigEntry<Hotkey> _uiHotkeyEntry;
+
+        /// <summary>
+        /// 日志窗口宽度每帧按列总宽度自适应，横向拉伸会被覆盖，因此只开放纵向拉伸。
+        /// </summary>
+        protected override WindowResizeEdge AllowedResizeEdges
+        {
+            get { return WindowResizeEdge.Top | WindowResizeEdge.Bottom; }
+        }
 
         /// <summary>
         /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，并订阅后续用户注册、语言和热键变更；
@@ -52,9 +61,14 @@ namespace UnityModBase.HLogGUI
                 _uiHotkeyEntry.OnValueChanged += OnLogUIHotkeyChanged;
 
                 Title = TranslatorResource.Title;
-                float width = UnityGui.ScreenWidth * 0.8f;
-                float height = UnityGui.ScreenHeight * 0.5f;
+                var width = UnityGui.ScreenWidth * 0.8f;
+                var height = UnityGui.ScreenHeight * 0.5f;
                 WindowRect = new Rect((UnityGui.ScreenWidth - width) / 2f, (UnityGui.ScreenHeight - height) / 2f, width, height);
+                InitializeWindowRect(
+                    BConfigManager.LogGuiX,
+                    BConfigManager.LogGuiY,
+                    BConfigManager.LogGuiWidth,
+                    BConfigManager.LogGuiHeight);
 
                 BLog.Debug($"Log GUI host initialized. WindowId={WindowID}, ContextKey='{GuiContextKey}', Size={width}x{height}.");
             }
@@ -136,18 +150,29 @@ namespace UnityModBase.HLogGUI
 
         /// <summary>
         /// 根据当前列总宽度调整窗口宽度到屏幕的 50%～90%，再交由通用宿主绘制。
-        /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变；当前模块上下文缺失时跳过自适应计算，沿用既有宽度进入通用绘制。
+        /// 尚未完成第一次列宽测量时保持已有宽度，且只在 Layout 事件写入，避免 Layout/Repaint 使用不同宽度。
+        /// 列宽只影响横向窗口尺寸，窗口位置和高度保持不变；当前模块上下文缺失时跳过自适应计算。
         /// </summary>
         protected override void OnGUI()
         {
-            if (CurrentContext is GuiContext context)
-            {
-                var rect = WindowRect;
-                rect.width = UnityService.Clamp(context.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
-                WindowRect = rect;
-            }
+            if (IsVisible && UnityService.EventCurrent?.type == EventType.Layout)
+                TryApplyMeasuredColumnWidth();
 
             base.OnGUI();
+        }
+
+        /// <summary>
+        /// 在已完成列宽测量时把窗口宽度限制到屏幕的 50%～90%。
+        /// 尚未测量或缺少运行时依赖时保持现有宽度。
+        /// </summary>
+        private void TryApplyMeasuredColumnWidth()
+        {
+            if (!(CurrentContext is GuiContext context) || context.TotalColumnWidth <= 0f)
+                return;
+
+            var rect = WindowRect;
+            rect.width = UnityService.Clamp(context.TotalColumnWidth, UnityGui.ScreenWidth * 0.5f, UnityGui.ScreenWidth * 0.9f);
+            WindowRect = rect;
         }
 
         private void OnDefaultLanguageChanged(object sender, LanguageType language)

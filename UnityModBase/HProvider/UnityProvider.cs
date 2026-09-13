@@ -24,6 +24,9 @@ namespace UnityModBase.HProvider
         public int FrameCount => Time.frameCount;
 
         /// <inheritdoc />
+        public Event EventCurrent => Event.current;
+
+        /// <inheritdoc />
         public Keyboard KeyboardCurrent => Keyboard.current;
 
         /// <inheritdoc />

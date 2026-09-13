@@ -23,6 +23,8 @@ namespace UnityModBase.Test.BSpace
             Assert.Null(scope.GetStaticProperty("Config"));
             Assert.Null(BConfigManager.EnableLog);
             Assert.Null(BConfigManager.LogLevel);
+            // 失败发生在首个绑定之前，窗口布局条目同样不得残留引用。
+            Assert.Null(BConfigManager.ConfigGuiX);
         }
 
         [Fact]
@@ -47,7 +49,8 @@ namespace UnityModBase.Test.BSpace
             Assert.True(scope.IsInitialized());
             Assert.True(config.SaveOnConfigSet);
             Assert.Equal(new[] { "General", "Hotkey", "Log" }, config.Sheet.Keys);
-            Assert.Equal(7, config.Sheet.Values.Sum(table => table.Count()));
+            // General 13 = SetLanguage + 三窗口各 4 项布局（宽/高/X/Y）；Hotkey 4；Log 2。
+            Assert.Equal(19, config.Sheet.Values.Sum(table => table.Count()));
             Assert.Equal(LanguageType.English, setLanguage.Value);
             Assert.Equal("F1", configUiHotkey.Value.ToString());
             Assert.Equal("F2", logUiHotkey.Value.ToString());
@@ -62,6 +65,11 @@ namespace UnityModBase.Test.BSpace
             var persistedContent = File.ReadAllText(scope.ConfigFilePath);
             Assert.Contains("[General]", persistedContent);
             Assert.Contains(nameof(BConfigManager.SetLanguage), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ConfigGuiWidth), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ConfigGuiX), persistedContent);
+            Assert.Contains(nameof(BConfigManager.LogGuiY), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ControlGuiWidth), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ControlGuiY), persistedContent);
             Assert.Contains(nameof(BConfigManager.ConfigUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.LogUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.ControlUIHotkey), persistedContent);
@@ -101,6 +109,30 @@ namespace UnityModBase.Test.BSpace
             Assert.Null(BConfigManager.SetLanguage);
             Assert.Equal(LanguageType.None, Translator.DefaultLanguage);
             Assert.Equal(new[] { scope.SentinelFrameUpdateHandler }, scope.GetFrameUpdateHandlers());
+        }
+
+        [Fact]
+        public void Dispose_WhenInitialized_ClearsWindowLayoutEntries()
+        {
+            // 契约：Dispose 声明“清空所有静态配置引用”，12 个窗口布局条目也在 Initialize 中绑定，必须一并清空，
+            // 否则已释放配置服务的条目会跨 Initialize/Dispose 周期残留。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+
+            BConfigManager.Dispose();
+
+            Assert.Null(BConfigManager.ConfigGuiWidth);
+            Assert.Null(BConfigManager.ConfigGuiHeight);
+            Assert.Null(BConfigManager.ConfigGuiX);
+            Assert.Null(BConfigManager.ConfigGuiY);
+            Assert.Null(BConfigManager.LogGuiWidth);
+            Assert.Null(BConfigManager.LogGuiHeight);
+            Assert.Null(BConfigManager.LogGuiX);
+            Assert.Null(BConfigManager.LogGuiY);
+            Assert.Null(BConfigManager.ControlGuiWidth);
+            Assert.Null(BConfigManager.ControlGuiHeight);
+            Assert.Null(BConfigManager.ControlGuiX);
+            Assert.Null(BConfigManager.ControlGuiY);
         }
 
         [Fact]
@@ -282,7 +314,19 @@ namespace UnityModBase.Test.BSpace
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogUIHotkey)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlUIHotkey)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ReloadConfigHotkey)),
-                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.SetLanguage))
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.SetLanguage)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigGuiWidth)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigGuiHeight)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigGuiX)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigGuiY)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogGuiWidth)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogGuiHeight)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogGuiX)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogGuiY)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiWidth)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiHeight)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiX)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiY))
             };
 
             private readonly bool _originalInitialized;

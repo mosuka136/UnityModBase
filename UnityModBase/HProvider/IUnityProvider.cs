@@ -32,6 +32,15 @@ namespace UnityModBase.HProvider
         int FrameCount { get; }
 
         /// <summary>
+        /// 当前正在处理的 IMGUI 事件；不在 <c>OnGUI</c> 调用链内时为 <c>null</c>。
+        /// </summary>
+        /// <remarks>
+        /// 依赖事件的窗口逻辑应经本属性读取而不是直接访问 <see cref="Event.current"/>，
+        /// 以便在无 Unity 运行时的单元测试中注入替身事件。
+        /// </remarks>
+        Event EventCurrent { get; }
+
+        /// <summary>
         /// 当前键盘设备；没有可用键盘时为 <c>null</c>。
         /// </summary>
         Keyboard KeyboardCurrent { get; }

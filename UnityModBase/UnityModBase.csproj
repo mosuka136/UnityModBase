@@ -140,6 +140,7 @@
     <Compile Include="HGuiSpace\UiMetadataHelper.cs" />
     <Compile Include="HGuiSpace\UserEditorBase.cs" />
     <Compile Include="HGuiSpace\ValueProvider.cs" />
+    <Compile Include="HGuiSpace\WindowResizeHelper.cs" />
     <Compile Include="HLogGUI\EntryBinding.cs" />
     <Compile Include="HLogGUI\EntryContentType.cs" />
     <Compile Include="HLogGUI\EntryEditor.cs" />
