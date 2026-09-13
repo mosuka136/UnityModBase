@@ -159,9 +159,13 @@ namespace UnityModBase.HGuiSpace
         private ConfigEntry<float> _windowHeightEntry;
         // 最近一次写入或从持久化恢复的矩形；保存时与之相同则跳过全部写入。
         private Rect _lastSavedWindowRect;
+        // 窗口布局脏标记与停顿计时。位置或尺寸变化时置脏并重置计时，持续变化期间不写盘，
+        // 停止变化超过 WindowLayoutSaveDelaySeconds 后由 Update 统一写一次。
+        // 不能仅依赖鼠标事件判断交互结束：DragWindow/热控件消费过的释放事件在外层已不是 MouseUp。
         private bool _windowLayoutDirty;
         private float _windowLayoutDirtyDelay;
         private const float WindowLayoutSaveDelaySeconds = 0.5f;
+        // 界面显隐热键的触发去抖门：防止引擎把一次物理按下重复报告为连续多帧边沿时窗口连开连关。
         private readonly HotkeyTriggerGate _uiHotkeyGate = new HotkeyTriggerGate();
 
         /// <summary>

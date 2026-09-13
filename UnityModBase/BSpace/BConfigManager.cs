@@ -22,8 +22,9 @@ namespace UnityModBase.BSpace
         // 热键状态读取发生在加锁前，因此该锁不使整个管理器具备线程安全性。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
-        // 时钟用 Stopwatch 而非 Unity 时间：帧回调可能在无播放器上下文的环境中被单元测试直接调用。
+        // 重载热键的触发去抖门：吸收引擎把一次物理按下重复报告为连续多帧边沿的情况。
         private static readonly HotkeyTriggerGate _reloadHotkeyGate = new HotkeyTriggerGate();
+        // 时钟用 Stopwatch 而非 Unity 时间：帧回调可能在无播放器上下文的环境中被单元测试直接调用。
         private static readonly Func<float> _reloadHotkeyClock =
             () => (float)(Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
 
@@ -39,17 +40,18 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<LanguageType> SetLanguage { get; private set; }
 
         // 三个 GUI 窗口的布局持久化条目，由通用窗口宿主（GuiHostBase）在布局变化停顿、隐藏或销毁时自动写回。
-        // 哨兵约定与恢复语义见 WindowResizeHelper.TryBuildPersistedRect：宽/高 0 表示未持久化（沿用默认尺寸），
-        // 位置负数表示未持久化（该方向屏幕居中）；写回前位置会归一化到屏幕内，持久值不会与哨兵冲突。
+        // 哨兵约定与恢复语义见 WindowResizeHelper.TryBuildPersistedRect：宽/高非正数表示未持久化（沿用默认尺寸），
+        // 位置负数表示未持久化（该方向屏幕居中）。条目默认值取 -1，而滑条编辑范围 [50, 4000] 内的持久值
+        // 不会落入宽/高哨兵区；写回前位置还会归一化到屏幕内，持久位置不会与位置哨兵冲突。
 
         /// <summary>
-        /// 配置界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
+        /// 配置界面的宽度，单位为像素；非正数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ConfigGuiWidth { get; private set; }
 
         /// <summary>
-        /// 配置界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
+        /// 配置界面的高度，单位为像素；非正数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ConfigGuiHeight { get; private set; }
@@ -67,14 +69,14 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<float> ConfigGuiY { get; private set; }
 
         /// <summary>
-        /// 日志界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认尺寸。
+        /// 日志界面的宽度，单位为像素；非正数表示未持久化，首次显示时使用默认尺寸。
         /// 日志窗口显示期间宽度按列宽自适应，写回的是隐藏前的最终宽度。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> LogGuiWidth { get; private set; }
 
         /// <summary>
-        /// 日志界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认尺寸。
+        /// 日志界面的高度，单位为像素；非正数表示未持久化，首次显示时使用默认尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> LogGuiHeight { get; private set; }
@@ -92,13 +94,13 @@ namespace UnityModBase.BSpace
         internal static ConfigEntry<float> LogGuiY { get; private set; }
 
         /// <summary>
-        /// 实时控制界面的宽度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
+        /// 实时控制界面的宽度，单位为像素；非正数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ControlGuiWidth { get; private set; }
 
         /// <summary>
-        /// 实时控制界面的高度，单位为像素；负数表示未持久化，首次显示时使用默认比例尺寸。
+        /// 实时控制界面的高度，单位为像素；非正数表示未持久化，首次显示时使用默认比例尺寸。
         /// </summary>
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ControlGuiHeight { get; private set; }

@@ -40,6 +40,19 @@ namespace UnityModBase.Test.HotkeyManager
         }
 
         [Fact]
+        public void ShouldTrigger_WhenEdgeReturnsExactlyAtSilenceBoundary_AcceptsAgain()
+        {
+            // 静默期判定使用开区间：间隔恰好等于静默时长时不属于重复边沿，立即重新接受。
+            // 时钟从 0 起算，使差值不经过浮点减法舍入，边界比较结果只由判定本身决定。
+            var gate = new HotkeyTriggerGate();
+            var hotkey = CreateHotkeyWithEdge(edge => true);
+
+            Assert.True(gate.ShouldTrigger(hotkey, () => 0f));
+            Assert.False(gate.ShouldTrigger(hotkey, () => 0.0699f));
+            Assert.True(gate.ShouldTrigger(hotkey, () => 0.07f));
+        }
+
+        [Fact]
         public void ShouldTrigger_WhenNoEdge_DoesNotConsumeSilence()
         {
             var gate = new HotkeyTriggerGate();

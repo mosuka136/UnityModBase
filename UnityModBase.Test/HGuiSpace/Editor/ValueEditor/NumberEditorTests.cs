@@ -97,7 +97,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
-        public void DrawValue_WhenTextFieldReturnsDifferentValue_QueuesConvertedChange()
+        public void DrawValue_WhenTextFieldReturnsDifferentValue_BuffersRawTextUntilCommit()
         {
             // Arrange
             const int currentValue = 123;
@@ -124,7 +124,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             changeSink.FlushValue(0.1f);
 
             // Assert
-            Assert.Equal(newValue, bufferedValueBeforeDelayExpires);
+            Assert.Equal(newValueText, bufferedValueBeforeDelayExpires);
             Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
@@ -186,6 +186,38 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             unityGuiMock.Verify(x => x.Width(72f), Times.Once);
             unityGuiMock.Verify(x => x.ExpandWidth(It.IsAny<bool>()), Times.Never);
             unityGuiMock.Verify(x => x.TextField("42", It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
+        public void DrawValue_WhenFloatInputHasTrailingDecimalPoint_PreservesBufferedText()
+        {
+            // Arrange："1." 对 float 是合法但未完成的中间态，暂存阶段保留原文回显，
+            // 否则下一帧文本框会被转换值 "1" 重写，导致小数点无法输入。
+            const float currentValue = 1f;
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .SetupSequence(x => x.TextField(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns("1.")
+                .Returns("1.");
+            var editor = new NumberEditor(unityGuiMock.Object);
+            var context = new EditableGuiContext();
+            var entryMock = CreateEntry("TrailingDecimalEntry", typeof(float), currentValue);
+
+            // Act：第一帧键入 "1."，第二帧仅重绘。
+            editor.DrawValue(entryMock.Object, context);
+            editor.DrawValue(entryMock.Object, context);
+
+            // Assert：第二帧文本框收到的仍是原文 "1."，且不再产生新的暂存输入。
+            unityGuiMock.Verify(x => x.TextField("1.", It.IsAny<GUILayoutOption[]>()), Times.Once);
+            Assert.Equal("1.", ValueProvider.GetValue(entryMock.Object));
+            Assert.Equal(currentValue, entryMock.Object.Value);
+
+            // Act：延迟到期后在提交时刻转换为 float。
+            context.ChangeSink.FlushValue(editor.DelayApplyDuration);
+
+            Assert.Equal(1f, entryMock.Object.Value);
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
         }
 
         [Fact]

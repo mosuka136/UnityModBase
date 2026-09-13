@@ -166,6 +166,46 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
+        public void DrawValue_WhenFloatInputHasTrailingDecimalPoint_PreservesBufferedText()
+        {
+            // Arrange：float 条目当前值 1，用户在滑条旁的文本框键入 "1."（合法但未完成的中间态）。
+            const float currentValue = 1f;
+            var metadata = new UiSliderMetadata(0f, 10f, 1f);
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            var editor = CreateDrawableEditor(unityGuiMock);
+            var entryMock = CreateEntry(typeof(float), currentValue, metadata);
+            var context = new EditableGuiContext();
+            unityGuiMock
+                .Setup(x => x.HorizontalSlider(
+                    currentValue,
+                    metadata.Min,
+                    metadata.Max,
+                    editor.StyleProvider.SliderStyle,
+                    editor.StyleProvider.SliderThumbStyle,
+                    It.IsAny<GUILayoutOption[]>()))
+                .Returns(currentValue);
+            unityGuiMock
+                .SetupSequence(x => x.TextField(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns("1.")
+                .Returns("1.");
+
+            // Act：第一帧键入 "1."，第二帧仅重绘。
+            editor.DrawValue(entryMock.Object, context);
+            editor.DrawValue(entryMock.Object, context);
+
+            // Assert：第二帧文本框收到的仍是原文 "1."，小数点不再被转换值 "1" 覆盖。
+            unityGuiMock.Verify(x => x.TextField("1.", It.IsAny<GUILayoutOption[]>()), Times.Once);
+            Assert.Equal("1.", ValueProvider.GetValue(entryMock.Object));
+            Assert.Equal(currentValue, entryMock.Object.Value);
+
+            // Act：延迟到期后在提交时刻转换为 float。
+            context.ChangeSink.FlushValue(editor.DelayApplyDuration);
+
+            Assert.Equal(1f, entryMock.Object.Value);
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
+        }
+
+        [Fact]
         public void DrawValue_WhenOutOfRangeSliderIsUnchanged_PreservesOriginalValue()
         {
             // Arrange
@@ -229,8 +269,8 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
             context.ChangeSink.FlushValue(0.1f);
 
-            // Assert
-            Assert.Equal(typedValue, bufferedValueBeforeDelayExpires);
+            // Assert：延迟期内缓冲区保留原始文本而非转换值，提交后才写入目标类型。
+            Assert.Equal(typedValue.ToString(), bufferedValueBeforeDelayExpires);
             Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal(typedValue, entryMock.Object.Value);
         }
@@ -267,8 +307,8 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
             context.ChangeSink.FlushValue(0.1f);
 
-            // Assert
-            Assert.Equal((int)snappedValue, bufferedValueBeforeDelayExpires);
+            // Assert：延迟期内缓冲区保留原始文本而非转换值，提交后才写入目标类型。
+            Assert.Equal(((int)snappedValue).ToString(), bufferedValueBeforeDelayExpires);
             Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal((int)snappedValue, entryMock.Object.Value);
         }

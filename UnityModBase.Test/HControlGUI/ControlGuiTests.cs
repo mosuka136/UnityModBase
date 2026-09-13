@@ -168,7 +168,8 @@ namespace UnityModBase.Test.HControlGUI
             target = 15;
             user.Service.Control.Update(0.5f, false);
 
-            Assert.Equal(25, ValueProvider.GetValue(binding));
+            // 暂存输入在提交前保留原文（"25"），不被外部刷新覆盖也不会提前写入条目。
+            Assert.Equal("25", ValueProvider.GetValue(binding));
             Assert.Equal(15, entry.Value);
             context.ChangeSink.FlushValue(0.5f);
             Assert.Equal(25, entry.Value);

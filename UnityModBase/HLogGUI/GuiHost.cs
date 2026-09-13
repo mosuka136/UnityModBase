@@ -181,12 +181,14 @@ namespace UnityModBase.HLogGUI
             WindowRect = rect;
         }
 
+        // 语言切换会改变列标题的本地化文本长度，经 SetStatusDirty 标脏列宽，下一次布局前重新测量。
         private void OnDefaultLanguageChanged(object sender, LanguageType language)
         {
             if (CurrentContext is GuiContext context)
                 UserEditor.SetStatusDirty(context);
         }
 
+        // 热键条目被用户修改或配置重载后，把新值同步给基类轮询的运行时热键。
         private void OnLogUIHotkeyChanged(object sender, Hotkey hotkey)
         {
             UIHotkey = hotkey;

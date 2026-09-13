@@ -8,16 +8,17 @@ namespace UnityModBase.Test.HGuiSpace
     {
         [Theory]
         [MemberData(nameof(GetSupportedNumberConversions))]
-        public void SetConvertedValue_WhenInputIsValid_QueuesTargetTypeValue(
+        public void SetConvertedValue_WhenInputIsValid_BuffersRawInputAndCommitsTargetTypeValue(
             Type valueType,
             object initialValue,
             string input,
             object expectedValue)
         {
             var sink = new EntryChangeSink();
+            var editBuffer = new EntryEditBuffer();
             var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
             var storedValue = initialValue;
-            entryMock.SetupGet(x => x.EditBuffer).Returns(new EntryEditBuffer());
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
             entryMock.SetupGet(x => x.ValueType).Returns(valueType);
             entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
             entryMock.SetupSet(x => x.Value = It.IsAny<object>()).Callback<object>(value => storedValue = value);
@@ -25,6 +26,8 @@ namespace UnityModBase.Test.HGuiSpace
             sink.SetConvertedValue(entryMock.Object, input, 0.5f);
             sink.FlushValue(0.4f);
 
+            // 延迟期内缓冲区保留原始输入用于回显，转换不发生在暂存时刻。
+            Assert.Equal(input, editBuffer.GetLatestValue().Value);
             Assert.Equal(initialValue, storedValue);
 
             sink.FlushValue(0.1f);
@@ -51,6 +54,132 @@ namespace UnityModBase.Test.HGuiSpace
             sink.FlushValue(0.5f);
 
             entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
+        }
+
+        [Fact]
+        public void SetConvertedValue_WhenFloatInputHasTrailingDecimalPoint_BuffersRawTextUntilCommit()
+        {
+            // Arrange："1." 对 float 是合法但未完成的中间态，暂存阶段必须保留原文回显，
+            // 转换推迟到提交时刻，否则下一帧文本框会被转换值 "1" 重写。
+            var sink = new EntryChangeSink();
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = 1f;
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(float));
+            entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
+            entryMock
+                .SetupSet(x => x.Value = It.IsAny<object>())
+                .Callback<object>(value => storedValue = (float)value);
+
+            // Act
+            sink.SetConvertedValue(entryMock.Object, "1.", 0.5f);
+            var bufferedEntry = editBuffer.GetLatestValue();
+
+            // Assert：延迟期内缓冲区保留原始文本且标记有效。
+            Assert.Equal("1.", bufferedEntry.Value);
+            Assert.True(bufferedEntry.IsValid);
+            Assert.Equal(1f, storedValue);
+
+            // Act：延迟到期后提交。
+            sink.FlushValue(0.5f);
+
+            // Assert：提交时刻才转换为条目声明类型。
+            Assert.Equal(1f, storedValue);
+            Assert.False(editBuffer.IsUsing);
+        }
+
+        [Fact]
+        public void SetConvertedValue_WhenDelayIsNotPositive_ConvertsAndCommitsImmediately()
+        {
+            // Arrange：DelayApplyDuration 允许配置为 0 立即提交，该路径同样要经过提交时刻转换。
+            var sink = new EntryChangeSink();
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = 1f;
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(float));
+            entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
+            entryMock
+                .SetupSet(x => x.Value = It.IsAny<object>())
+                .Callback<object>(value => storedValue = (float)value);
+            var changedCount = 0;
+            sink.OnEntryValueChanged += _ => changedCount++;
+
+            // Act
+            sink.SetConvertedValue(entryMock.Object, "2.5", 0.0f);
+
+            // Assert：同步完成转换和写入，并按实际变化发送一次通知。
+            Assert.Equal(2.5f, storedValue);
+            Assert.IsType(typeof(float), storedValue);
+            Assert.Equal(1, changedCount);
+            Assert.False(editBuffer.IsUsing);
+        }
+
+        [Fact]
+        public void ResetValue_WhenConvertedValueIsPending_DiscardsPendingConversionAndRaisesResetEvent()
+        {
+            // Arrange：延迟期内重置条目应同时取消待转换输入，到期后既不写入也不发变更通知。
+            var sink = new EntryChangeSink();
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = 5f;
+            var entryMock = new Mock<IResettableEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(float));
+            entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
+            entryMock
+                .SetupSet(x => x.Value = It.IsAny<object>())
+                .Callback<object>(value => storedValue = (float)value);
+            entryMock.Setup(x => x.ResetValue()).Callback(() => storedValue = 1f);
+            var resetCount = 0;
+            var changedCount = 0;
+            sink.OnEntryValueReset += _ => resetCount++;
+            sink.OnEntryValueChanged += _ => changedCount++;
+
+            // Act
+            sink.SetConvertedValue(entryMock.Object, "9.", 0.5f);
+            sink.ResetValue(entryMock.Object);
+            sink.FlushValue(1.0f);
+
+            // Assert：只保留重置结果；被取消的转换不写入条目。
+            Assert.Equal(1f, storedValue);
+            Assert.Equal(1, resetCount);
+            Assert.Equal(0, changedCount);
+            Assert.False(editBuffer.IsUsing);
+            entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Never);
+
+            // Act：重置后的同一条目再次暂存待转换输入，仍能在提交时刻正常转换。
+            sink.SetConvertedValue(entryMock.Object, "7.5", 0.5f);
+            sink.FlushValue(0.5f);
+
+            Assert.Equal(7.5f, storedValue);
+        }
+
+        [Fact]
+        public void CommitPending_WhenConvertedValueIsPending_ConvertsAndCommitsImmediately()
+        {
+            // Arrange：用户上下文切换时的强制提交路径与延迟到期一样，在提交时刻完成类型转换。
+            var sink = new EntryChangeSink();
+            var editBuffer = new EntryEditBuffer();
+            var storedValue = 1f;
+            var entryMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            entryMock.SetupGet(x => x.EditBuffer).Returns(editBuffer);
+            entryMock.SetupGet(x => x.ValueType).Returns(typeof(float));
+            entryMock.SetupGet(x => x.Value).Returns(() => storedValue);
+            entryMock
+                .SetupSet(x => x.Value = It.IsAny<object>())
+                .Callback<object>(value => storedValue = (float)value);
+
+            // Act
+            sink.SetConvertedValue(entryMock.Object, "2.5", 10f);
+            sink.CommitPending();
+            sink.FlushValue(10f);
+
+            // Assert：立即提交写入转换值，残留的延迟倒计时到期后不会再次写入。
+            Assert.Equal(2.5f, storedValue);
+            Assert.IsType(typeof(float), storedValue);
+            Assert.False(editBuffer.IsUsing);
+            entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Once);
         }
 
         [Fact]

@@ -118,6 +118,38 @@ namespace UnityModBase.Test.HGuiSpace
         }
 
         [Fact]
+        public void Commit_WhenTransformReturnsNull_DiscardsValueAndClearsBuffer()
+        {
+            // transform 返回 null 是"放弃本次写入"的哨兵（如提交时刻类型转换失败），不是写入 null；
+            // 输入本身有效时也不例外，且缓冲仍被清空。
+            var buffer = new EntryEditBuffer();
+            var entry = CreateEntry(10);
+            buffer.SetValue("20", true);
+
+            var result = buffer.Commit(entry.Object, _ => null);
+
+            Assert.False(result);
+            Assert.Equal(10, entry.Object.Value);
+            Assert.False(buffer.IsUsing);
+        }
+
+        [Fact]
+        public void Commit_WithKey_WhenTransformReturnsNull_DiscardsValueAndClearsBuffer()
+        {
+            // 有键提交与无键提交对 null 哨兵的语义一致：放弃写入并清空包括其他来源在内的整个缓冲区。
+            var buffer = new EntryEditBuffer();
+            var entry = CreateEntry(10);
+            buffer.SetValue("field", "20", true);
+
+            var result = buffer.Commit("field", entry.Object, _ => null);
+
+            Assert.False(result);
+            Assert.Equal(10, entry.Object.Value);
+            Assert.False(buffer.IsUsing);
+            Assert.True(buffer.GetValue("field").IsEmpty);
+        }
+
+        [Fact]
         public void Commit_WhenEntryIsNull_ThrowsArgumentNullException()
         {
             var buffer = new EntryEditBuffer();

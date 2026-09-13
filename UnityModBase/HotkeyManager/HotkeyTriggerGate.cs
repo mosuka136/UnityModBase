@@ -18,6 +18,7 @@ namespace UnityModBase.HotkeyManager
         /// <summary>同一热键两次触发之间的最小接受间隔，单位为秒。</summary>
         private const float SilenceSeconds = 0.07f;
 
+        // 最近一次接受触发的时刻；NegativeInfinity 哨兵表示尚未接受过，保证首个边沿不被静默期拦截。
         private float _lastAcceptedTime = float.NegativeInfinity;
 
         /// <summary>

@@ -13,6 +13,9 @@ namespace UnityModBase.HGuiSpace
         // 每个条目只保留一个剩余延迟；同一项的新输入会覆盖倒计时并使用缓冲区中的最新序号值。
         private readonly Dictionary<IEntryBinding, float> _pendingEntries = new Dictionary<IEntryBinding, float>();
 
+        // 记录暂存了待转换输入（来自 SetConvertedValue）的条目；只有这些条目在提交时刻按声明类型转换。
+        private readonly HashSet<IEntryBinding> _convertPendingEntries = new HashSet<IEntryBinding>();
+
         /// <summary>
         /// 在有效新值实际写入条目后触发；无变化或无效输入不会触发。
         /// </summary>
@@ -24,8 +27,9 @@ namespace UnityModBase.HGuiSpace
         public event Action<IEntryBinding> OnEntryValueReset;
 
         /// <summary>
-        /// 尝试将输入转换为条目声明类型，再按指定延迟暂存或提交。
-        /// 转换失败时仍保留原始输入用于界面回显，但会标记为无效且不会写入条目。
+        /// 按指定延迟暂存待转换输入；转换推迟到提交时刻执行。
+        /// 暂存阶段保留原始输入（如文本 "1."）用于界面回显，避免中间态文本被提前规范化；
+        /// 仅当输入按目标类型转换失败时标记为无效，提交时会被丢弃。
         /// </summary>
         /// <param name="entry">目标条目绑定。</param>
         /// <param name="value">通常来自文本控件的待转换输入。</param>
@@ -36,8 +40,9 @@ namespace UnityModBase.HGuiSpace
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
-            var isValid = TypeConvert.TryTo(value, entry.ValueType, out var convertedValue);
-            SetValue(entry, isValid ? convertedValue : value, isValid, delay);
+            var isValid = TypeConvert.TryTo(value, entry.ValueType, out _);
+            _convertPendingEntries.Add(entry);
+            SetValue(entry, value, isValid, delay);
         }
 
         /// <summary>
@@ -99,6 +104,7 @@ namespace UnityModBase.HGuiSpace
                 throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
             _pendingEntries.Remove(entry);
+            _convertPendingEntries.Remove(entry);
             entry.EditBuffer.Clear();
 
             entry.ResetValue();
@@ -146,6 +152,7 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 尝试提交缓冲区中最新的有效值，并清空该条目的全部暂存输入。
+        /// 暂存的待转换输入（如文本）在这一刻才转换为条目声明类型，转换失败则放弃写入；
         /// 仅在已提交值确实变化时发送变更通知。
         /// </summary>
         /// <param name="entry">要提交暂存值的条目绑定。</param>
@@ -155,10 +162,27 @@ namespace UnityModBase.HGuiSpace
             if (entry == null)
                 throw new ArgumentNullException(nameof(entry), "Entry cannot be null.");
 
-            var valueChanged = entry.EditBuffer.Commit(entry);
+            // 只有 SetConvertedValue 暂存的待转换输入需要提交时刻转换；直写值的提交不读取条目声明类型。
+            Func<object, object> transform = null;
+            if (_convertPendingEntries.Remove(entry))
+                transform = value => ConvertForCommit(value, entry.ValueType);
+
+            var valueChanged = entry.EditBuffer.Commit(entry, transform);
 
             if (valueChanged)
                 OnEntryValueChanged?.Invoke(entry);
+        }
+
+        /// <summary>
+        /// 提交时刻的值转换：已可赋值给目标类型的值原样返回，文本等其余输入按目标类型转换，
+        /// 转换失败返回 null 表示放弃本次写入。
+        /// </summary>
+        private static object ConvertForCommit(object value, Type targetType)
+        {
+            if (targetType.IsInstanceOfType(value))
+                return value;
+
+            return TypeConvert.TryTo(value, targetType, out var convertedValue) ? convertedValue : null;
         }
     }
 }

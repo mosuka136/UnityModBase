@@ -107,6 +107,7 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 提交全缓冲区中的最新有效值，可在写入前做一次转换；方法正常完成后，无论是否写入都会清空整个缓冲区。
+        /// <paramref name="transform"/> 返回 null 视为放弃本次写入（如提交时刻类型转换失败），缓冲仍会被清空。
         /// </summary>
         /// <param name="entry">接收提交值的条目绑定。</param>
         /// <param name="transform">写入前的可选值转换函数。</param>
@@ -122,7 +123,7 @@ namespace UnityModBase.HGuiSpace
             if (!latestEntry.IsEmpty && latestEntry.IsValid)
             {
                 var value = transform != null ? transform(latestEntry.Value) : latestEntry.Value;
-                if (!Equals(entry.Value, value))
+                if (value != null && !Equals(entry.Value, value))
                 {
                     entry.Value = value;
                     result = true;
@@ -135,6 +136,7 @@ namespace UnityModBase.HGuiSpace
 
         /// <summary>
         /// 仅选择指定来源槽的有效值提交，但方法正常完成后仍会清空其他来源的暂存值。
+        /// <paramref name="transform"/> 返回 null 视为放弃本次写入（如提交时刻类型转换失败），缓冲仍会被清空。
         /// </summary>
         /// <param name="key">要提交的来源键。</param>
         /// <param name="entry">接收提交值的条目绑定。</param>
@@ -155,7 +157,7 @@ namespace UnityModBase.HGuiSpace
             if (!latestEntry.IsEmpty && latestEntry.IsValid)
             {
                 var value = transform != null ? transform(latestEntry.Value) : latestEntry.Value;
-                if (!Equals(entry.Value, value))
+                if (value != null && !Equals(entry.Value, value))
                 {
                     entry.Value = value;
                     result = true;
