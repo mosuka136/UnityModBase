@@ -49,8 +49,8 @@ namespace UnityModBase.Test.BSpace
             Assert.True(scope.IsInitialized());
             Assert.True(config.SaveOnConfigSet);
             Assert.Equal(new[] { "General", "Hotkey", "Log" }, config.Sheet.Keys);
-            // General 13 = SetLanguage + 三窗口各 4 项布局（宽/高/X/Y）；Hotkey 4；Log 2。
-            Assert.Equal(19, config.Sheet.Values.Sum(table => table.Count()));
+            // General 16 = SetLanguage + 三窗口各 4 项布局（宽/高/X/Y）+ 三窗口各 1 项选中用户；Hotkey 4；Log 2。
+            Assert.Equal(22, config.Sheet.Values.Sum(table => table.Count()));
             Assert.Equal(LanguageType.English, setLanguage.Value);
             Assert.Equal("F1", configUiHotkey.Value.ToString());
             Assert.Equal("F2", logUiHotkey.Value.ToString());
@@ -70,6 +70,9 @@ namespace UnityModBase.Test.BSpace
             Assert.Contains(nameof(BConfigManager.LogGuiY), persistedContent);
             Assert.Contains(nameof(BConfigManager.ControlGuiWidth), persistedContent);
             Assert.Contains(nameof(BConfigManager.ControlGuiY), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ConfigGuiSelectedUser), persistedContent);
+            Assert.Contains(nameof(BConfigManager.LogGuiSelectedUser), persistedContent);
+            Assert.Contains(nameof(BConfigManager.ControlGuiSelectedUser), persistedContent);
             Assert.Contains(nameof(BConfigManager.ConfigUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.LogUIHotkey), persistedContent);
             Assert.Contains(nameof(BConfigManager.ControlUIHotkey), persistedContent);
@@ -112,10 +115,10 @@ namespace UnityModBase.Test.BSpace
         }
 
         [Fact]
-        public void Dispose_WhenInitialized_ClearsWindowLayoutEntries()
+        public void Dispose_WhenInitialized_ClearsWindowLayoutAndSelectedUserEntries()
         {
-            // 契约：Dispose 声明“清空所有静态配置引用”，12 个窗口布局条目也在 Initialize 中绑定，必须一并清空，
-            // 否则已释放配置服务的条目会跨 Initialize/Dispose 周期残留。
+            // 契约：Dispose 声明“清空所有静态配置引用”，12 个窗口布局条目和 3 个选中用户条目
+            // 也在 Initialize 中绑定，必须一并清空，否则已释放配置服务的条目会跨 Initialize/Dispose 周期残留。
             using var scope = BConfigManagerStateScope.CreateWithConfigService();
             scope.Initialize(scope.ConfigFilePath);
 
@@ -133,6 +136,9 @@ namespace UnityModBase.Test.BSpace
             Assert.Null(BConfigManager.ControlGuiHeight);
             Assert.Null(BConfigManager.ControlGuiX);
             Assert.Null(BConfigManager.ControlGuiY);
+            Assert.Null(BConfigManager.ConfigGuiSelectedUser);
+            Assert.Null(BConfigManager.LogGuiSelectedUser);
+            Assert.Null(BConfigManager.ControlGuiSelectedUser);
         }
 
         [Fact]
@@ -326,7 +332,10 @@ namespace UnityModBase.Test.BSpace
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiWidth)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiHeight)),
                 GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiX)),
-                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiY))
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiY)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ConfigGuiSelectedUser)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.LogGuiSelectedUser)),
+                GetRequiredProperty(BConfigManagerType, nameof(BConfigManager.ControlGuiSelectedUser))
             };
 
             private readonly bool _originalInitialized;

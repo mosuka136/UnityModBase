@@ -117,6 +117,25 @@ namespace UnityModBase.BSpace
         [EntrySlider(50f, 4000f, 1f)]
         internal static ConfigEntry<float> ControlGuiY { get; private set; }
 
+        // 三个 GUI 窗口的选中用户持久化条目，由通用窗口宿主（GuiHostBase）在用户切换、当前用户被移除时自动写回，
+        // 宿主初始化和配置重载时恢复。空字符串表示未持久化，恢复时保持注册表默认用户；
+        // 持久化键已无对应用户或模块上下文无效时同样回退默认用户，不写回修正。
+
+        /// <summary>
+        /// 配置界面当前选中的用户标识；空字符串表示未持久化，启动时使用默认用户。
+        /// </summary>
+        internal static ConfigEntry<string> ConfigGuiSelectedUser { get; private set; }
+
+        /// <summary>
+        /// 日志界面当前选中的用户标识；空字符串表示未持久化，启动时使用默认用户。
+        /// </summary>
+        internal static ConfigEntry<string> LogGuiSelectedUser { get; private set; }
+
+        /// <summary>
+        /// 实时控制界面当前选中的用户标识；空字符串表示未持久化，启动时使用默认用户。
+        /// </summary>
+        internal static ConfigEntry<string> ControlGuiSelectedUser { get; private set; }
+
         /// <summary>
         /// 打开配置界面的热键，默认值为 <c>F1</c>。
         /// </summary>
@@ -290,6 +309,33 @@ namespace UnityModBase.BSpace
                         new Translator(
                             chinese: "实时控制界面左上角的屏幕纵坐标。",
                             english: "The screen Y coordinate of the live controls UI top-left corner.")
+                        );
+                    ConfigGuiSelectedUser = Config.Bind(
+                        SectionGeneral,
+                        nameof(ConfigGuiSelectedUser),
+                        string.Empty,
+                        new Translator(chinese: "配置界面选中的用户", english: "Config UI Selected User"),
+                        new Translator(
+                            chinese: "配置界面当前选中的用户标识。切换用户后会自动写回，启动或重载配置时恢复；无效值回退默认用户。",
+                            english: "The user key selected in the config UI. Written back on user switching and restored on startup or config reload; invalid values fall back to the default user.")
+                        );
+                    LogGuiSelectedUser = Config.Bind(
+                        SectionGeneral,
+                        nameof(LogGuiSelectedUser),
+                        string.Empty,
+                        new Translator(chinese: "日志界面选中的用户", english: "Log UI Selected User"),
+                        new Translator(
+                            chinese: "日志界面当前选中的用户标识。切换用户后会自动写回，启动或重载配置时恢复；无效值回退默认用户。",
+                            english: "The user key selected in the log UI. Written back on user switching and restored on startup or config reload; invalid values fall back to the default user.")
+                        );
+                    ControlGuiSelectedUser = Config.Bind(
+                        SectionGeneral,
+                        nameof(ControlGuiSelectedUser),
+                        string.Empty,
+                        new Translator(chinese: "实时控制界面选中的用户", english: "Live Controls UI Selected User"),
+                        new Translator(
+                            chinese: "实时控制界面当前选中的用户标识。切换用户后会自动写回，启动或重载配置时恢复；无效值回退默认用户。",
+                            english: "The user key selected in the live controls UI. Written back on user switching and restored on startup or config reload; invalid values fall back to the default user.")
                         );
 
                     Config.CreateTable(
@@ -469,6 +515,9 @@ namespace UnityModBase.BSpace
                 ControlGuiHeight = null;
                 ControlGuiX = null;
                 ControlGuiY = null;
+                ConfigGuiSelectedUser = null;
+                LogGuiSelectedUser = null;
+                ControlGuiSelectedUser = null;
                 ConfigUIHotkey = null;
                 LogUIHotkey = null;
                 ControlUIHotkey = null;

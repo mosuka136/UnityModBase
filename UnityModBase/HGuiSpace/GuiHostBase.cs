@@ -13,7 +13,9 @@ namespace UnityModBase.HGuiSpace
     /// <summary>
     /// 为基于 Unity IMGUI 的用户级工具窗口提供宿主生命周期、用户上下文切换、热键显隐和浮层绘制能力。
     /// 当前选中用户被移除时，本类会尝试切换到用户注册表的默认项；派生类可拒绝不属于本模块的上下文。
-    /// 派生类负责提供具体样式、窗口尺寸、用户数据编辑器及上下文注册；本类不创建或持久化业务数据。
+    /// 派生类负责提供具体样式、窗口尺寸、用户数据编辑器及上下文注册；本类不创建或持久化业务数据，
+    /// 仅在派生类注入持久化条目后，负责窗口布局与选中用户的恢复和写回
+    /// （见 <see cref="InitializeWindowRect(ConfigEntry{float},ConfigEntry{float},ConfigEntry{float},ConfigEntry{float})"/> 与 <see cref="InitializeSelectedUser"/>）。
     /// </summary>
     /// <remarks>
     /// <see cref="Awake"/> 会订阅进程级用户移除事件，<see cref="OnDestroy"/> 负责退订。
@@ -39,6 +41,7 @@ namespace UnityModBase.HGuiSpace
         /// <summary>
         /// 当前选中用户的标识。界面切换用户后，<see cref="CurrentContext"/> 会在本帧窗口绘制结束时同步更新；
         /// 当前用户被移除时会同步回退到剩余用户中的默认项，没有剩余用户时为空字符串。
+        /// 注入持久化条目后（见 <see cref="InitializeSelectedUser"/>），启动时从条目恢复该值，之后每次变化由基类写回。
         /// </summary>
         public string SelectedUserKey => _selectedUserKey;
 
@@ -157,6 +160,8 @@ namespace UnityModBase.HGuiSpace
         private ConfigEntry<float> _windowYEntry;
         private ConfigEntry<float> _windowWidthEntry;
         private ConfigEntry<float> _windowHeightEntry;
+        // 选中用户持久化条目，由 InitializeSelectedUser 注入；为 null 时选中用户不持久化。
+        private ConfigEntry<string> _selectedUserEntry;
         // 最近一次写入或从持久化恢复的矩形；保存时与之相同则跳过全部写入。
         private Rect _lastSavedWindowRect;
         // 窗口布局脏标记与停顿计时。位置或尺寸变化时置脏并重置计时，持续变化期间不写盘，
@@ -250,6 +255,67 @@ namespace UnityModBase.HGuiSpace
                 WindowRect = rect;
                 _lastSavedWindowRect = rect;
             }
+        }
+
+        /// <summary>
+        /// 注入选中用户持久化条目并从中恢复启动时选中的用户，同时订阅条目变化以响应配置重载等外部修改。
+        /// 持久化键为空、无对应用户或模块上下文无效时保持默认用户，不写回修正；
+        /// 有效性与 <see cref="ChangeCurrentContext"/> 一致，按 <see cref="IsContextValid(IUserContext)"/> 判定。
+        /// 派生类应在 <see cref="GuiContextKey"/> 设置且现有用户的模块上下文注册完成后、
+        /// 首次解析 <see cref="CurrentContext"/> 前调用一次；重复调用会先解除旧订阅再重新绑定。
+        /// 之后每次选中用户变化都会由基类写回该条目。
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="entry"/> 为 <c>null</c>。</exception>
+        protected void InitializeSelectedUser(ConfigEntry<string> entry)
+        {
+            UnsubscribeSelectedUserEntry();
+            _selectedUserEntry = entry ?? throw new ArgumentNullException(nameof(entry));
+            entry.OnValueChangedBase += OnSelectedUserEntryChanged;
+
+            var persistedKey = entry.Value;
+            if (!string.IsNullOrEmpty(persistedKey) && IsContextValid(GetContext(persistedKey)))
+                _selectedUserKey = persistedKey;
+        }
+
+        /// <summary>
+        /// 把当前选中用户写回持久化条目；值未变化或未注入条目时为空操作。
+        /// 写回触发的变化回调会因值与当前选择一致而直接返回，不会再次切换上下文。
+        /// </summary>
+        private void SaveSelectedUserKey()
+        {
+            if (_selectedUserEntry == null || _selectedUserEntry.Value == _selectedUserKey)
+                return;
+
+            _selectedUserEntry.Value = _selectedUserKey;
+        }
+
+        /// <summary>
+        /// 响应选中用户条目的外部修改（如配置重载）：新键与当前选择相同（含本类自身的写回）时忽略；
+        /// 新键能解析出有效模块上下文时切换到该用户，否则保持现状。
+        /// </summary>
+        private void OnSelectedUserEntryChanged(object sender, EventArgs args)
+        {
+            if (_selectedUserEntry == null)
+                return;
+
+            var key = _selectedUserEntry.Value;
+            if (key == _selectedUserKey)
+                return;
+
+            if (!string.IsNullOrEmpty(key) && IsContextValid(GetContext(key)))
+                ChangeCurrentContext(key);
+        }
+
+        /// <summary>
+        /// 解除选中用户条目的变化订阅并清空引用；尚未初始化或已解绑时为空操作。
+        /// </summary>
+        private void UnsubscribeSelectedUserEntry()
+        {
+            if (_selectedUserEntry == null)
+                return;
+
+            _selectedUserEntry.OnValueChangedBase -= OnSelectedUserEntryChanged;
+            _selectedUserEntry = null;
         }
 
         /// <summary>
@@ -653,7 +719,8 @@ namespace UnityModBase.HGuiSpace
         }
 
         /// <summary>
-        /// 在 Unity 销毁宿主时写回窗口布局、解除用户移除订阅和布局条目订阅，避免进程级事件保留失效组件。
+        /// 在 Unity 销毁宿主时写回窗口布局、解除用户移除订阅和布局及选中用户条目订阅，
+        /// 避免进程级事件保留失效组件。
         /// </summary>
         /// <remarks>派生类覆盖此生命周期方法时必须调用基类实现。</remarks>
         protected virtual void OnDestroy()
@@ -661,6 +728,7 @@ namespace UnityModBase.HGuiSpace
             UserManager.OnUserRemoved -= OnUserRemoved;
             SaveWindowLayout();
             UnsubscribeWindowRectEntries();
+            UnsubscribeSelectedUserEntry();
         }
 
         /// <summary>
@@ -686,6 +754,7 @@ namespace UnityModBase.HGuiSpace
         /// 解析并验证目标用户的模块上下文，在替换字段前通知派生宿主清理旧上下文状态。
         /// 无效候选会把选择键和当前上下文清空；本方法不会继续搜索其他用户。
         /// 空键表示用户注册表中已无回退项，会直接清空宿主状态。
+        /// 最终选择键（含清空后的空字符串哨兵）会写回注入的持久化条目，未注入时跳过写回。
         /// </summary>
         /// <param name="userKey">要解析的用户标识；null、空字符串或未知用户都会清空当前选择。</param>
         /// <exception cref="ArgumentException">
@@ -702,6 +771,7 @@ namespace UnityModBase.HGuiSpace
                 // 最后一个用户移除后默认键为空；避免把该哨兵值传给要求非空标识的 GetContext。
                 _selectedUserKey = string.Empty;
                 CurrentContext = null;
+                SaveSelectedUserKey();
                 return;
             }
 
@@ -717,6 +787,7 @@ namespace UnityModBase.HGuiSpace
             OnCurrentContextChanging(CurrentContext, nextContext);
             _selectedUserKey = userKey;
             CurrentContext = nextContext;
+            SaveSelectedUserKey();
 
             if (nextContext != null)
                 UserEditor?.SetStatusDirty(nextContext);

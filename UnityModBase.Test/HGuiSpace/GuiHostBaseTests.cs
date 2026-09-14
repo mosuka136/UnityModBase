@@ -1,6 +1,7 @@
 using System.Reflection;
 using Moq;
 using UnityEngine;
+using UnityModBase.HConfigSpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
@@ -200,6 +201,303 @@ namespace UnityModBase.Test.HGuiSpace
             Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
             Assert.Same(selectedContext, sut.CurrentContext);
             Assert.Equal(0, sut.Editor.SetStatusDirtyCallCount);
+        }
+
+        [Fact]
+        public void InitializeSelectedUser_WhenPersistedKeyHasValidContext_RestoresPersistedUser()
+        {
+            // Arrange
+            var defaultUser = CreateUser();
+            defaultUser.AddChildContext("module", new TrackingContext());
+            var persistedUser = CreateUser();
+            var persistedContext = new TrackingContext();
+            persistedUser.AddChildContext("module", persistedContext);
+            var entry = CreateSelectedUserEntry(persistedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+
+            // Act
+            sut.InitializeSelectedUserForTest(entry);
+
+            // Assert
+            Assert.Equal(persistedUser.UserId, sut.SelectedUserKey);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void InitializeSelectedUser_WhenPersistedKeyIsNullOrEmpty_KeepsDefaultUser(string persistedKey)
+        {
+            var defaultUser = CreateUser();
+            defaultUser.AddChildContext("module", new TrackingContext());
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+            var entry = CreateSelectedUserEntry(persistedKey ?? string.Empty);
+
+            sut.InitializeSelectedUserForTest(entry);
+
+            Assert.Equal(defaultUser.UserId, sut.SelectedUserKey);
+        }
+
+        [Fact]
+        public void InitializeSelectedUser_WhenPersistedKeyIsUnknownUser_KeepsDefaultUserWithoutWritingBack()
+        {
+            var defaultUser = CreateUser();
+            defaultUser.AddChildContext("module", new TrackingContext());
+            var unknownKey = $"missing-{Guid.NewGuid():N}";
+            var entry = CreateSelectedUserEntry(unknownKey);
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+
+            sut.InitializeSelectedUserForTest(entry);
+
+            // 无效持久值保持原样，不写回修正，下次切换用户时才覆盖。
+            Assert.Equal(defaultUser.UserId, sut.SelectedUserKey);
+            Assert.Equal(unknownKey, entry.Value);
+        }
+
+        [Fact]
+        public void InitializeSelectedUser_WhenPersistedUserHasNoModuleContext_KeepsDefaultUser()
+        {
+            var defaultUser = CreateUser();
+            defaultUser.AddChildContext("module", new TrackingContext());
+            var contextlessUser = CreateUser();
+            var entry = CreateSelectedUserEntry(contextlessUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+
+            sut.InitializeSelectedUserForTest(entry);
+
+            Assert.Equal(defaultUser.UserId, sut.SelectedUserKey);
+        }
+
+        [Fact]
+        public void DrawWindow_WhenSelectionChanges_WritesNewUserBackToEntry()
+        {
+            // Arrange
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var nextUser = CreateUser();
+            var nextContext = new TrackingContext();
+            nextUser.AddChildContext("module", nextContext);
+            var expectedArea = new Rect(10f, 30f, -20f, -40f);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.Setup(x => x.BeginArea(expectedArea));
+            unityGui.Setup(x => x.EndArea());
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.ConfigureDrawing(unityGui.Object, new[] { selectedUser, nextUser });
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+            sut.Editor.NextSelectedKey = nextUser.UserId;
+            // 抛出异常使绘制在用户编辑器后中止；上下文切换在 finally 中仍会执行并写回条目。
+            sut.Editor.DrawException = new InvalidOperationException("draw failed");
+
+            // Act
+            Assert.Throws<InvalidOperationException>(() => sut.DrawWindow(1));
+
+            // Assert
+            Assert.Equal(nextUser.UserId, entry.Value);
+            Assert.Equal(nextUser.UserId, sut.SelectedUserKey);
+            Assert.Same(nextContext, sut.CurrentContext);
+        }
+
+        [Fact]
+        public void Awake_WhenSelectedUserIsRemoved_WritesDefaultUserBackToEntry()
+        {
+            // Arrange
+            var defaultUser = CreateUser();
+            var defaultContext = new TrackingContext();
+            defaultUser.AddChildContext("module", defaultContext);
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+
+            // Act
+            UserManager.RemoveUser(selectedUser.UserId);
+
+            // Assert
+            Assert.Equal(defaultUser.UserId, entry.Value);
+            Assert.Equal(defaultUser.UserId, sut.SelectedUserKey);
+        }
+
+        [Fact]
+        public void OnSelectedUserEntryChanged_WhenExternalValueHasValidContext_SwitchesContext()
+        {
+            // Arrange
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var nextUser = CreateUser();
+            var nextContext = new TrackingContext();
+            nextUser.AddChildContext("module", nextContext);
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+
+            // Act：外部修改（如配置重载）触发条目变化事件。
+            entry.Value = nextUser.UserId;
+
+            // Assert
+            Assert.Equal(nextUser.UserId, sut.SelectedUserKey);
+            Assert.Same(nextContext, sut.CurrentContext);
+            Assert.Equal(1, sut.Editor.SetStatusDirtyCallCount);
+            Assert.Same(nextContext, sut.Editor.LastContext);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("unknown")]
+        public void OnSelectedUserEntryChanged_WhenExternalValueIsInvalid_KeepsCurrentSelection(string invalidKey)
+        {
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var nextUser = CreateUser();
+            nextUser.AddChildContext("module", new TrackingContext());
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+
+            entry.Value = invalidKey == "unknown" ? $"missing-{Guid.NewGuid():N}" : invalidKey;
+
+            Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
+            Assert.Same(selectedContext, sut.CurrentContext);
+        }
+
+        [Fact]
+        public void InitializeSelectedUser_WhenEntryIsNull_ThrowsArgumentNullException()
+        {
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var sut = new TestGuiHost("module");
+            sut.Select(selectedUser.UserId, selectedContext);
+
+            var exception = Assert.Throws<ArgumentNullException>(() => sut.InitializeSelectedUserForTest(null));
+
+            Assert.Equal("entry", exception.ParamName);
+            // 抛出前不触碰当前选择。
+            Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
+            Assert.Same(selectedContext, sut.CurrentContext);
+        }
+
+        [Fact]
+        public void InitializeSelectedUser_WhenCalledAgain_RebindsToNewEntryAndDropsOldSubscription()
+        {
+            // Arrange
+            var currentUser = CreateUser();
+            var currentContext = new TrackingContext();
+            currentUser.AddChildContext("module", currentContext);
+            var restoredUser = CreateUser();
+            var restoredContext = new TrackingContext();
+            restoredUser.AddChildContext("module", restoredContext);
+            var laterUser = CreateUser();
+            var laterContext = new TrackingContext();
+            laterUser.AddChildContext("module", laterContext);
+            var oldEntry = CreateSelectedUserEntry(currentUser.UserId);
+            var newEntry = CreateSelectedUserEntry(restoredUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.Select(currentUser.UserId, currentContext);
+            sut.InitializeSelectedUserForTest(oldEntry);
+
+            // Act：用新条目重新初始化，应先解除旧订阅再按新条目恢复选中用户。
+            sut.InitializeSelectedUserForTest(newEntry);
+
+            // Assert：恢复到新条目持久化的用户；旧条目的外部变化不再驱动宿主。
+            Assert.Equal(restoredUser.UserId, sut.SelectedUserKey);
+            oldEntry.Value = laterUser.UserId;
+            Assert.Equal(restoredUser.UserId, sut.SelectedUserKey);
+            Assert.Same(currentContext, sut.CurrentContext);
+
+            // 新条目的外部变化仍然生效。
+            newEntry.Value = laterUser.UserId;
+            Assert.Equal(laterUser.UserId, sut.SelectedUserKey);
+            Assert.Same(laterContext, sut.CurrentContext);
+        }
+
+        [Fact]
+        public void Awake_WhenLastSelectedUserIsRemoved_WritesEmptyKeyBackToEntry()
+        {
+            // Arrange：注册表只剩选中用户，移除后无默认用户可回退，空键哨兵应写回条目。
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.AwakeForTest();
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+
+            // Act
+            UserManager.RemoveUser(selectedUser.UserId);
+
+            // Assert
+            Assert.Equal(string.Empty, entry.Value);
+            Assert.Equal(string.Empty, sut.SelectedUserKey);
+            Assert.Null(sut.CurrentContext);
+        }
+
+        [Fact]
+        public void DrawWindow_WhenSelectedUserHasNoModuleContext_ClearsSelectionAndWritesEmptyKeyBack()
+        {
+            // Arrange
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var contextlessUser = CreateUser();
+            var expectedArea = new Rect(10f, 30f, -20f, -40f);
+            var unityGui = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGui.Setup(x => x.BeginArea(expectedArea));
+            unityGui.Setup(x => x.EndArea());
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.ConfigureDrawing(unityGui.Object, new[] { selectedUser, contextlessUser });
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+            // 用户编辑器把选择改到没有模块上下文的用户；抛异常使绘制中止，清理阶段仍执行切换。
+            sut.Editor.NextSelectedKey = contextlessUser.UserId;
+            sut.Editor.DrawException = new InvalidOperationException("draw failed");
+
+            // Act
+            Assert.Throws<InvalidOperationException>(() => sut.DrawWindow(1));
+
+            // Assert：无效候选把选择和上下文清空，并把空键哨兵写回条目。
+            Assert.Equal(string.Empty, entry.Value);
+            Assert.Equal(string.Empty, sut.SelectedUserKey);
+            Assert.Null(sut.CurrentContext);
+        }
+
+        [Fact]
+        public void OnDestroy_WhenEntryChangesAfterDestroy_KeepsCurrentSelection()
+        {
+            // Arrange
+            var selectedUser = CreateUser();
+            var selectedContext = new TrackingContext();
+            selectedUser.AddChildContext("module", selectedContext);
+            var nextUser = CreateUser();
+            var nextContext = new TrackingContext();
+            nextUser.AddChildContext("module", nextContext);
+            var entry = CreateSelectedUserEntry(selectedUser.UserId);
+            var sut = new TestGuiHost("module");
+            sut.Select(selectedUser.UserId, selectedContext);
+            sut.InitializeSelectedUserForTest(entry);
+
+            // Act
+            sut.DestroyForTest();
+            entry.Value = nextUser.UserId;
+
+            // Assert：销毁后退订，外部修改不再驱动已失效宿主切换用户。
+            Assert.Equal(selectedUser.UserId, sut.SelectedUserKey);
+            Assert.Same(selectedContext, sut.CurrentContext);
         }
 
         [Fact]
@@ -483,6 +781,18 @@ namespace UnityModBase.Test.HGuiSpace
             return UserManager.CreateUser(userId, new Translator("GUI Host User", "GUI Host User"));
         }
 
+        // 构造真实 ConfigEntry<string>：字符串值在文件模型中带引号编码，宿主写回后可直接断言解码值。
+        private static ConfigEntry<string> CreateSelectedUserEntry(string value)
+        {
+            var model = new ConfigFileEntry
+            {
+                TableKey = "General",
+                Key = "SelectedUser",
+                Value = $"\"{value}\""
+            };
+            return new ConfigEntry<string>(model, string.Empty, new Translator(), new Translator());
+        }
+
         // ToggleVisibility 显示分支会读取 UnityService.FrameCount 记录打开帧，
         // 调用显隐切换的测试必须先注入带帧号的运行时服务替身。
         private static Mock<IUnityProvider> CreateFrameProvider(int frameCount)
@@ -539,6 +849,11 @@ namespace UnityModBase.Test.HGuiSpace
             public void DestroyForTest()
             {
                 OnDestroy();
+            }
+
+            public void InitializeSelectedUserForTest(ConfigEntry<string> entry)
+            {
+                InitializeSelectedUser(entry);
             }
 
             public void AwakeForTest()

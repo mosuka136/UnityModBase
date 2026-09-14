@@ -111,7 +111,7 @@ namespace UnityModBase.Test.HGuiSpace
 
             // Assert：同步完成转换和写入，并按实际变化发送一次通知。
             Assert.Equal(2.5f, storedValue);
-            Assert.IsType(typeof(float), storedValue);
+            Assert.IsType<float>(storedValue);
             Assert.Equal(1, changedCount);
             Assert.False(editBuffer.IsUsing);
         }
@@ -177,7 +177,7 @@ namespace UnityModBase.Test.HGuiSpace
 
             // Assert：立即提交写入转换值，残留的延迟倒计时到期后不会再次写入。
             Assert.Equal(2.5f, storedValue);
-            Assert.IsType(typeof(float), storedValue);
+            Assert.IsType<float>(storedValue);
             Assert.False(editBuffer.IsUsing);
             entryMock.VerifySet(x => x.Value = It.IsAny<object>(), Times.Once);
         }

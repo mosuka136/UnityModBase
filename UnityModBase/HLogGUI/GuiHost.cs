@@ -32,8 +32,8 @@ namespace UnityModBase.HLogGUI
         }
 
         /// <summary>
-        /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，并订阅后续用户注册、语言和热键变更；
-        /// 用户移除由通用宿主订阅并负责切换当前上下文。
+        /// 初始化日志 GUI 依赖和窗口，为现有用户注册上下文，从持久化条目恢复窗口布局与选中的用户，
+        /// 并订阅后续用户注册、语言和热键变更；用户移除由通用宿主订阅并负责切换当前上下文。
         /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
         /// </summary>
         protected override void Awake()
@@ -53,6 +53,7 @@ namespace UnityModBase.HLogGUI
                 foreach (var user in Users)
                     RegisterContext(user);
                 UserManager.OnUserRegistered += RegisterContext;
+                InitializeSelectedUser(BConfigManager.LogGuiSelectedUser);
                 CurrentContext = GetContext(SelectedUserKey);
                 Translator.OnDefaultLanguageChanged += OnDefaultLanguageChanged;
 

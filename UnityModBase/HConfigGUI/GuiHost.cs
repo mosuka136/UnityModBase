@@ -31,8 +31,8 @@ namespace UnityModBase.HConfigGUI
         public PopupEditor PopupEditor { get; private set; }
 
         /// <summary>
-        /// 初始化配置 GUI 依赖和窗口尺寸，为当前已注册用户投影配置上下文，并订阅配置模型、语言及热键变更事件；
-        /// 用户移除由通用宿主订阅并负责切换当前上下文。
+        /// 初始化配置 GUI 依赖和窗口尺寸，为当前已注册用户投影配置上下文，从持久化条目恢复窗口布局与选中的用户，
+        /// 并订阅配置模型、语言及热键变更事件；用户移除由通用宿主订阅并负责切换当前上下文。
         /// 当前用户尚无配置服务时仍会挂载空绑定树；宿主启动后新增的用户会在配置模型首次发出变化通知时创建 GUI 上下文。
         /// 初始化时必须至少存在一个注册用户，否则当前上下文无法解析，宿主会记录错误并销毁组件。
         /// <see cref="OnDestroy"/> 负责释放初始化期间已经建立的订阅。
@@ -53,6 +53,7 @@ namespace UnityModBase.HConfigGUI
                 foreach (var context in Users)
                     RegisterContext(context);
                 UserManager.OnConfigChanged += OnConfigChanged;
+                InitializeSelectedUser(BConfigManager.ConfigGuiSelectedUser);
                 CurrentContext = GetContext(SelectedUserKey);
 
                 var userEditor = new UserEditor(UnityService, UnityGui, styleProvider);
@@ -207,6 +208,7 @@ namespace UnityModBase.HConfigGUI
                 UserEditor?.SetStatusDirty(context);
         }
 
+        // 热键条目被用户修改或配置重载后，把新值同步给基类轮询的运行时热键。
         private void OnConfigUIHotkeyChanged(object sender, Hotkey hotkey)
         {
             UIHotkey = hotkey;
