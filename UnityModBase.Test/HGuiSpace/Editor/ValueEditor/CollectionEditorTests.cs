@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -542,6 +543,194 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             Assert.Equal(new[] { 2, 3 }, result);
         }
 
+        [Fact]
+        public void DrawValue_WhenCollectionInstanceUnchanged_ReusesSummaryWithoutReenumeration()
+        {
+            // Arrange：可编辑判定只看声明的 List<int> 类型，值实例换成计数枚举的包装，
+            // 使编辑器是否重复枚举集合可以被精确观测。
+            var collection = new CountingEnumerable(new[] { 1, 2, 3, 4, 5 });
+            var drawnSummaries = new List<string>();
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.Button(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(false)
+                .Callback<string, GUILayoutOption[]>((text, _) => drawnSummaries.Add(text));
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var entryMock = CreateListEntryMock(collection, typeof(List<int>));
+
+            // Act
+            editor.DrawValue(entryMock.Object, new EditableGuiContext());
+            editor.DrawValue(entryMock.Object, new EditableGuiContext());
+
+            // Assert：首趟建立共享快照与摘要文本各枚举一次，第二趟全部命中缓存不再枚举；
+            // 摘要文本复用同一实例，元素数照常出现在摘要中。
+            Assert.Equal(2, collection.EnumerationCount);
+            Assert.Equal(2, drawnSummaries.Count);
+            Assert.Same(drawnSummaries[0], drawnSummaries[1]);
+            Assert.Contains("5", drawnSummaries[0]);
+        }
+
+        [Fact]
+        public void DrawValue_WhenElementsExceedPreviewCount_AppendsEllipsisToSummary()
+        {
+            // Arrange：摘要预览只保留前几个元素，其余以省略号提示；断言不依赖默认语言（双语摘要格式一致）。
+            var drawnSummaries = new List<string>();
+            var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
+            unityGuiMock.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGuiMock
+                .Setup(x => x.Button(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(false)
+                .Callback<string, GUILayoutOption[]>((text, _) => drawnSummaries.Add(text));
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var entryMock = CreateListEntryMock(new List<int> { 10, 20, 30, 40, 50 });
+
+            // Act
+            editor.DrawValue(entryMock.Object, new EditableGuiContext());
+
+            // Assert：摘要含元素总数与前三个元素的预览，第四个元素不出现，尾部以 ", …" 提示还有更多。
+            var summary = Assert.Single(drawnSummaries);
+            Assert.Contains("10, 20, 30", summary);
+            Assert.EndsWith(", …", summary);
+            Assert.DoesNotContain("40", summary);
+        }
+
+        [Fact]
+        public void DrawExtra_WhenElementsExceedPageSize_DrawsOnlyFirstPageWithPaginationControls()
+        {
+            // Arrange：150 个元素分两页；元素数超过单页上限时每趟只布局第一页规模的控件。
+            var unityGuiMock = CreateExpandedAreaGuiMock();
+            var drawnElements = new List<IEntryBinding>();
+            _registry.RegisterEditor(CreateRecordingSubEditor(drawnElements).Object);
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = CreateExpandedContext();
+            var entryMock = CreateListEntryMock(Enumerable.Range(1, 150).ToList());
+
+            // Act
+            editor.DrawExtra(entryMock.Object, context);
+
+            // Assert：仅第一页 100 行进入布局，其余 50 行不创建控件；
+            // 分页栏提供上一页/下一页按钮和页码指示，移除按钮每行一个，追加按钮仍在末行。
+            Assert.Equal(100, drawnElements.Count);
+            Assert.Equal(0, ((CollectionElementBinding)drawnElements[0]).ElementIndex);
+            Assert.Equal(99, ((CollectionElementBinding)drawnElements[99]).ElementIndex);
+            unityGuiMock.Verify(
+                x => x.Button(It.Is<string>(s => IsPreviousPageText(s)), It.IsAny<GUILayoutOption[]>()), Times.Once);
+            unityGuiMock.Verify(
+                x => x.Button(It.Is<string>(s => IsNextPageText(s)), It.IsAny<GUILayoutOption[]>()), Times.Once);
+            // 页码指示走 GetContent 构造内容（双语页码都含斜杠），GUIContent 只能按具体实例匹配。
+            unityGuiMock.Verify(x => x.GetContent(It.Is<string>(s => s.Contains("/"))), Times.Once);
+            unityGuiMock.Verify(
+                x => x.Button(It.Is<string>(s => IsRemoveText(s)), It.IsAny<GUILayoutOption[]>()), Times.Exactly(100));
+            unityGuiMock.Verify(
+                x => x.Button(It.Is<string>(s => IsAddText(s)), It.IsAny<GUILayoutOption[]>()), Times.Once);
+        }
+
+        [Fact]
+        public void DrawExtra_WhenNextPageButtonClicked_DrawsSecondPageOnNextPass()
+        {
+            // Arrange：第一趟在分页栏点击下一页，页码只影响下一趟的绘制范围。
+            var unityGuiMock = CreateExpandedAreaGuiMock();
+            unityGuiMock
+                .Setup(x => x.Button(It.Is<string>(s => IsNextPageText(s)), It.IsAny<GUILayoutOption[]>()))
+                .Returns(true);
+            var drawnElements = new List<IEntryBinding>();
+            _registry.RegisterEditor(CreateRecordingSubEditor(drawnElements).Object);
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = CreateExpandedContext();
+            var entryMock = CreateListEntryMock(Enumerable.Range(1, 150).ToList());
+
+            // Act
+            editor.DrawExtra(entryMock.Object, context);
+            SetupAllButtonsNotClicked(unityGuiMock);
+            editor.DrawExtra(entryMock.Object, context);
+
+            // Assert：第二趟只画第二页的 50 行，下标从 100 起；两趟合计恰好覆盖 150 个下标一次。
+            Assert.Equal(150, drawnElements.Count);
+            Assert.Equal(100, ((CollectionElementBinding)drawnElements[100]).ElementIndex);
+            Assert.Equal(149, ((CollectionElementBinding)drawnElements[149]).ElementIndex);
+        }
+
+        [Fact]
+        public void DrawExtra_WhenCollectionShrinksToSinglePage_ClampsPageAndHidesPaginationControls()
+        {
+            // Arrange：150 个元素翻到第二页后，外部写入把集合缩小到单页规模（5 个元素）。
+            var unityGuiMock = CreateExpandedAreaGuiMock();
+            unityGuiMock
+                .Setup(x => x.Button(It.Is<string>(s => IsNextPageText(s)), It.IsAny<GUILayoutOption[]>()))
+                .Returns(true);
+            var drawnElements = new List<IEntryBinding>();
+            _registry.RegisterEditor(CreateRecordingSubEditor(drawnElements).Object);
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = CreateExpandedContext();
+            var entryMock = CreateListEntryMock(Enumerable.Range(1, 150).ToList());
+
+            // Act
+            editor.DrawExtra(entryMock.Object, context);
+            SetupAllButtonsNotClicked(unityGuiMock);
+            entryMock.Object.Value = new List<int> { 1, 2, 3, 4, 5 };
+            editor.DrawExtra(entryMock.Object, context);
+
+            // Assert：越界页码收敛回第一页并绘制缩小后集合的全部 5 行；单页装下后分页栏不再出现。
+            Assert.Equal(105, drawnElements.Count);
+            Assert.Equal(4, ((CollectionElementBinding)drawnElements[104]).ElementIndex);
+            unityGuiMock.Verify(x => x.GetContent(It.Is<string>(s => s.Contains("/"))), Times.Once);
+        }
+
+        [Fact]
+        public void DrawExtra_WhenAddButtonClickedOnLargeCollection_AdvancesToLastPage()
+        {
+            // Arrange：追加的新元素落在末页，点击添加后当前页应切到包含它的末页。
+            var unityGuiMock = CreateExpandedAreaGuiMock();
+            SetupAddButtonClicked(unityGuiMock);
+            var drawnElements = new List<IEntryBinding>();
+            _registry.RegisterEditor(CreateRecordingSubEditor(drawnElements).Object);
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = CreateExpandedContext();
+            var entryMock = CreateListEntryMock(Enumerable.Range(1, 150).ToList());
+
+            // Act
+            editor.DrawExtra(entryMock.Object, context);
+            SetupAllButtonsNotClicked(unityGuiMock);
+            editor.DrawExtra(entryMock.Object, context);
+
+            // Assert：集合变为 151 个元素；第二趟绘制第二页的 51 行，新元素（下标 150）可见。
+            Assert.Equal(151, ((IList<int>)entryMock.Object.Value).Count);
+            Assert.Equal(151, drawnElements.Count);
+            Assert.Equal(150, ((CollectionElementBinding)drawnElements[150]).ElementIndex);
+        }
+
+        [Fact]
+        public void DrawExtra_WhenElementsReadAcrossPasses_ReadsFromSnapshotWithoutReenumeration()
+        {
+            // Arrange：可编辑判定只看声明的 List<int> 类型，值实例换成计数枚举的包装。
+            // 编辑器把自身作为快照协调者下发给元素绑定后，元素读取应按下标命中共享快照：
+            // 建立快照枚举一次之外，两趟展开绘制中的逐元素读取都不再枚举父集合。
+            var collection = new CountingEnumerable(new[] { 1, 2, 3, 4, 5 });
+            var unityGuiMock = CreateExpandedAreaGuiMock();
+            var readValues = new List<object>();
+            var subEditorMock = new Mock<IValueEditor>(MockBehavior.Strict);
+            subEditorMock.Setup(x => x.CanEdit(It.IsAny<IEntryBinding>())).Returns(true);
+            subEditorMock
+                .Setup(x => x.DrawValue(It.IsAny<IEntryBinding>(), It.IsAny<EditableGuiContext>()))
+                .Callback<IEntryBinding, EditableGuiContext>((element, _) => readValues.Add(element.Value));
+            subEditorMock.Setup(x => x.DrawExtra(It.IsAny<IEntryBinding>(), It.IsAny<EditableGuiContext>()));
+            _registry.RegisterEditor(subEditorMock.Object);
+            var editor = new CollectionEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = CreateExpandedContext();
+            var entryMock = CreateListEntryMock(collection, typeof(List<int>));
+
+            // Act
+            editor.DrawExtra(entryMock.Object, context);
+            editor.DrawExtra(entryMock.Object, context);
+
+            // Assert：仅状态建立时为快照枚举一次集合；两趟各读到全部 5 个元素且值正确，
+            // 同一元素跨趟返回同一装箱实例（快照数组复用，引用稳定）。
+            Assert.Equal(1, collection.EnumerationCount);
+            Assert.Equal(new object[] { 1, 2, 3, 4, 5, 1, 2, 3, 4, 5 }, readValues);
+            Assert.Same(readValues[0], readValues[5]);
+        }
+
         /// <summary>创建被测编辑器；子编辑器解析复用本测试的注册表。</summary>
         private CollectionEditor CreateEditor()
         {
@@ -582,6 +771,15 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // 在缺少 UnityEngine.SharedInternalsModule 的测试环境直接抛 FileNotFoundException。
             unityGuiMock.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
             unityGuiMock.Setup(x => x.EndVertical());
+            // 分页栏的页码指示：GUIContent 同样只能用具体实例匹配，GetContent 统一返回并更新同一实例。
+            var labelContent = new GUIContent();
+            unityGuiMock.Setup(x => x.GetContent(It.IsAny<string>()))
+                .Returns((string text) =>
+                {
+                    labelContent.text = text;
+                    return labelContent;
+                });
+            unityGuiMock.Setup(x => x.Label(labelContent, It.IsAny<GUILayoutOption[]>()));
             return unityGuiMock;
         }
 
@@ -599,6 +797,14 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
                 .Returns(true);
         }
 
+        // 覆盖全部字符串按钮为不点击，供同一替身上先点击再复位的分页场景使用。
+        private static void SetupAllButtonsNotClicked(Mock<IUnityGuiProvider> unityGuiMock)
+        {
+            unityGuiMock
+                .Setup(x => x.Button(It.IsAny<string>(), It.IsAny<GUILayoutOption[]>()))
+                .Returns(false);
+        }
+
         // 文案匹配不依赖全局语言：双语任一命中即视为对应按钮（并行测试可能切换默认语言）。
         private static bool IsRemoveText(string text)
         {
@@ -608,6 +814,16 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         private static bool IsAddText(string text)
         {
             return text == TranslatorResource.CollectionAdd.Chinese || text == TranslatorResource.CollectionAdd.English;
+        }
+
+        private static bool IsPreviousPageText(string text)
+        {
+            return text == TranslatorResource.CollectionPreviousPage.Chinese || text == TranslatorResource.CollectionPreviousPage.English;
+        }
+
+        private static bool IsNextPageText(string text)
+        {
+            return text == TranslatorResource.CollectionNextPage.Chinese || text == TranslatorResource.CollectionNextPage.English;
         }
 
         private static EditableGuiContext CreateExpandedContext()
@@ -708,6 +924,28 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         {
             First,
             Second,
+        }
+
+        /// <summary>
+        /// 计数枚举次数的集合替身：可编辑判定只依赖声明的集合类型，值实例可以是任意可枚举对象，
+        /// 由此精确观测编辑器在收起摘要与快照维护中是否重复枚举集合。
+        /// </summary>
+        private sealed class CountingEnumerable : IEnumerable
+        {
+            private readonly int[] _items;
+
+            public int EnumerationCount { get; private set; }
+
+            public CountingEnumerable(int[] items)
+            {
+                _items = items;
+            }
+
+            public IEnumerator GetEnumerator()
+            {
+                EnumerationCount++;
+                return ((IEnumerable)_items).GetEnumerator();
+            }
         }
     }
 }

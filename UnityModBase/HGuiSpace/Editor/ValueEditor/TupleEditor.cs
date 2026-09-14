@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityModBase.HEnumHelper;
@@ -19,11 +20,21 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// 每帧绘制前对比父条目已提交值引用：非本编辑器写入的变化（外部重置、文件重载等）会丢弃全部元素的暂存输入，
     /// 避免过期回显或未到期的延迟提交覆盖最新值；元组定长，元素投影在绑定生命周期内不重建。
     /// 元素绑定不会再匹配本编辑器，避免嵌套元组递归绘制。元组条目作为双元素槽位时整体不占用额外水平空间，避免挤压兄弟槽位。
+    /// 列宽测量结果按测量来源缓存：集合元素的来源是父集合实例（写入必然替换实例，实例不变即内容不变），
+    /// 同一集合的全部行共享一次测量，缓存键附带布局版本号，语言或皮肤变化导致的失效与其他布局缓存同步。
     /// </remarks>
     public sealed class TupleEditor : IValueEditor
     {
         // 父条目到元素投影状态的弱表：元素绑定与父条目同生命周期，界面重建绑定树后旧元素随父条目一起回收。
         private readonly ConditionalWeakTable<IEntryBinding, TupleEditorState> _states = new ConditionalWeakTable<IEntryBinding, TupleEditorState>();
+
+        // 集合实例到列宽缓存的弱表：集合内各元组行共享同一份列宽测量，集合实例被替换后旧缓存随实例回收。
+        private readonly ConditionalWeakTable<object, ColumnWidthCache> _columnWidthCache = new ConditionalWeakTable<object, ColumnWidthCache>();
+
+        // 枚举类型到列宽缓存的映射：枚举列宽只依赖类型和布局版本，跨条目共享；
+        // Type 实例由运行时终身缓存不会失效，因此用普通字典即可，无需像集合实例那样走弱表。
+        private readonly Dictionary<Type, EnumWidthCache> _enumWidthCache = new Dictionary<Type, EnumWidthCache>();
+
         private readonly Func<IEntryBinding, IValueEditor> _editorResolver;
 
         /// <summary>
@@ -66,7 +77,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 
             var state = GetState(entry);
             SyncExternalValueChange(state);
-            ApplySuggestedElementWidths(entry, state);
+            ApplySuggestedElementWidths(entry, state, context);
 
             // 复合值区域整体占用标签和可选尾部操作之间的剩余宽度；子编辑器再在区域内部
             // 按各自策略分配空间，避免紧凑控件直接参与外层布局后破坏行对齐。
@@ -119,16 +130,51 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         // 每帧绘制前按当前皮肤样式逐列测量元素宽度并下发给对应元素绑定：
         // GUILayout 弹性控件的首选宽度随内容变化，长文本行会打破平分导致各行错落，
         // 固定宽度约束压平差异后同一列表内各行元组的同列元素等宽对齐。
-        private void ApplySuggestedElementWidths(IEntryBinding entry, TupleEditorState state)
+        private void ApplySuggestedElementWidths(IEntryBinding entry, TupleEditorState state, EditableGuiContext context)
         {
-            var widths = MeasureElementWidth(entry, state);
+            var widths = MeasureElementWidth(entry, state, context);
             for (int i = 0; i < widths.Length; i++)
                 state.Elements[i].SuggestedWidth = widths[i];
         }
 
+        // 测量结果的缓存决策：集合元素的测量按父集合实例与布局版本缓存——写入必然替换集合实例，
+        // 实例不变即内容不变，同一集合的全部行共享一次测量；独立条目只测自身单行，成本可忽略，不参与缓存。
+        private float[] MeasureElementWidth(IEntryBinding entry, TupleEditorState state, EditableGuiContext context)
+        {
+            var layoutVersion = context.LayoutVersion;
+            ColumnWidthCache cache = null;
+            IEnumerable groupValues;
+
+            if (entry is CollectionElementBinding collectionElement)
+            {
+                // 测量组决定文本列取最长的范围：集合元素按整个父集合逐行测量（同列跨行对齐的来源）。
+                var parentCollection = collectionElement.Parent.Value;
+                if (parentCollection == null)
+                    return MeasureElementWidthCore(null, state, layoutVersion);
+
+                groupValues = parentCollection as IEnumerable;
+                cache = _columnWidthCache.GetValue(parentCollection, _ => new ColumnWidthCache());
+                if (cache.Widths != null && cache.LayoutVersion == layoutVersion)
+                    return cache.Widths;
+            }
+            else
+            {
+                groupValues = new[] { entry.Value };
+            }
+
+            var widths = MeasureElementWidthCore(groupValues, state, layoutVersion);
+            if (cache != null)
+            {
+                cache.LayoutVersion = layoutVersion;
+                cache.Widths = widths;
+            }
+
+            return widths;
+        }
+
         // 逐列测量固定宽度：布尔列按开关显示词、枚举列按全部可见值的最长描述，都以对应控件样式测量且与行的当前值无关；
         // 其余列按文本框样式测量组内各行文本取最长。
-        private float[] MeasureElementWidth(IEntryBinding entry, TupleEditorState state)
+        private float[] MeasureElementWidthCore(IEnumerable groupValues, TupleEditorState state, int layoutVersion)
         {
             var columnCount = state.Elements.Length;
             var columnWidths = new float[columnCount];
@@ -147,18 +193,10 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 }
                 else if (elementType.IsEnum)
                 {
-                    columnWidths[i] = MeasureEnumWidth(elementType);
+                    columnWidths[i] = MeasureEnumWidth(elementType, layoutVersion);
                     columnIsControlSized[i] = true;
                 }
             }
-
-            // 测量组决定文本列取最长的范围：集合元素按整个父集合逐行测量（同列跨行对齐的来源），
-            // 独立条目只测自身单行。
-            IEnumerable groupValues;
-            if (entry is CollectionElementBinding collectionElement)
-                groupValues = collectionElement.Parent.Value as IEnumerable;
-            else
-                groupValues = new[] { entry.Value };
 
             if (groupValues != null)
             {
@@ -186,9 +224,12 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         }
 
         // 枚举按钮文本可能是本地化描述：与枚举子编辑器共用 EnumHelper 的可见性和描述规则，
-        // 按全部可见值的最长描述用按钮样式测量，与行的当前值无关。
-        private float MeasureEnumWidth(Type enumType)
+        // 按全部可见值的最长描述用按钮样式测量，与行的当前值无关。结果按类型与布局版本缓存。
+        private float MeasureEnumWidth(Type enumType, int layoutVersion)
         {
+            if (_enumWidthCache.TryGetValue(enumType, out var cached) && cached.LayoutVersion == layoutVersion)
+                return cached.Width;
+
             var maxWidth = 0f;
             foreach (var value in Enum.GetValues(enumType))
             {
@@ -200,12 +241,38 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 if (width > maxWidth)
                     maxWidth = width;
             }
+
+            _enumWidthCache[enumType] = new EnumWidthCache { LayoutVersion = layoutVersion, Width = maxWidth };
             return maxWidth;
         }
 
         private TupleEditorState GetState(IEntryBinding entry)
         {
             return _states.GetValue(entry, parent => new TupleEditorState(parent));
+        }
+
+        /// <summary>
+        /// 缓存一次列宽测量结果及其对应的布局版本；版本不一致时视为失效。
+        /// </summary>
+        private sealed class ColumnWidthCache
+        {
+            /// <summary>测量时的布局版本号。</summary>
+            public int LayoutVersion = -1;
+
+            /// <summary>测得的各列固定宽度；尚未测量时为 null。</summary>
+            public float[] Widths;
+        }
+
+        /// <summary>
+        /// 缓存一次枚举列宽测量结果及其对应的布局版本；版本不一致时视为失效。
+        /// </summary>
+        private sealed class EnumWidthCache
+        {
+            /// <summary>测量时的布局版本号。</summary>
+            public int LayoutVersion = -1;
+
+            /// <summary>测得的枚举列固定宽度。</summary>
+            public float Width;
         }
 
         // 对比父条目已提交值引用识别外部写入；元素自身的合并写入通过回调标记，不触发清空。

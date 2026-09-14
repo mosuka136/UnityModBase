@@ -105,6 +105,40 @@ namespace UnityModBase.Test.HConfigGUI
         }
 
         [Fact]
+        public void SetLayoutDirtyFlags_WithAnyDirtyDimension_IncrementsLayoutVersion()
+        {
+            // Arrange：任一维度失效都意味着皮肤样式或文案可能变化，按内容缓存的测量结果
+            //（如元组列宽）以版本号递增判定一并失效；默认全失效与单维度失效各自递增一次。
+            var context = new GuiContext();
+            var initialVersion = context.LayoutVersion;
+
+            // Act
+            context.SetLayoutDirtyFlags();
+            context.SetLayoutDirtyFlags(
+                entryLabelWidthDirty: false,
+                groupButtonWidthDirty: true,
+                trailingActionWidthDirty: false);
+
+            // Assert
+            Assert.Equal(initialVersion + 2, context.LayoutVersion);
+        }
+
+        [Fact]
+        public void SetLayoutDirtyFlags_WithNoDirtyDimensions_KeepsLayoutVersion()
+        {
+            // Arrange：三个维度全部保持干净时只是回写标记，布局未失效，版本号不应递增，
+            // 否则按版本号缓存的测量结果会被无谓丢弃。
+            var context = new GuiContext();
+            var initialVersion = context.LayoutVersion;
+
+            // Act
+            context.SetLayoutDirtyFlags(false, false, false);
+
+            // Assert
+            Assert.Equal(initialVersion, context.LayoutVersion);
+        }
+
+        [Fact]
         public void SubscribeToastNotifications_WhenToastEditorIsNull_ThrowsArgumentNullException()
         {
             var context = new GuiContext();

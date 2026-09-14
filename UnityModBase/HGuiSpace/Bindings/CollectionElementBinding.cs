@@ -7,6 +7,27 @@ using UnityModBase.HTranslatorSpace;
 namespace UnityModBase.HGuiSpace.Bindings
 {
     /// <summary>
+    /// 由集合编辑器状态实现的元素快照协调接口：元素绑定优先从共享快照按下标读取元素，
+    /// 避免大集合下每个元素读取都从头枚举父集合；写入构造出新集合实例后可直接采纳写前元素数组，
+    /// 免去父条目值不变期间的重新枚举。快照与父条目当前值的匹配性由实现方校验。
+    /// </summary>
+    internal interface ICollectionElementSnapshotSink
+    {
+        /// <summary>
+        /// 获取与父条目当前值实例匹配的元素快照。
+        /// </summary>
+        /// <returns>与父条目当前值匹配的元素数组；不匹配或快照不可用时返回 null，调用方应回退到直接枚举。</returns>
+        object[] GetSnapshotIfCurrent();
+
+        /// <summary>
+        /// 采纳一次合并写入产生的新集合实例及其对应元素数组；此后父条目值不变期间的元素读取直接命中该快照。
+        /// </summary>
+        /// <param name="collection">已写入父条目的新集合实例。</param>
+        /// <param name="elements">构造该集合时使用的元素数组；采纳后归快照所有，调用方不得再修改。</param>
+        void AdoptSnapshot(object collection, object[] elements);
+    }
+
+    /// <summary>
     /// 把有序集合条目中的单个元素投影为独立条目绑定，供 <see cref="Editor.ValueEditorRegistry"/> 按元素类型选择子编辑器。
     /// 元素写入会复制父集合并替换对应下标的元素，构造新的集合实例整体写回父条目；暂存输入保存在自身独立的编辑缓冲区中，
     /// 与其他元素的编辑互不影响。本类不负责延迟提交或变更通知，这些职责仍由 GUI 上下文的变更提交器承担。
@@ -17,6 +38,8 @@ namespace UnityModBase.HGuiSpace.Bindings
     /// 父集合的增删会使元素下标整体错位，元素投影由集合编辑器在下标布局失效时整体重建，本类不做下标迁移。
     /// 值类型元素经非泛型枚举读取会重新装箱，读取结果按父集合实例缓存，保证父集合不变时引用稳定，
     /// 供上层组合编辑器（如元组编辑器）以引用比较识别外部写入。
+    /// 提供快照协调者时读取与合并写入都优先走共享快照：读取按下标直接命中，写入以快照浅拷贝为底稿，
+    /// 且父条目值未被等值比较拦截时把新集合实例连同元素数组回传协调者，免去下一次读取前的重新枚举。
     /// </remarks>
     internal sealed class CollectionElementBinding : IEntryBinding
     {
@@ -49,6 +72,7 @@ namespace UnityModBase.HGuiSpace.Bindings
         public EntryEditBuffer EditBuffer { get; } = new EntryEditBuffer();
 
         private readonly Action _onParentValueWritten;
+        private readonly ICollectionElementSnapshotSink _snapshotSink;
 
         // 元素读取缓存：记录缓存来源的父集合实例和对应的元素装箱结果，见 Value 属性说明。
         private object _cachedParentCollection;
@@ -57,8 +81,9 @@ namespace UnityModBase.HGuiSpace.Bindings
         /// <summary>
         /// 获取或设置父集合中本绑定对应下标的元素。
         /// 父条目集合值缺失或短于记录下标属于异常状态，此时读取降级返回 null 而不抛出。
-        /// 读取按父集合实例缓存结果：值类型元素经非泛型枚举每次都会重新装箱，
-        /// 缓存使父集合实例不变时重复读取返回同一引用；父集合被整体替换（元素写入、增删或外部变更）后缓存失效并重新枚举。
+        /// 读取优先经共享快照按下标直接命中；快照不可用时按父集合实例缓存枚举结果：
+        /// 值类型元素经非泛型枚举每次都会重新装箱，缓存使父集合实例不变时重复读取返回同一引用；
+        /// 父集合被整体替换（元素写入、增删或外部变更）后缓存失效并重新枚举。
         /// 赋值必须为元素声明类型可赋值的非 null 实例；写入时复制父集合并替换本下标元素，
         /// 构造新的集合实例经父条目整体替换，复用其编码、文件同步和变更事件流程，等值写入由父条目忽略。
         /// </summary>
@@ -68,6 +93,11 @@ namespace UnityModBase.HGuiSpace.Bindings
         {
             get
             {
+                // 共享快照命中时按下标直接读取，免去找出元素的从头枚举；快照由协调者保证与父条目当前值匹配。
+                var snapshot = _snapshotSink?.GetSnapshotIfCurrent();
+                if (snapshot != null)
+                    return ElementIndex < snapshot.Length ? snapshot[ElementIndex] : null;
+
                 var collection = Parent.Value as IEnumerable;
                 if (!ReferenceEquals(collection, _cachedParentCollection))
                 {
@@ -92,10 +122,11 @@ namespace UnityModBase.HGuiSpace.Bindings
         /// <param name="parent">值类型为一维数组、实现 <see cref="IList{T}"/> 的类型或相应接口声明的父条目绑定。</param>
         /// <param name="elementIndex">元素下标，必须从 0 起且当前无上限校验；合法范围由集合编辑器按下标重建保证。</param>
         /// <param name="onParentValueWritten">本元素向父条目写入整体值后的可选通知回调。</param>
+        /// <param name="snapshotSink">共享元素快照的可选协调者；提供时读取与合并写入优先走快照路径。</param>
         /// <exception cref="ArgumentNullException"><paramref name="parent"/> 为 null。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="elementIndex"/> 小于 0。</exception>
         /// <exception cref="ArgumentException"><paramref name="parent"/> 的值类型不是可按下标访问的有序集合。</exception>
-        public CollectionElementBinding(IEntryBinding parent, int elementIndex, Action onParentValueWritten = null)
+        public CollectionElementBinding(IEntryBinding parent, int elementIndex, Action onParentValueWritten = null, ICollectionElementSnapshotSink snapshotSink = null)
         {
             if (parent == null)
                 throw new ArgumentNullException(nameof(parent));
@@ -109,6 +140,7 @@ namespace UnityModBase.HGuiSpace.Bindings
             ElementIndex = elementIndex;
             ValueType = elementType;
             _onParentValueWritten = onParentValueWritten;
+            _snapshotSink = snapshotSink;
         }
 
         /// <summary>
@@ -210,14 +242,21 @@ namespace UnityModBase.HGuiSpace.Bindings
         }
 
         // 复制父集合并替换本下标元素，构造新集合实例整体写回父条目。
+        // 合并底稿优先复用共享快照的浅拷贝：命中时免去对父集合的全量枚举装箱；
+        // 父条目采纳了新集合实例时把实例连同底稿回传协调者，下一次读取无需重新枚举。
         private void WriteMergedValue(object value)
         {
-            var elements = CopyElements(Parent.Value as IEnumerable);
+            var snapshot = _snapshotSink?.GetSnapshotIfCurrent();
+            var elements = snapshot != null ? (object[])snapshot.Clone() : CopyElements(Parent.Value as IEnumerable);
             if (ElementIndex >= elements.Length)
                 throw new InvalidOperationException($"Element index {ElementIndex} is outside the current parent collection.");
 
             elements[ElementIndex] = value;
-            Parent.Value = CreateCollection(Parent.ValueType, ValueType, elements);
+            var newCollection = CreateCollection(Parent.ValueType, ValueType, elements);
+            Parent.Value = newCollection;
+            // 等值写入会被父条目忽略而保持旧实例，新集合未真正生效，不能作为快照来源。
+            if (_snapshotSink != null && ReferenceEquals(Parent.Value, newCollection))
+                _snapshotSink.AdoptSnapshot(newCollection, elements);
             _onParentValueWritten?.Invoke();
         }
     }

@@ -451,6 +451,133 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             unityGuiMock.VerifyNoOtherCalls();
         }
 
+        [Fact]
+        public void DrawValue_WhenCollectionRowsDrawnRepeatedly_MeasuresColumnWidthsOncePerCollectionInstance()
+        {
+            // Arrange：集合内 150 行元组共享父集合实例，列宽测量只应按实例发生一次，
+            // 后续行与后续趟全部命中缓存，文本测量次数不随行数增长。
+            var unityGuiMock = CreateHorizontalAreaGuiMock();
+            var calcTextWidthCalls = 0;
+            unityGuiMock
+                .Setup(x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, It.IsAny<string>()))
+                .Callback(() => calcTextWidthCalls++)
+                .Returns(10f);
+            _registry.RegisterEditor(CreateRecordingSubEditor(new List<IEntryBinding>()).Object);
+            var editor = new TupleEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = new EditableGuiContext();
+            var collection = Enumerable.Range(1, 150).Select(i => (i, $"row{i}")).ToList();
+            var parentMock = CreateCollectionEntryMock(collection);
+            var elementBindings = Enumerable.Range(0, collection.Count)
+                .Select(i => new CollectionElementBinding(parentMock.Object, i))
+                .ToArray();
+
+            // Act：同一集合实例的全部行各绘制一趟，再整体重复一趟。
+            foreach (var binding in elementBindings)
+                editor.DrawValue(binding, context);
+            var callsAfterFirstPass = calcTextWidthCalls;
+            foreach (var binding in elementBindings)
+                editor.DrawValue(binding, context);
+
+            // Assert：首趟仅首行触发一次全集合测量（150 行 × 2 个文本列 = 300 次），第二趟零增量。
+            Assert.Equal(300, callsAfterFirstPass);
+            Assert.Equal(callsAfterFirstPass, calcTextWidthCalls);
+        }
+
+        [Fact]
+        public void DrawValue_WhenLayoutVersionAdvances_RemeasuresColumnWidths()
+        {
+            // Arrange：语言切换等布局失效会递增版本号，实例未变的缓存列宽也应随之失效并重测一次。
+            var unityGuiMock = CreateHorizontalAreaGuiMock();
+            var calcTextWidthCalls = 0;
+            unityGuiMock
+                .Setup(x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, It.IsAny<string>()))
+                .Callback(() => calcTextWidthCalls++)
+                .Returns(10f);
+            _registry.RegisterEditor(CreateRecordingSubEditor(new List<IEntryBinding>()).Object);
+            var editor = new TupleEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = new EditableGuiContext();
+            var collection = Enumerable.Range(1, 10).Select(i => (i, $"row{i}")).ToList();
+            var parentMock = CreateCollectionEntryMock(collection);
+            var elementBindings = Enumerable.Range(0, collection.Count)
+                .Select(i => new CollectionElementBinding(parentMock.Object, i))
+                .ToArray();
+
+            // Act：首趟建立缓存；递增布局版本后仅重画首行，应触发一次完整的重测量。
+            foreach (var binding in elementBindings)
+                editor.DrawValue(binding, context);
+            var callsAfterFirstPass = calcTextWidthCalls;
+            context.SetLayoutDirtyFlags();
+            editor.DrawValue(elementBindings[0], context);
+
+            // Assert：重测规模与首趟相同（10 行 × 2 列 = 20 次）。
+            Assert.Equal(20, callsAfterFirstPass);
+            Assert.Equal(40, calcTextWidthCalls);
+        }
+
+        [Fact]
+        public void DrawValue_WhenEnumColumnAcrossPasses_MeasuresEnumWidthOncePerVersion()
+        {
+            // Arrange：枚举列宽只依赖类型与布局版本：首趟对全部可见枚举值测量一次，
+            // 后续趟与同类型的其他行不再重复测量；版本递增后重测一轮。
+            var unityGuiMock = CreateHorizontalAreaGuiMock();
+            var calcButtonWidthCalls = 0;
+            unityGuiMock
+                .Setup(x => x.CalcSizeWidth(unityGuiMock.Object.ButtonStyle, It.IsAny<string>()))
+                .Callback(() => calcButtonWidthCalls++)
+                .Returns(10f);
+            _registry.RegisterEditor(CreateRecordingSubEditor(new List<IEntryBinding>()).Object);
+            var editor = new TupleEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = new EditableGuiContext();
+            var collection = Enumerable.Range(0, 10).Select(i => (WidthEnum.Alpha, $"row{i}")).ToList();
+            var parentMock = CreateCollectionEntryMock(collection);
+            var elementBindings = Enumerable.Range(0, collection.Count)
+                .Select(i => new CollectionElementBinding(parentMock.Object, i))
+                .ToArray();
+
+            // Act
+            foreach (var binding in elementBindings)
+                editor.DrawValue(binding, context);
+            var callsAfterFirstPass = calcButtonWidthCalls;
+            foreach (var binding in elementBindings)
+                editor.DrawValue(binding, context);
+            context.SetLayoutDirtyFlags();
+            editor.DrawValue(elementBindings[0], context);
+
+            // Assert：首趟 3 个可见枚举值各测一次，第二趟零增量；版本递增后重测 3 次。
+            Assert.Equal(3, callsAfterFirstPass);
+            Assert.Equal(6, calcButtonWidthCalls);
+        }
+
+        [Fact]
+        public void DrawValue_WhenCollectionInstanceReplaced_RemeasuresColumnWidthsForNewInstance()
+        {
+            // Arrange：列宽缓存以集合实例为键——集合写入必然替换实例，实例不变即内容不变；
+            // 实例更换后旧测量不得复用，应按新集合内容整体重测，否则列宽停留在过期内容上。
+            var unityGuiMock = CreateHorizontalAreaGuiMock();
+            unityGuiMock.Setup(x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, "1")).Returns(16f);
+            unityGuiMock.Setup(x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, "short")).Returns(24f);
+            unityGuiMock.Setup(x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, "a-much-longer-value")).Returns(400f);
+            var drawnElements = new List<IEntryBinding>();
+            _registry.RegisterEditor(CreateRecordingSubEditor(drawnElements).Object);
+            var editor = new TupleEditor(unityGuiMock.Object, _registry.GetEditor);
+            var context = new EditableGuiContext();
+            var parentMock = CreateCollectionEntryMock(new List<(int, string)> { (1, "short") });
+            var element0 = new CollectionElementBinding(parentMock.Object, 0);
+
+            // Act：首趟按旧实例测得字符串列 24+16；集合被整体替换为新实例（文本更长）后再画一行。
+            editor.DrawValue(element0, context);
+            var stringColumn = (TupleElementBinding)drawnElements[1];
+            Assert.Equal(40f, stringColumn.SuggestedWidth);
+            parentMock.Object.Value = new List<(int, string)> { (1, "a-much-longer-value") };
+            editor.DrawValue(element0, context);
+
+            // Assert：新实例触发整体重测，同一列绑定上的建议宽度更新为新内容的最长文本（400+16），
+            // 且测量确实发生在新实例的文本上。
+            Assert.Equal(416f, stringColumn.SuggestedWidth);
+            unityGuiMock.Verify(
+                x => x.CalcSizeWidth(unityGuiMock.Object.TextFieldStyle, "a-much-longer-value"), Times.Once);
+        }
+
         /// <summary>创建被测编辑器；子编辑器解析复用本测试的注册表。</summary>
         private TupleEditor CreateEditor()
         {

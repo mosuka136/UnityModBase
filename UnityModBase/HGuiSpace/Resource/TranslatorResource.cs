@@ -33,5 +33,14 @@ namespace UnityModBase.HGuiSpace.Resource
 
         /// <summary>集合元素移除按钮文案。</summary>
         public static readonly Translator CollectionRemove = new Translator("移除", "Remove");
+
+        /// <summary>集合分页上一页按钮文案。</summary>
+        public static readonly Translator CollectionPreviousPage = new Translator("上一页", "Previous");
+
+        /// <summary>集合分页下一页按钮文案。</summary>
+        public static readonly Translator CollectionNextPage = new Translator("下一页", "Next");
+
+        /// <summary>集合分页页码指示文案；参数为当前页码（从 1 起）和总页数。</summary>
+        public static readonly Translator CollectionPageIndicator = new Translator("第 {0}/{1} 页", "Page {0}/{1}");
     }
 }

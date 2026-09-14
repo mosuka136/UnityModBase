@@ -259,6 +259,114 @@ namespace UnityModBase.Test.HGuiSpace.Bindings
         }
 
         [Fact]
+        public void Value_Get_WhenSnapshotSinkProvidesCurrentSnapshot_ReadsByIndexWithoutEnumeratingParent()
+        {
+            // Arrange：快照协调者提供与父条目当前值匹配的元素数组时，读取应按下标直接命中。
+            // 父替身处于严格模式且不设置值读取，任何枚举回退路径都会抛出，天然证明没有触碰父集合。
+            var snapshot = new object[] { 1, 2, 3 };
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(List<int>));
+            var sink = new StubSnapshotSink { GetCurrentSnapshot = () => snapshot };
+            var element1 = new CollectionElementBinding(parentMock.Object, 1, null, sink);
+
+            // Act
+            var value = element1.Value;
+
+            // Assert
+            Assert.Equal(2, value);
+        }
+
+        [Fact]
+        public void Value_Get_WhenSnapshotSinkReturnsNull_FallsBackToParentEnumeration()
+        {
+            // Arrange：协调者的快照与父条目当前值不匹配（返回 null）时，回退到按父集合实例缓存的枚举路径。
+            var parentMock = CreateParentMock(new List<int> { 4, 5 });
+            var sink = new StubSnapshotSink { GetCurrentSnapshot = () => null };
+            var element1 = new CollectionElementBinding(parentMock.Object, 1, null, sink);
+
+            // Act & Assert：首次读取枚举父集合，再次读取命中实例缓存，父条目值各被读取一次且结果一致。
+            Assert.Equal(5, element1.Value);
+            Assert.Equal(5, element1.Value);
+            parentMock.VerifyGet(x => x.Value, Times.Exactly(2));
+        }
+
+        [Fact]
+        public void Value_Get_WhenSnapshotShorterThanIndex_ReturnsNull()
+        {
+            // Arrange：快照与父条目当前值匹配但短于记录下标，属于投影过期的异常状态，
+            // 读取应与枚举路径的越界行为一致：降级返回 null 而不抛出（正常流程由编辑器重建保证不会发生）。
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(List<int>));
+            var sink = new StubSnapshotSink { GetCurrentSnapshot = () => new object[] { 1 } };
+            var element5 = new CollectionElementBinding(parentMock.Object, 5, null, sink);
+
+            // Act & Assert：父替身未设置值读取，返回 null 证明既没有越界访问快照也没有回退枚举父集合。
+            Assert.Null(element5.Value);
+        }
+
+        [Fact]
+        public void Value_Set_WhenSnapshotSinkProvidesSnapshot_WritesMergedValueAndAdoptsNewCollection()
+        {
+            // Arrange：合并底稿复用共享快照的浅拷贝，父条目采纳新集合实例后连同元素数组回传协调者。
+            var parentMock = CreateParentMock(new List<int> { 1, 2, 3 });
+            var sink = new StubSnapshotSink { GetCurrentSnapshot = () => new object[] { 1, 2, 3 } };
+            var element1 = new CollectionElementBinding(parentMock.Object, 1, null, sink);
+
+            // Act
+            element1.Value = 9;
+
+            // Assert：父条目收到替换了下标 1 元素的新集合；协调者采纳同一实例与写前元素数组，
+            // 之后元素读取直接来自被采纳的快照。
+            var result = Assert.IsType<List<int>>(parentMock.Object.Value);
+            Assert.Equal(new[] { 1, 9, 3 }, result);
+            Assert.Same(result, sink.AdoptedCollection);
+            Assert.Equal(new object[] { 1, 9, 3 }, sink.AdoptedElements);
+            sink.GetCurrentSnapshot = () => sink.AdoptedElements;
+            Assert.Equal(9, element1.Value);
+        }
+
+        [Fact]
+        public void Value_Set_WhenParentIgnoresEqualValue_DoesNotAdoptUnusedCollection()
+        {
+            // Arrange：父条目对等值写入保留原实例（如 ChangeSink 等值拦截），未被采纳的新集合不能作为快照来源。
+            var original = new List<int> { 1, 2 };
+            var parentMock = new Mock<IEntryBinding>(MockBehavior.Strict);
+            parentMock.SetupGet(x => x.ValueType).Returns(typeof(List<int>));
+            parentMock.SetupGet(x => x.Value).Returns(original);
+            parentMock.SetupSet(x => x.Value = It.IsAny<object>());
+            var sink = new StubSnapshotSink { GetCurrentSnapshot = () => new object[] { 1, 2 } };
+            var element1 = new CollectionElementBinding(parentMock.Object, 1, null, sink);
+
+            // Act：写入与现有元素等值的 2；父条目忽略赋值后 Value 仍返回原实例。
+            element1.Value = 2;
+
+            // Assert：新集合未被父条目采纳，协调者不收到快照采纳。
+            Assert.Null(sink.AdoptedCollection);
+            Assert.Null(sink.AdoptedElements);
+        }
+
+        /// <summary>可编程的快照协调者替身：按委托返回当前快照，记录采纳调用。</summary>
+        private sealed class StubSnapshotSink : ICollectionElementSnapshotSink
+        {
+            public Func<object[]> GetCurrentSnapshot { get; set; }
+
+            public object AdoptedCollection { get; private set; }
+
+            public object[] AdoptedElements { get; private set; }
+
+            public object[] GetSnapshotIfCurrent()
+            {
+                return GetCurrentSnapshot?.Invoke();
+            }
+
+            public void AdoptSnapshot(object collection, object[] elements)
+            {
+                AdoptedCollection = collection;
+                AdoptedElements = elements;
+            }
+        }
+
+        [Fact]
         public void CopyElements_WhenCollectionIsNull_ReturnsEmptyArray()
         {
             // Act & Assert

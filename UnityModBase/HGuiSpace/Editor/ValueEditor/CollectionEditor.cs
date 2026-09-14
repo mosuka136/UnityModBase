@@ -21,6 +21,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// 元素绑定按父条目弱表缓存并在下标布局失效时整体重建：自身写入且元素数不变（纯元素修改）时保留绑定与暂存输入；
     /// 增删元素或外部写入（重置、文件重载等）会清空全部元素暂存并按需重建，避免过期回显或错位下标覆盖最新值。
     /// 增删前先提交各元素行未到期的延迟输入，减少整行替换时的输入丢失。元素绑定不会再匹配本编辑器，避免递归绘制。
+    /// 大集合下的开销由三处机制约束：父集合元素按实例缓存为共享快照，全部元素按下标直接读取，
+    /// 每次值替换只额外付出一次快照重建；摘要文本按集合实例缓存，收起状态不再逐事件全量枚举；
+    /// 展开区元素数超过单页上限时按页裁剪绘制范围，同时布局的控件数不随元素总数增长。
     /// </remarks>
     public sealed class CollectionEditor : IValueEditor
     {
@@ -29,6 +32,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 
         // 预览文本的字符数预算，超出部分截断为省略号，防止长内容把摘要按钮换行成多行而撑高条目行。
         private const int MaxPreviewLength = 36;
+
+        // 展开区单页元素数上限：超过后进入分页绘制，每趟布局的控件数被约束在单页规模。
+        private const int PageSize = 100;
 
         // 父条目到元素投影状态的弱表：元素绑定与父条目同生命周期，界面重建绑定树后旧元素随父条目一起回收。
         private readonly ConditionalWeakTable<IEntryBinding, CollectionEditorState> _states = new ConditionalWeakTable<IEntryBinding, CollectionEditorState>();
@@ -64,6 +70,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         /// <summary>
         /// 绘制元素数与预览摘要按钮，点击切换展开状态。
         /// 绘制前同步外部值变化：非本编辑器写入的父条目新值会清空元素暂存并按需重建投影。
+        /// 摘要文本按集合实例缓存：集合未被替换时各 IMGUI 事件趟直接复用，不再重复枚举与格式化。
         /// </summary>
         public void DrawValue(IEntryBinding entry, EditableGuiContext context)
         {
@@ -76,7 +83,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             SyncExternalValueChange(state);
 
             var collection = ValueProvider.GetValidValue(entry) as IEnumerable;
-            var summary = FormatSummary(state.ElementType, collection);
+            var summary = GetCachedSummary(state, collection);
 
             bool buttonClicked;
             if (entry is DualValueSlotBinding)
@@ -105,6 +112,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         /// <summary>
         /// 绘制展开的逐元素编辑区：每行一个移除按钮加元素子编辑器的主值控件，末行提供追加按钮。
         /// 增删发生时当帧中止剩余行的绘制，下一帧按重建后的投影继续。
+        /// 元素数超过单页上限时只绘制当前页范围并附加分页栏，每趟布局的控件数约束在单页规模。
         /// </summary>
         public void DrawExtra(IEntryBinding entry, EditableGuiContext context)
         {
@@ -126,11 +134,16 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 UnityGui.BeginVertical(UnityGui.BoxStyle);
                 try
                 {
-                    for (int i = 0; i < state.Elements.Length; i++)
+                    // 页码每趟收敛到有效范围：增删或外部写入改变元素数后，越界的当前页在绘制前回落。
+                    state.Page = ClampPage(state.Page, state.Elements.Length);
+                    var startIndex = state.Page * PageSize;
+                    var endIndex = Math.Min(state.Elements.Length, startIndex + PageSize);
+                    for (int i = startIndex; i < endIndex; i++)
                     {
                         if (!DrawElementRow(state, i, context))
                             return;
                     }
+                    DrawPaginationRow(state);
                     DrawAddRow(state, context);
                 }
                 finally
@@ -195,6 +208,31 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             return true;
         }
 
+        // 分页栏：元素数超过单页上限时绘制翻页按钮与页码指示；单页容纳全部元素时不绘制，保持小集合的原有形态。
+        // 到达首页或末页后按钮保持可用但页码被钳制，不再前进。
+        private void DrawPaginationRow(CollectionEditorState state)
+        {
+            var pageCount = GetPageCount(state.Elements.Length);
+            if (pageCount <= 1)
+                return;
+
+            UnityGui.BeginHorizontal();
+            try
+            {
+                if (UnityGui.Button(TranslatorResource.CollectionPreviousPage, UnityGui.ExpandWidth(true)))
+                    state.Page = Math.Max(0, state.Page - 1);
+                UnityGui.Label(
+                    UnityGui.GetContent(string.Format(TranslatorResource.CollectionPageIndicator, state.Page + 1, pageCount)),
+                    UnityGui.ExpandWidth(false));
+                if (UnityGui.Button(TranslatorResource.CollectionNextPage, UnityGui.ExpandWidth(true)))
+                    state.Page = Math.Min(pageCount - 1, state.Page + 1);
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
+        }
+
         private void DrawAddRow(CollectionEditorState state, EditableGuiContext context)
         {
             UnityGui.BeginHorizontal();
@@ -209,13 +247,14 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             }
         }
 
-        // 移除指定下标的元素：先提交各元素行未到期的输入，再复制父集合去掉目标元素后整体替换。
+        // 移除指定下标的元素：先提交各元素行未到期的输入，再以刷新后的共享快照为底稿去掉目标元素后整体替换。
         private void RemoveElement(CollectionEditorState state, int index, EditableGuiContext context)
         {
             CommitElements(state, context);
             state.HasSelfWriteSinceDraw = true;
 
-            var elements = CollectionElementBinding.CopyElements(state.Parent.Value as IEnumerable);
+            // 提交可能已替换父集合实例，读取底稿前先刷新共享快照。
+            var elements = (object[])state.RefreshSnapshot().Clone();
             if (index >= elements.Length)
                 return;
 
@@ -226,17 +265,18 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             WriteNewCollection(state, remaining, context);
         }
 
-        // 追加一个默认值元素：先提交各元素行未到期的输入，再复制父集合追加元素后整体替换。
+        // 追加一个默认值元素：先提交各元素行未到期的输入，再以刷新后的共享快照为底稿追加元素后整体替换，并把当前页切到包含新元素的末页。
         private void AddElement(CollectionEditorState state, EditableGuiContext context)
         {
             CommitElements(state, context);
             state.HasSelfWriteSinceDraw = true;
 
-            var elements = CollectionElementBinding.CopyElements(state.Parent.Value as IEnumerable);
+            var elements = (object[])state.RefreshSnapshot().Clone();
             Array.Resize(ref elements, elements.Length + 1);
             elements[elements.Length - 1] = CreateDefaultElement(state.ElementType);
 
             WriteNewCollection(state, elements, context);
+            state.Page = GetPageCount(elements.Length) - 1;
         }
 
         private void WriteNewCollection(CollectionEditorState state, object[] elements, EditableGuiContext context)
@@ -245,6 +285,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             {
                 var newCollection = CollectionElementBinding.CreateCollection(state.Parent.ValueType, state.ElementType, elements);
                 context.ChangeSink.SetValue(state.Parent, newCollection);
+                // 等值写入（如追加结果与原集合内容相同）会被父条目忽略而保持旧实例，新集合未生效，不能采纳为快照来源。
+                if (ReferenceEquals(state.Parent.Value, newCollection))
+                    state.AdoptSnapshot(newCollection, elements);
             }
             catch (NotSupportedException ex)
             {
@@ -274,33 +317,84 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             return Activator.CreateInstance(elementType);
         }
 
+        // 摘要文本按集合实例缓存：集合未被替换时各事件趟直接复用，调用方传入的集合引用是缓存的唯一失效条件。
+        private static string GetCachedSummary(CollectionEditorState state, IEnumerable collection)
+        {
+            if (!ReferenceEquals(collection, state.SummarySource))
+            {
+                state.SummaryText = FormatSummary(state.ElementType, collection);
+                state.SummarySource = collection;
+            }
+
+            return state.SummaryText;
+        }
+
+        // 摘要只依赖元素数和前几个元素：计数优先取 ICollection.Count（数组和 List<T> 等常见实现可用），
+        // 预览仅枚举头部元素，避免大集合在每个事件趟为生成摘要做全量枚举与装箱分配。
         private static string FormatSummary(Type elementType, IEnumerable collection)
         {
-            var elements = CollectionElementBinding.CopyElements(collection);
-            if (elements.Length == 0)
-                return string.Format(TranslatorResource.CollectionCount, elements.Length);
+            var count = 0;
+            var filled = 0;
+            var preview = new object[PreviewElementCount];
+            if (collection != null)
+            {
+                if (collection is ICollection collectionWithCount)
+                {
+                    count = collectionWithCount.Count;
+                    foreach (var item in collection)
+                    {
+                        if (filled == preview.Length)
+                            break;
+                        preview[filled++] = item;
+                    }
+                }
+                else
+                {
+                    // 防御回退：非 ICollection 的有序集合一次枚举同时计数和收集预览。
+                    foreach (var item in collection)
+                    {
+                        if (filled < preview.Length)
+                            preview[filled++] = item;
+                        count++;
+                    }
+                }
+            }
 
-            var preview = new StringBuilder();
-            var previewCount = Math.Min(elements.Length, PreviewElementCount);
-            for (int i = 0; i < previewCount; i++)
+            if (count == 0)
+                return string.Format(TranslatorResource.CollectionCount, count);
+
+            var previewBuilder = new StringBuilder();
+            for (int i = 0; i < filled; i++)
             {
                 if (i > 0)
-                    preview.Append(", ");
+                    previewBuilder.Append(", ");
 
-                var text = elements[i]?.ToString() ?? string.Empty;
+                var text = preview[i]?.ToString() ?? string.Empty;
                 // 字符串元素加引号与配置编码层口径一致，使空字符串在预览中可见。
                 if (elementType == typeof(string))
                     text = $"\"{text}\"";
-                preview.Append(text);
+                previewBuilder.Append(text);
             }
 
-            var previewText = preview.ToString();
+            var previewText = previewBuilder.ToString();
             if (previewText.Length > MaxPreviewLength)
                 previewText = previewText.Substring(0, MaxPreviewLength) + "…";
-            else if (elements.Length > PreviewElementCount)
+            else if (count > filled)
                 previewText += ", …";
 
-            return string.Format(TranslatorResource.CollectionSummary, elements.Length, previewText);
+            return string.Format(TranslatorResource.CollectionSummary, count, previewText);
+        }
+
+        // 按元素数计算总页数；不足一页按一页计，分页栏据此决定是否绘制。
+        private static int GetPageCount(int elementCount)
+        {
+            return Math.Max(1, (elementCount + PageSize - 1) / PageSize);
+        }
+
+        // 把页码收敛到有效范围；元素数变化（增删或外部写入）后由绘制入口调用，防止停留在越界页。
+        private static int ClampPage(int page, int elementCount)
+        {
+            return Math.Min(Math.Max(0, page), GetPageCount(elementCount) - 1);
         }
 
         private CollectionEditorState GetState(IEntryBinding entry)
@@ -310,6 +404,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 
         // 对比父条目已提交值引用识别状态失效：自身写入且元素数不变时按下标投影仍有效；
         // 增删（自身或外部）与外部写入会清空元素暂存，元素数变化时整体重建投影绑定。
+        // 引用变化时先重建共享快照：元素数取自快照长度，元素绑定随后的读取按下标直接命中，免去逐元素从头枚举。
         private static void SyncExternalValueChange(CollectionEditorState state)
         {
             var currentCommitted = state.Parent.Value;
@@ -317,8 +412,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 return;
 
             var isSelfWrite = state.HasSelfWriteSinceDraw;
+            var snapshot = state.RefreshSnapshot();
+            var newCount = snapshot.Length;
             var oldCount = state.Elements.Length;
-            var newCount = CollectionElementBinding.CopyElements(currentCommitted as IEnumerable).Length;
             state.LastCommittedValue = currentCommitted;
             state.HasSelfWriteSinceDraw = false;
 
@@ -332,9 +428,9 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
         }
 
         /// <summary>
-        /// 缓存单个集合父条目的元素投影绑定及外部值变化跟踪状态。
+        /// 缓存单个集合父条目的元素投影绑定、共享元素快照、摘要文本及外部值变化跟踪状态。
         /// </summary>
-        private sealed class CollectionEditorState
+        private sealed class CollectionEditorState : ICollectionElementSnapshotSink
         {
             /// <summary>
             /// 获取所属的有序集合父条目绑定。
@@ -362,6 +458,29 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             public bool HasSelfWriteSinceDraw { get; set; }
 
             /// <summary>
+            /// 获取或设置展开区当前页码（从 0 起）；绘制入口每趟收敛到有效范围。
+            /// </summary>
+            public int Page { get; set; }
+
+            /// <summary>
+            /// 获取或设置摘要文本缓存对应的集合实例。
+            /// </summary>
+            public object SummarySource { get; set; }
+
+            /// <summary>
+            /// 获取或设置缓存的摘要文本。
+            /// </summary>
+            public string SummaryText { get; set; }
+
+            // 共享快照的来源集合实例；与父条目当前值一致时快照可被全部元素绑定按下标直接读取。
+            private object _snapshotSource;
+
+            /// <summary>
+            /// 获取或设置与 <see cref="_snapshotSource"/> 对应的元素快照数组。
+            /// </summary>
+            private object[] Snapshot { get; set; } = Array.Empty<object>();
+
+            /// <summary>
             /// 校验父绑定并按当前父集合长度建立元素投影。
             /// </summary>
             /// <exception cref="ArgumentException">父绑定值类型不是可按下标访问的有序集合。</exception>
@@ -376,17 +495,43 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                 RebuildElements();
             }
 
+            /// <inheritdoc/>
+            public object[] GetSnapshotIfCurrent()
+            {
+                return ReferenceEquals(Parent.Value, _snapshotSource) ? Snapshot : null;
+            }
+
+            /// <inheritdoc/>
+            public void AdoptSnapshot(object collection, object[] elements)
+            {
+                _snapshotSource = collection;
+                Snapshot = elements;
+            }
+
             /// <summary>
-            /// 按父集合当前长度重建全部元素投影绑定；旧绑定的暂存输入由调用方决定是否清空。
+            /// 确保共享快照与父条目当前值一致：引用不匹配时全量枚举重建一次，匹配时直接返回现有快照。
+            /// </summary>
+            /// <returns>与父条目当前值匹配的元素快照数组。</returns>
+            public object[] RefreshSnapshot()
+            {
+                var collection = Parent.Value;
+                if (!ReferenceEquals(collection, _snapshotSource))
+                    AdoptSnapshot(collection, CollectionElementBinding.CopyElements(collection as IEnumerable));
+
+                return Snapshot;
+            }
+
+            /// <summary>
+            /// 按当前父集合长度重建全部元素投影绑定；旧绑定的暂存输入由调用方决定是否清空。
             /// </summary>
             public void RebuildElements()
             {
-                var count = CollectionElementBinding.CopyElements(Parent.Value as IEnumerable).Length;
+                var snapshot = RefreshSnapshot();
                 var onParentValueWritten = (Action)(() => HasSelfWriteSinceDraw = true);
 
-                var elements = new CollectionElementBinding[count];
-                for (int i = 0; i < count; i++)
-                    elements[i] = new CollectionElementBinding(Parent, i, onParentValueWritten);
+                var elements = new CollectionElementBinding[snapshot.Length];
+                for (int i = 0; i < snapshot.Length; i++)
+                    elements[i] = new CollectionElementBinding(Parent, i, onParentValueWritten, this);
                 Elements = elements;
             }
         }

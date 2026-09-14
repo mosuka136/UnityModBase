@@ -49,6 +49,14 @@ namespace UnityModBase.HGuiSpace
         /// <summary>获取或设置尾部操作宽度是否需要重新测量。</summary>
         public bool IsTrailingActionWidthDirty { get; set; } = true;
 
+        private int _layoutVersion;
+
+        /// <summary>
+        /// 获取布局缓存版本号；每次布局失效（语言切换、绑定树重建等）时递增。
+        /// 供依赖皮肤样式或本地化文案的按内容缓存测量结果（如元组列宽）判定失效。
+        /// </summary>
+        public int LayoutVersion => _layoutVersion;
+
         /// <summary>创建有效的可编辑 GUI 上下文。</summary>
         public EditableGuiContext() : this(true)
         {
@@ -90,6 +98,10 @@ namespace UnityModBase.HGuiSpace
             bool groupButtonWidthDirty = true,
             bool trailingActionWidthDirty = true)
         {
+            // 任一维度失效都意味着皮肤样式或文案可能变化，按内容缓存的测量结果一并失效。
+            if (entryLabelWidthDirty || groupButtonWidthDirty || trailingActionWidthDirty)
+                _layoutVersion++;
+
             IsEntryLabelWidthDirty = entryLabelWidthDirty;
             IsGroupButtonWidthDirty = groupButtonWidthDirty;
             IsTrailingActionWidthDirty = trailingActionWidthDirty;
