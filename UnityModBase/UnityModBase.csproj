@@ -116,6 +116,7 @@
     <Compile Include="HGuiSpace\Editor\DualValueEditor.cs" />
     <Compile Include="HGuiSpace\Editor\EntryEditor.cs" />
     <Compile Include="HGuiSpace\Editor\GroupEditor.cs" />
+    <Compile Include="HGuiSpace\Editor\NodeSearch.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditorRegistry.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\BooleanEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\CollectionEditor.cs" />

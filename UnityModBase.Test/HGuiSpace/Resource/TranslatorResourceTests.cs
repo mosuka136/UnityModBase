@@ -18,6 +18,9 @@ namespace UnityModBase.Test.HGuiSpace.Resource
             new object[] { TranslatorResource.CollectionPreviousPage, "上一页", "Previous" },
             new object[] { TranslatorResource.CollectionNextPage, "下一页", "Next" },
             new object[] { TranslatorResource.CollectionPageIndicator, "第 {0}/{1} 页", "Page {0}/{1}" },
+            new object[] { TranslatorResource.Search, "搜索", "Search" },
+            new object[] { TranslatorResource.SearchClear, "清除", "Clear" },
+            new object[] { TranslatorResource.SearchNoResults, "没有匹配的条目", "No matching entries" },
         };
 
         [Theory]

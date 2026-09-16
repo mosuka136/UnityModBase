@@ -22,6 +22,15 @@ namespace UnityModBase.HGuiSpace.Resource
         /// <summary>滑动条元数据无效提示。</summary>
         public static readonly Translator InvalidSliderMetadata = new Translator("无效的滑动条元数据", "Invalid slider metadata");
 
+        /// <summary>分组内容搜索框标签。</summary>
+        public static readonly Translator Search = new Translator("搜索", "Search");
+
+        /// <summary>清空搜索关键字的按钮文案。</summary>
+        public static readonly Translator SearchClear = new Translator("清除", "Clear");
+
+        /// <summary>搜索无匹配条目时的提示。</summary>
+        public static readonly Translator SearchNoResults = new Translator("没有匹配的条目", "No matching entries");
+
         /// <summary>集合条目为空时的摘要文案；参数为元素数。</summary>
         public static readonly Translator CollectionCount = new Translator("{0} 项", "{0} items");
 

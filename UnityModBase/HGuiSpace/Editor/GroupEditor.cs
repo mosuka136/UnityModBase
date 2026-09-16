@@ -9,8 +9,8 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HGuiSpace.Editor
 {
     /// <summary>
-    /// 负责通用绑定树的分组导航、递归内容绘制、布局尺寸缓存刷新和延迟值提交。
-    /// 编辑器本身保存当前根节点及滚动位置，用户相关选择和尺寸缓存保存在 <see cref="EditableGuiContext"/>。
+    /// 负责通用绑定树的分组导航、关键字过滤、递归内容绘制、布局尺寸缓存刷新和延迟值提交。
+    /// 编辑器本身保存当前根节点、搜索关键字及滚动位置，用户相关选择和尺寸缓存保存在 <see cref="EditableGuiContext"/>。
     /// </summary>
     /// <remarks>
     /// 分组树最终会进入可扩展的值编辑器和提交回调，因此每个已成功开启的 IMGUI 布局与滚动视图都在
@@ -46,8 +46,28 @@ namespace UnityModBase.HGuiSpace.Editor
         private Vector2 _sidebarScrollPosition = Vector2.zero;
         private Vector2 _contentScrollPosition = Vector2.zero;
         private GroupBinding _currentRoot;
+        private string _searchQuery = string.Empty;
         private readonly ValueEditorRegistry _valueEditors;
         private readonly Action _onRootChanged;
+
+        /// <summary>
+        /// 获取或设置当前搜索关键字。空白（含全空白）时不过滤绑定树。
+        /// 该值属于编辑器实例，在用户之间共享且不持久化；赋 <c>null</c> 时按空字符串存储。
+        /// 关键字变化时重置内容区滚动位置。
+        /// </summary>
+        public string SearchQuery
+        {
+            get { return _searchQuery; }
+            set
+            {
+                var next = value ?? string.Empty;
+                if (next == _searchQuery)
+                    return;
+
+                _searchQuery = next;
+                _contentScrollPosition = Vector2.zero;
+            }
+        }
 
         /// <summary>
         /// 创建拥有独立值编辑器注册表的分组编辑器。
@@ -71,6 +91,9 @@ namespace UnityModBase.HGuiSpace.Editor
         /// <summary>
         /// 绘制当前用户的绑定树。根节点变化时重置滚动位置、调用扩展回调并使布局缓存失效。
         /// 没有一级分组的根节点会直接作为内容绘制，不显示侧边栏。
+        /// 搜索栏始终画在侧栏和内容之前，以使文本框控件标识不随过滤结果数量变化。
+        /// 非空白关键字会隐藏不匹配的一级分组和条目；分组自身匹配时仍绘制其全部后代。
+        /// 当前选中分组被滤掉时改选第一个可见分组。没有任何可见节点时只显示无匹配提示。
         /// </summary>
         /// <param name="context">包含根绑定和用户级显示状态的可编辑 GUI 上下文。</param>
         /// <exception cref="ArgumentNullException"><paramref name="context"/> 为 null。</exception>
@@ -96,20 +119,38 @@ namespace UnityModBase.HGuiSpace.Editor
             }
 
             UpdateLayoutIfNeeded(root, context);
+            DrawSearchBar();
 
             var groups = GetChildGroups(root);
             if (groups.Count == 0)
             {
-                DrawContent(root, false, context);
+                if (NodeSearch.IsActive(SearchQuery) && !NodeSearch.ContainsMatch(root, SearchQuery))
+                    DrawEmptyResults();
+                else
+                    DrawContent(root, false, context);
                 return;
             }
 
-            var selectedGroup = GetSelectedGroup(groups, context);
+            var visibleGroups = GetVisibleChildGroups(groups);
+            if (visibleGroups.Count == 0)
+            {
+                DrawEmptyResults();
+                return;
+            }
+
+            var selectedGroup = GetSelectedGroup(visibleGroups, context);
+            // 持久化的选中键在可见分组中找不到时（被过滤掉或尚未初始化）回落到第一个可见分组，
+            // 比照用户点击侧栏的处理重置内容区滚动并同步键，避免停留在已隐藏分组的滚动位置。
+            if (selectedGroup.Key != context.SelectedGroupKey)
+            {
+                _contentScrollPosition = Vector2.zero;
+                context.SelectedGroupKey = selectedGroup.Key;
+            }
 
             UnityGui.BeginHorizontal();
             try
             {
-                DrawSidebar(groups, ref selectedGroup, context);
+                DrawSidebar(visibleGroups, ref selectedGroup, context);
                 UnityGui.Space(10f);
                 DrawContent(selectedGroup, true, context);
             }
@@ -245,8 +286,49 @@ namespace UnityModBase.HGuiSpace.Editor
             }
         }
 
-        private void DrawGroup(GroupBinding group, bool drawTitle, EditableGuiContext context)
+        // 文本框当前值每趟经 SearchQuery 属性写回：空值归一化与关键字变化时的滚动重置集中在 setter，
+        // 与清除按钮和外部赋值共用同一路径。清除按钮仅在关键字处于启用状态时绘制。
+        private void DrawSearchBar()
         {
+            UnityGui.BeginHorizontal();
+            try
+            {
+                UnityGui.Label(TranslatorResource.Search, UnityGui.ExpandWidth(false));
+                UnityGui.Space(5f);
+                var next = UnityGui.TextField(SearchQuery, UnityGui.ExpandWidth(true)) ?? string.Empty;
+                SearchQuery = next;
+
+                if (NodeSearch.IsActive(SearchQuery) && UnityGui.Button(TranslatorResource.SearchClear, UnityGui.ExpandWidth(false)))
+                    SearchQuery = string.Empty;
+            }
+            finally
+            {
+                UnityGui.EndHorizontal();
+            }
+
+            UnityGui.Space(4f);
+        }
+
+        private void DrawEmptyResults()
+        {
+            UnityGui.BeginVertical(UnityGui.BoxStyle);
+            try
+            {
+                UnityGui.Label(TranslatorResource.SearchNoResults);
+            }
+            finally
+            {
+                UnityGui.EndVertical();
+            }
+        }
+
+        // 过滤的核心约定：分组自身（或任一上级）命中关键字时整棵子树保持可见，不再对后代逐个过滤；
+        // 未命中时直属条目按自身匹配过滤，子分组先经 ContainsMatch 剪枝，整棵无匹配的子树直接跳过。
+        // ancestorMatched 表示上级分组已命中，可跳过本组的重复匹配判断。
+        private void DrawGroup(GroupBinding group, bool drawTitle, EditableGuiContext context, bool ancestorMatched = false)
+        {
+            var groupMatched = !NodeSearch.IsActive(SearchQuery) || ancestorMatched || NodeSearch.Matches(group, SearchQuery);
+
             UnityGui.BeginVertical();
             try
             {
@@ -270,14 +352,18 @@ namespace UnityModBase.HGuiSpace.Editor
                 {
                     if (child is IEntryBinding entry)
                     {
-                        EntryEditor.Draw(entry, context);
+                        if (groupMatched || NodeSearch.Matches(entry, SearchQuery))
+                            EntryEditor.Draw(entry, context);
                         continue;
                     }
 
                     if (child is GroupBinding childGroup)
                     {
+                        if (!groupMatched && !NodeSearch.ContainsMatch(childGroup, SearchQuery))
+                            continue;
+
                         UnityGui.Space(10f);
-                        DrawGroup(childGroup, true, context);
+                        DrawGroup(childGroup, true, context, groupMatched);
                     }
                 }
 
@@ -287,6 +373,22 @@ namespace UnityModBase.HGuiSpace.Editor
             {
                 UnityGui.EndVertical();
             }
+        }
+
+        // 过滤启用时只保留自身或后代有匹配的一级分组；未启用时原样返回输入列表，避免每趟布局分配新列表。
+        private List<GroupBinding> GetVisibleChildGroups(List<GroupBinding> groups)
+        {
+            if (!NodeSearch.IsActive(SearchQuery))
+                return groups;
+
+            var visible = new List<GroupBinding>();
+            foreach (var group in groups)
+            {
+                if (NodeSearch.ContainsMatch(group, SearchQuery))
+                    visible.Add(group);
+            }
+
+            return visible;
         }
 
         private static GroupBinding GetSelectedGroup(IReadOnlyList<GroupBinding> groups, EditableGuiContext context)

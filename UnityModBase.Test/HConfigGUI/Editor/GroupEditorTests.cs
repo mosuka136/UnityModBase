@@ -8,6 +8,7 @@ using UnityModBase.HConfigSpace;
 using UnityModBase.HGuiSpace;
 using UnityModBase.HGuiSpace.Bindings;
 using UnityModBase.HGuiSpace.Editor.ValueEditor;
+using GuiTranslatorResource = UnityModBase.HGuiSpace.Resource.TranslatorResource;
 using UnityModBase.HotkeyManager;
 using UnityModBase.HProvider;
 using UnityModBase.HTranslatorSpace;
@@ -102,6 +103,7 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             };
             SetCurrentRoot(editor, root);
             var boxStyle = CreateUninitializedGuiStyle();
+            SetupSearchBar(unityGui);
             unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
             unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
             unityGui
@@ -118,10 +120,17 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             unityGui.Verify(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()), Times.Once);
             unityGui.Verify(x => x.BeginScrollView(Vector2.zero, It.IsAny<GUILayoutOption[]>()), Times.Once);
             unityGui.Verify(x => x.BeginVertical(), Times.Once);
+            unityGui.Verify(x => x.Space(4f), Times.Once);
+            unityGui.Verify(x => x.Space(5f), Times.Once);
             unityGui.Verify(x => x.Space(10f), Times.Once);
             unityGui.Verify(x => x.EndScrollView(), Times.Once);
             unityGui.Verify(x => x.EndVertical(), Times.Exactly(2));
-            unityGui.Verify(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()), Times.Never);
+            unityGui.Verify(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()), Times.Once);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGui.Verify(x => x.Label(GuiTranslatorResource.Search.ToString(), It.IsAny<GUILayoutOption[]>()), Times.Once);
+            unityGui.Verify(x => x.ExpandWidth(false), Times.Once);
+            unityGui.Verify(x => x.ExpandWidth(true), Times.Once);
+            unityGui.Verify(x => x.TextField(string.Empty, It.IsAny<GUILayoutOption[]>()), Times.Once);
             unityGui.VerifyNoOtherCalls();
         }
 
@@ -141,21 +150,20 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             };
             SetCurrentRoot(editor, root);
             var boxStyle = CreateUninitializedGuiStyle();
+            SetupSearchBar(unityGui);
             unityGui.SetupGet(x => x.BoxStyle).Returns(boxStyle);
             unityGui.Setup(x => x.BeginVertical(boxStyle, It.IsAny<GUILayoutOption[]>()));
             unityGui
                 .Setup(x => x.BeginScrollView(Vector2.zero, It.IsAny<GUILayoutOption[]>()))
                 .Returns(Vector2.zero);
             unityGui.Setup(x => x.BeginVertical());
-            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
-            unityGui.Setup(x => x.EndHorizontal());
             unityGui.Setup(x => x.EndVertical());
             unityGui.Setup(x => x.EndScrollView());
 
             var exception = Assert.Throws<InvalidOperationException>(() => editor.Draw(context));
 
             Assert.Equal("name failed", exception.Message);
-            unityGui.Verify(x => x.EndHorizontal(), Times.Once);
+            unityGui.Verify(x => x.EndHorizontal(), Times.Exactly(2));
             unityGui.Verify(x => x.EndVertical(), Times.Exactly(2));
             unityGui.Verify(x => x.EndScrollView(), Times.Once);
         }
@@ -329,6 +337,18 @@ namespace UnityModBase.Test.HConfigGUI.Editor
             mock.SetupGet(x => x.ValueDescription)
                 .Returns(new[] { new Translator(), new Translator() });
             return mock;
+        }
+
+        private static void SetupSearchBar(Mock<IUnityGuiProvider> unityGui)
+        {
+            unityGui.Setup(x => x.BeginHorizontal(It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.EndHorizontal());
+            unityGui.Setup(x => x.Label(GuiTranslatorResource.Search.ToString(), It.IsAny<GUILayoutOption[]>()));
+            unityGui.Setup(x => x.ExpandWidth(false)).Returns((GUILayoutOption)null);
+            unityGui.Setup(x => x.ExpandWidth(true)).Returns((GUILayoutOption)null);
+            unityGui.Setup(x => x.TextField(string.Empty, It.IsAny<GUILayoutOption[]>())).Returns(string.Empty);
+            unityGui.Setup(x => x.Space(4f));
+            unityGui.Setup(x => x.Space(5f));
         }
 
         private static GroupEditor CreateEditor(
