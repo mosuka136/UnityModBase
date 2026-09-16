@@ -6,7 +6,8 @@ namespace UnityModBase.HGuiSpace.Editor
 {
     /// <summary>
     /// 按关键字判断绑定树节点是否应出现在过滤后的分组界面中。
-    /// 空白查询视为未搜索；匹配对键、中英文名称和中英文说明做不区分大小写的子串比较，不读取条目当前值。
+    /// 空白查询视为未搜索；匹配对键、中英文名称和中英文说明做不区分大小写的子串比较，
+    /// 中文还匹配无声调全拼与拼音首字母，不读取条目当前值。
     /// </summary>
     internal static class NodeSearch
     {
@@ -21,7 +22,7 @@ namespace UnityModBase.HGuiSpace.Editor
         }
 
         /// <summary>
-        /// 判断节点自身的键、名称或说明是否包含关键字。
+        /// 判断节点自身的键、名称或说明是否包含关键字（含中文全拼与拼音首字母）。
         /// 查询未启用或节点为 <c>null</c> 时返回 <c>false</c>。
         /// </summary>
         /// <param name="node">待匹配的绑定节点。</param>
@@ -83,12 +84,15 @@ namespace UnityModBase.HGuiSpace.Editor
             return Contains(translator.Chinese, query) || Contains(translator.English, query);
         }
 
+        // 先做原文的不区分大小写子串匹配，未命中再尝试拼音匹配；拼音侧会另行压缩查询中的空白。
+        // 调用方（Matches）已对 query 做过去首尾空白处理。
         private static bool Contains(string text, string query)
         {
             if (string.IsNullOrEmpty(text))
                 return false;
 
-            return text.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+            return text.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+                || PinyinText.Contains(text, query);
         }
     }
 }

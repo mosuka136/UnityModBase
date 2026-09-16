@@ -109,6 +109,46 @@ namespace UnityModBase.Test.HGuiSpace.Editor
         }
 
         [Fact]
+        public void Matches_WhenChineseNamePinyinContainsQuery_ReturnsTrue()
+        {
+            var entry = CreateNode("Key", "主音量", "Label", "说明", "Hint");
+
+            Assert.True(NodeSearch.Matches(entry, "yinliang"));
+            Assert.True(NodeSearch.Matches(entry, "zyl"));
+            Assert.True(NodeSearch.Matches(entry, "yin liang"));
+        }
+
+        [Fact]
+        public void Matches_WhenChineseDescriptionPinyinContainsQuery_ReturnsTrue()
+        {
+            var entry = CreateNode("Key", "名称", "Name", "控制主音量", "Hint");
+
+            Assert.True(NodeSearch.Matches(entry, "zhuyinliang"));
+            Assert.True(NodeSearch.Matches(entry, "kzzyl"));
+        }
+
+        [Fact]
+        public void Matches_WhenChineseTextPinyinDoesNotContainQuery_ReturnsFalse()
+        {
+            var entry = CreateNode("Key", "画面", "Graphics", "说明", "Hint");
+
+            Assert.False(NodeSearch.Matches(entry, "yinliang"));
+            Assert.False(NodeSearch.Matches(entry, "yl"));
+        }
+
+        [Fact]
+        public void ContainsMatch_WhenNestedEntryMatchesPinyin_ReturnsTrueForAncestors()
+        {
+            var matching = CreateNode("Volume", "音量", "Loudness", "", "");
+            var nested = new GroupBinding("Nested", new Translator("嵌套", "Nested"), null, new[] { matching });
+            var root = new GroupBinding("Root", new Translator("根", "Root"), null, new[] { nested });
+
+            Assert.True(NodeSearch.ContainsMatch(root, "yl"));
+            Assert.True(NodeSearch.ContainsMatch(nested, "yl"));
+            Assert.True(NodeSearch.Matches(matching, "yinliang"));
+        }
+
+        [Fact]
         public void ContainsMatch_WhenNestedEntryMatches_ReturnsTrueForAncestors()
         {
             var matching = CreateNode("Volume", "音量", "Volume", "", "");

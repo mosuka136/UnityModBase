@@ -117,6 +117,11 @@
     <Compile Include="HGuiSpace\Editor\EntryEditor.cs" />
     <Compile Include="HGuiSpace\Editor\GroupEditor.cs" />
     <Compile Include="HGuiSpace\Editor\NodeSearch.cs" />
+    <Compile Include="HGuiSpace\Editor\Pinyin\PinyinCode1.cs" />
+    <Compile Include="HGuiSpace\Editor\Pinyin\PinyinCode2.cs" />
+    <Compile Include="HGuiSpace\Editor\Pinyin\PinyinCode3.cs" />
+    <Compile Include="HGuiSpace\Editor\Pinyin\PinyinData.cs" />
+    <Compile Include="HGuiSpace\Editor\Pinyin\PinyinText.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditorRegistry.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\BooleanEditor.cs" />
     <Compile Include="HGuiSpace\Editor\ValueEditor\CollectionEditor.cs" />
