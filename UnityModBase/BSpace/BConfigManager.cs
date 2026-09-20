@@ -475,6 +475,7 @@ namespace UnityModBase.BSpace
                         BLog.Error($"Failed to save UnityModBase config file. Path='{configFilePath}'.");
 
                     FrameUpdateManager.OnFrameUpdate += ReloadConfigOnUserOrder;
+                    FrameUpdateManager.OnFrameUpdate += DrainSaveWorkerFailures;
 
                     _initialized = true;
                     BLog.Info($"Config manager initialized. Path='{configFilePath}', Language='{SetLanguage.Value}', FileLogging={EnableLog.Value}, MinimumLogLevel='{LogLevel.Value}'.");
@@ -500,6 +501,7 @@ namespace UnityModBase.BSpace
                     SetLanguage.OnValueChanged -= OnSetLanguageChanged;
 
                 FrameUpdateManager.OnFrameUpdate -= ReloadConfigOnUserOrder;
+                FrameUpdateManager.OnFrameUpdate -= DrainSaveWorkerFailures;
 
                 Config = null;
                 SetLanguage = null;
@@ -572,6 +574,20 @@ namespace UnityModBase.BSpace
                     BLog.Error($"Unexpected error while processing the config reload hotkey.", ex);
                 }
             }
+        }
+
+        /// <summary>
+        /// 在逐帧回调中取走后台写服务的失败报告并记录日志。
+        /// 后台线程不能直接写日志（日志数据库会访问 Unity API），因此配置写入失败统一回到主线程在此上报。
+        /// </summary>
+        private static void DrainSaveWorkerFailures()
+        {
+            var writer = ConfigService.SaveWriter;
+            if (writer == null)
+                return;
+
+            while (writer.TryDequeueFailure(out var filePath, out var exception))
+                BLog.Error($"Failed to write config file in background. Path='{filePath}'.", exception);
         }
 
         private static void OnSetLanguageChanged(object sender, LanguageType language)

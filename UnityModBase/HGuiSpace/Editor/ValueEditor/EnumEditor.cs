@@ -17,7 +17,8 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     public sealed class EnumEditor : IValueEditor
     {
         /// <summary>
-        /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.07 秒，小于等于 0 时立即提交。
+        /// 获取或设置选择变更后的提交延迟，单位为秒；默认 0.07 秒，小于等于 0 时立即提交。
+        /// 延迟窗口内的后续选择会重置倒计时并只提交最新值，用于把连续切换合并为一次提交流程（配置赋值与自动保存）。
         /// </summary>
         public float DelayApplyDuration { get; set; } = 0.07f;
 

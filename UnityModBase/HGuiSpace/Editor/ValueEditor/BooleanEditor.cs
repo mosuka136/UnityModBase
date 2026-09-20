@@ -6,12 +6,13 @@ using UnityModBase.HProvider;
 namespace UnityModBase.HGuiSpace.Editor.ValueEditor
 {
     /// <summary>
-    /// 使用本地化开关控件编辑布尔配置，并在切换发生时立即提交。
+    /// 使用本地化开关控件编辑布尔配置，切换按 <see cref="DelayApplyDuration"/> 延迟提交。
     /// </summary>
     public sealed class BooleanEditor : IValueEditor
     {
         /// <summary>
-        /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.1 秒，小于等于 0 时立即提交。
+        /// 获取或设置点击切换后的提交延迟，单位为秒；默认 0.1 秒，小于等于 0 时立即提交。
+        /// 延迟窗口内的后续点击会重置倒计时并只提交最新值，用于把连续点击合并为一次提交流程（配置赋值与自动保存）。
         /// </summary>
         public float DelayApplyDuration { get; set; } = 0.1f;
 

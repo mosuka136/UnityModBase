@@ -86,6 +86,7 @@
     <Compile Include="HConfigSpace\IConfigEntry.cs" />
     <Compile Include="HConfigSpace\ConfigFileEntry.cs" />
     <Compile Include="HConfigSpace\ConfigService.cs" />
+    <Compile Include="HConfigSpace\ConfigSaveWorker.cs" />
     <Compile Include="HConfigSpace\ConfigFileModel.cs" />
     <Compile Include="HConfigSpace\ConfigFileModelEntryValue.cs" />
     <Compile Include="HConfigSpace\ConfigFileResult.cs" />

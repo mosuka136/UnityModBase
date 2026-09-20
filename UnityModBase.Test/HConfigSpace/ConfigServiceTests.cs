@@ -274,6 +274,96 @@ namespace UnityModBase.Test.HConfigSpace
         }
 
         [Fact]
+        public void Write_WhenSaveWriterIsInjected_WaitsForBackgroundWriteAndPersistsContent()
+        {
+            // Arrange：写服务以不会到期的长周期构造，磁盘写入只可能由 Write 的显式触发完成。
+            var tempPath = CreateTempConfigPath();
+            var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+
+            using (var writerScope = new SaveWriterScope())
+            {
+                // Act
+                var result = manager.Write();
+
+                // Assert：显式保存阻塞等待后台版本落盘后才返回，返回即代表内容已在磁盘上。
+                Assert.True(result);
+                Assert.Contains("TestKey = \"DefaultValue\"", File.ReadAllText(tempPath));
+            }
+        }
+
+        [Fact]
+        public void Write_WhenSaveWriterIsInjectedAndWriteFails_ReturnsFalseAndReportsThroughFailureQueue()
+        {
+            // Arrange：注入写服务后写入失败不再直接记日志，而是进入失败队列由主线程取走上报。
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\n");
+            var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+
+            using var writerScope = new SaveWriterScope();
+            using (File.Open(tempPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                // Act
+                var result = manager.Write();
+
+                // Assert
+                Assert.False(result);
+            }
+
+            var failure = Assert.Single(DequeueAllFailures(writerScope.Worker, tempPath));
+            Assert.Equal(tempPath, failure.filePath);
+            Assert.NotNull(failure.exception);
+        }
+
+        [Fact]
+        public void BoundEntry_WhenSaveWriterIsInjectedAndValueChanges_WritesDeferredUntilFlush()
+        {
+            // Arrange
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = \"OriginalValue\"\n");
+            var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<string>("TestTable", "TestKey", "DefaultValue", new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+
+            using var writerScope = new SaveWriterScope();
+
+            // Act：自动保存只编码入队，不等待落盘。
+            entry.Value = "UpdatedValue";
+
+            // Assert：入队后磁盘仍是原内容，调用线程不被磁盘 IO 阻塞。
+            Assert.Equal("\"UpdatedValue\"", entry.Entry.Value);
+            Assert.DoesNotContain("UpdatedValue", File.ReadAllText(tempPath));
+
+            // 排队内容经一次写盘周期落盘后，磁盘与内存一致。
+            Assert.True(writerScope.Worker.FlushAll(TimeSpan.FromSeconds(5)));
+            Assert.Contains("TestKey = \"UpdatedValue\"", File.ReadAllText(tempPath));
+        }
+
+        [Fact]
+        public void Reload_WhenSaveWriterHasPendingWrite_FlushesItBeforeReadingDisk()
+        {
+            // Arrange：自动保存内容仍在后台队列中，磁盘上还是旧值。
+            var tempPath = CreateTempConfigPath();
+            File.WriteAllText(tempPath, "[TestTable]\nTestKey = 1\n");
+            var manager = new ConfigService(tempPath);
+            manager.CreateTable("TestTable", new Translator("测试表", "TestTable"));
+            var entry = manager.Bind<int>("TestTable", "TestKey", 0, new Translator("测试键", "TestKey"), new Translator("描述", "Description"));
+
+            using var writerScope = new SaveWriterScope();
+            entry.Value = 2;
+
+            // Act
+            var result = manager.Reload();
+
+            // Assert：重载必须先排空该文件的待写内容再读盘，否则内存中的 2 会被磁盘旧值 1 覆盖。
+            Assert.True(result);
+            Assert.Equal(2, entry.Value);
+            Assert.Contains("TestKey = 2", File.ReadAllText(tempPath));
+        }
+
+        [Fact]
         public void CreateTable_WhenTableExistsInFileSheetButNotInSheet_AddsTableToSheet()
         {
             var tempPath = CreateTempConfigPath();
@@ -1106,6 +1196,38 @@ namespace UnityModBase.Test.HConfigSpace
             Assert.Null(manager.FileSheet);
             Assert.Null(manager.Sheet);
             Assert.Null(handlerField.GetValue(entry));
+        }
+
+        // 注入共享后台写服务的隔离夹具：以不会到期的长周期构造写服务并挂到静态入口，
+        // 使配置写入进入后台队列；释放时先摘除静态引用再释放写服务，不影响其余测试的同步写入路径。
+        private sealed class SaveWriterScope : IDisposable
+        {
+            public ConfigSaveWorker Worker { get; }
+
+            public SaveWriterScope()
+            {
+                Worker = new ConfigSaveWorker(TimeSpan.FromSeconds(100));
+                ConfigService.SaveWriter = Worker;
+            }
+
+            public void Dispose()
+            {
+                ConfigService.SaveWriter = null;
+                Worker.Dispose();
+            }
+        }
+
+        // 取出失败队列中目标路径的全部失败报告，供断言失败不重复、不遗漏。
+        private static List<(string filePath, Exception exception)> DequeueAllFailures(ConfigSaveWorker worker, string filePath)
+        {
+            var failures = new List<(string, Exception)>();
+            while (worker.TryDequeueFailure(out var failurePath, out var failureException))
+            {
+                if (failurePath == filePath)
+                    failures.Add((failurePath, failureException));
+            }
+
+            return failures;
         }
 
         // 记录重载期间的编解码次数，并可注入编码失败，用于验证预检不会重复转换或泄漏部分状态。

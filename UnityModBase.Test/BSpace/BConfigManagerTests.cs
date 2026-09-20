@@ -59,7 +59,8 @@ namespace UnityModBase.Test.BSpace
             Assert.True(enableLog.Value);
             Assert.Equal(LogLevel.Info, logLevel.Value);
             Assert.Equal(LanguageType.English, Translator.DefaultLanguage);
-            Assert.Equal(2, scope.GetFrameUpdateHandlers().Length);
+            // 帧回调 = 重载热键 + 后台写失败泵 + 测试哨兵。
+            Assert.Equal(3, scope.GetFrameUpdateHandlers().Length);
             Assert.Contains(scope.SentinelFrameUpdateHandler, scope.GetFrameUpdateHandlers());
 
             var persistedContent = File.ReadAllText(scope.ConfigFilePath);
@@ -273,6 +274,76 @@ namespace UnityModBase.Test.BSpace
             Assert.IsType<InvalidOperationException>(failureLog.Exception);
 
             config.OnConfigChanged -= RegisterLateUserDuringReload;
+        }
+
+        [Fact]
+        public void DrainSaveWorkerFailures_WhenFailuresAreQueued_LogsEachFailureAndEmptiesQueue()
+        {
+            // Arrange：后台线程不能写日志数据库，写盘失败统一回到主线程由帧回调取走上报。
+            using var scope = BConfigManagerStateScope.CreateWithConfigService();
+            scope.Initialize(scope.ConfigFilePath);
+            var drainHandler = scope.GetFrameUpdateHandlers().Single(handler =>
+                handler.Method.DeclaringType == typeof(BConfigManager)
+                && handler.Method.Name == "DrainSaveWorkerFailures");
+
+            // 未注入写服务时失败泵必须是无操作，不得向帧更新派发器抛出异常。
+            var exceptionWithoutWriter = Record.Exception(drainHandler);
+            Assert.Null(exceptionWithoutWriter);
+
+            var worker = new ConfigSaveWorker(TimeSpan.FromSeconds(100));
+            var lockedPaths = new[]
+            {
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".cfg"),
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".cfg")
+            };
+
+            try
+            {
+                ConfigService.SaveWriter = worker;
+                foreach (var path in lockedPaths)
+                    File.WriteAllText(path, "existing");
+
+                using (File.Open(lockedPaths[0], FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                using (File.Open(lockedPaths[1], FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                {
+                    foreach (var path in lockedPaths)
+                        worker.Enqueue(path, "locked-out");
+                    // 队列已清空，但两次写盘都因目标被锁而失败并进入失败队列。
+                    Assert.True(worker.FlushAll(TimeSpan.FromSeconds(5)));
+                }
+
+                // Act
+                var exception = Record.Exception(drainHandler);
+
+                // Assert：单帧取走全部失败报告，逐条记录错误日志。
+                Assert.Null(exception);
+                foreach (var path in lockedPaths)
+                {
+                    var failureLog = Assert.Single(scope.LogDatabase.Logs.Where(log =>
+                        log.Message == $"Failed to write config file in background. Path='{path}'."));
+                    Assert.Equal(LogLevel.Error, failureLog.Level);
+                    Assert.NotNull(failureLog.Exception);
+                }
+
+                // 队列已排空，下一帧不会重复上报同一失败。
+                Assert.False(worker.TryDequeueFailure(out _, out _));
+            }
+            finally
+            {
+                ConfigService.SaveWriter = null;
+                worker.Dispose();
+                foreach (var path in lockedPaths)
+                {
+                    try
+                    {
+                        if (File.Exists(path))
+                            File.Delete(path);
+                        if (File.Exists(path + ".bak"))
+                            File.Delete(path + ".bak");
+                    }
+                    catch { }
+                }
+            }
         }
 
         // 框架配置重载完成时向注册表追加用户，模拟重载遍历期间的并发注册，使注册表枚举失效。

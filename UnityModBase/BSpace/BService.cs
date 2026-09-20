@@ -19,6 +19,8 @@ namespace UnityModBase.BSpace
         // 只串行化基础服务的初始化与释放；子服务的日常调用仍遵循各自的线程安全约束。
         private static readonly object _lock = new object();
         private static bool _initialized = false;
+        // 由本服务创建并注入 ConfigService 的共享后台写服务；退出和释放路径据此做最终刷盘。
+        private static ConfigSaveWorker _saveWorker;
 
         internal static string BaseDirectory { get; set; }
         internal static UserContext Context { get; set; }
@@ -58,6 +60,11 @@ namespace UnityModBase.BSpace
 
                     if (!Directory.Exists(BaseDirectory))
                         Directory.CreateDirectory(BaseDirectory);
+
+                    // 后台写服务必须先于首个配置文件创建注入，使框架配置的首次保存也进入后台队列。
+                    _saveWorker = new ConfigSaveWorker();
+                    ConfigService.SaveWriter = _saveWorker;
+                    GameQuitManager.OnGameQuit += FlushSaveWorkerOnGameQuit;
 
                     var configPath = Path.Combine(BaseDirectory, $"{nameof(UnityModBase)}.cfg");
                     Service.RegisterConfig(typeof(BConfigManager), configPath);
@@ -106,6 +113,12 @@ namespace UnityModBase.BSpace
                         BConfigManager.LogLevel.OnValueChanged -= OnLogLevelChanged;
 
                     BConfigManager.Dispose();
+
+                    // 先解除退出订阅再释放写服务：Dispose 会在停止定时器后同步写完剩余内容。
+                    GameQuitManager.OnGameQuit -= FlushSaveWorkerOnGameQuit;
+                    ConfigService.SaveWriter = null;
+                    _saveWorker?.Dispose();
+                    _saveWorker = null;
                 }
                 catch (Exception ex)
                 {
@@ -118,6 +131,17 @@ namespace UnityModBase.BSpace
                     _initialized = false;
                 }
             }
+        }
+
+        /// <summary>
+        /// 游戏退出或框架释放时，把后台写队列中的全部待写配置内容刷到磁盘。
+        /// 该回调在进程级释放流程中先于用户配置服务拆除执行；超时后剩余内容仍由写服务的释放兜底完成。
+        /// </summary>
+        private static void FlushSaveWorkerOnGameQuit()
+        {
+            var worker = _saveWorker;
+            if (worker != null && !worker.FlushAll(TimeSpan.FromSeconds(3)))
+                LogDatabase?.Warn("Timed out flushing pending config file writes on game quit; the disposer will finish the remainder.", nameof(BService), null, 0);
         }
 
         private static void OnEnableLogChanged(object sender, bool enable)

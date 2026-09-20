@@ -12,11 +12,30 @@ namespace UnityModBase.HConfigSpace
     /// 该类型负责读取/写入文件、创建表项，以及把磁盘上的 <see cref="ConfigFileEntry"/> 绑定到单值或双元素运行时配置项。
     /// 它不负责 UI 展示和具体配置项声明；这些职责分别由配置 GUI 与上层配置管理器承担。
     /// 重载的回滚边界止于事件发布前；配置项变化事件、配置模型变化事件及最终磁盘写入不属于可回滚范围。
-    /// 文件模型、运行时模型和磁盘 IO 均不提供并发保护；创建、绑定、重载、保存及释放必须由调用方串行化。
+    /// 文件模型和运行时模型不提供并发保护；创建、绑定、重载、保存及释放必须由调用方串行化。
+    /// 磁盘写入委托给共享的 <see cref="SaveWriter"/> 后台串行执行：自动保存在调用线程完成编码后异步落盘，
+    /// 显式 <see cref="Write"/> 会等待写入完成后再返回；写入失败由后台写服务的失败队列统一上报。
     /// </summary>
     public sealed class ConfigService : IDisposable
     {
+        // 显式保存（Write/Save）等待后台落盘的上限；超时按失败返回，但内容仍保留在队列中随后写入。
+        private static readonly TimeSpan ExplicitSaveTimeout = TimeSpan.FromSeconds(5);
+        // 重载读盘前等待该文件待写内容落盘的上限；超时后照常读盘，可能读到较旧的磁盘内容。
+        private static readonly TimeSpan ReloadFlushTimeout = TimeSpan.FromSeconds(2);
+
         private string _filePath;
+
+        private static ConfigSaveWorker _saveWriter;
+
+        /// <summary>
+        /// 全部配置服务共享的后台写服务；由框架初始化时注入，释放时置回 <c>null</c>。
+        /// 为 <c>null</c> 时（独立使用、测试环境或框架未初始化）所有写入退化为调用线程同步写盘。
+        /// </summary>
+        internal static ConfigSaveWorker SaveWriter
+        {
+            get => _saveWriter;
+            set => _saveWriter = value;
+        }
 
         /// <summary>
         /// 文件模型成功读取、事务重载完成内存提交，以及运行时表或配置项声明成功后同步触发。
@@ -147,59 +166,70 @@ namespace UnityModBase.HConfigSpace
         }
 
         /// <summary>
-        /// 将当前文件模型编码并写入 <see cref="FilePath"/>。
+        /// 将当前文件模型编码并写入 <see cref="FilePath"/>，阻塞等待写入完成后返回结果。
         /// 写入先落到同目录的唯一临时文件：目标存在时通过替换生成同名 <c>.bak</c> 备份，目标不存在时再移动到最终路径，
         /// 以降低写入中断留下半截配置的风险。临时文件会在失败路径尽力清理。
         /// </summary>
         /// <returns>编码与写入是否成功；失败时记录日志并返回 <c>false</c>。</returns>
+        /// <remarks>
+        /// 注入 <see cref="SaveWriter"/> 时写入进入共享后台队列并立即触发，本方法等待该版本落盘后返回，
+        /// 与后台自动保存严格串行；等待超过内部超时按失败返回，但内容仍会随后台队列写入。
+        /// </remarks>
         public bool Write()
         {
-            var tmpFilePath = string.Empty;
-
-            try
-            {
-                var directoryPath = string.Empty;
-
-                var encodeResult = FileSheet.EncodeSheet();
-                if (encodeResult.HasErrors)
-                {
-                    foreach (var error in encodeResult.Errors)
-                        BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
-                    return false;
-                }
-
-                directoryPath = Path.GetDirectoryName(FilePath);
-                if (!string.IsNullOrWhiteSpace(directoryPath) && !Directory.Exists(directoryPath))
-                    Directory.CreateDirectory(directoryPath);
-
-                tmpFilePath = Path.Combine(directoryPath ?? string.Empty, $"{Path.GetFileName(FilePath)}.{Guid.NewGuid():N}.tmp");
-                var backupFilePath = FilePath + ".bak";
-
-                File.WriteAllText(tmpFilePath, encodeResult.Value);
-
-                if (File.Exists(FilePath))
-                    File.Replace(tmpFilePath, FilePath, backupFilePath, true);
-                else
-                    File.Move(tmpFilePath, FilePath);
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                BLog.Error($"Failed to write config file: {FilePath}.", ex);
+            var content = EncodeCurrentSheet();
+            if (content == null)
                 return false;
-            }
-            finally
+
+            var writer = SaveWriter;
+            if (writer != null)
+                return writer.WriteNow(FilePath, content, ExplicitSaveTimeout);
+
+            if (ConfigSaveWorker.TryWriteFile(FilePath, content, out var exception))
+                return true;
+
+            BLog.Error($"Failed to write config file: {FilePath}.", exception);
+            return false;
+        }
+
+        /// <summary>
+        /// 把当前文件模型编码后排入后台写队列，不等待写入完成。
+        /// 这是配置项自动保存的路径：调用线程只承担编码开销，磁盘 IO 由 <see cref="SaveWriter"/> 在后台串行完成；
+        /// 后台写入失败只进入失败队列由主线程上报，不在本方法返回值中体现。
+        /// 未注入 <see cref="SaveWriter"/> 时退化为调用线程同步写入，行为与 <see cref="Write"/> 的直写路径一致。
+        /// </summary>
+        private void WriteDeferred()
+        {
+            var content = EncodeCurrentSheet();
+            if (content == null)
+                return;
+
+            var writer = SaveWriter;
+            if (writer != null)
             {
-                try
-                {
-                    if (File.Exists(tmpFilePath))
-                        File.Delete(tmpFilePath);
-                }
-                catch
-                {
-                }
+                writer.Enqueue(FilePath, content);
+                return;
             }
+
+            if (!ConfigSaveWorker.TryWriteFile(FilePath, content, out var exception))
+                BLog.Error($"Failed to write config file: {FilePath}.", exception);
+        }
+
+        /// <summary>
+        /// 把当前文件模型编码为完整文件内容；编码诊断会先记录日志。
+        /// </summary>
+        /// <returns>编码成功时返回文件内容；失败时记录诊断并返回 <c>null</c>。</returns>
+        private string EncodeCurrentSheet()
+        {
+            var encodeResult = FileSheet.EncodeSheet();
+            if (encodeResult.HasErrors)
+            {
+                foreach (var error in encodeResult.Errors)
+                    BLog.Error(error.GetFullMessage(), null, string.Empty, string.Empty, 0);
+                return null;
+            }
+
+            return encodeResult.Value;
         }
 
         /// <summary>
@@ -234,6 +264,9 @@ namespace UnityModBase.HConfigSpace
 
             try
             {
+                // 后台队列中该文件的待写内容必须先落盘，否则会把旧磁盘内容读回内存，丢失最近的自动保存。
+                SaveWriter?.FlushFile(FilePath, ReloadFlushTimeout);
+
                 var sheetResult = GetSheetFromFile();
                 if (sheetResult.HasErrors)
                 {
@@ -613,9 +646,10 @@ namespace UnityModBase.HConfigSpace
 
         private void OnConfigEntryChanged(object sender, EventArgs args)
         {
-            // 赋值和事件在到达此处前已经完成；自动保存失败只由 Write 记录，不回滚内存值，也不向事件调用方抛出。
+            // 赋值和事件在到达此处前已经完成；自动保存失败不回滚内存值，也不向事件调用方抛出。
+            // 后台写入失败由共享写服务的失败队列上报，不在此处记录。
             if (SaveOnConfigSet)
-                Write();
+                WriteDeferred();
         }
 
         private void InvokeOnConfigChanged()
