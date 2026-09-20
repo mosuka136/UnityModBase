@@ -11,6 +11,11 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     public sealed class BooleanEditor : IValueEditor
     {
         /// <summary>
+        /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.1 秒，小于等于 0 时立即提交。
+        /// </summary>
+        public float DelayApplyDuration { get; set; } = 0.1f;
+
+        /// <summary>
         /// 获取开关控件使用的 IMGUI 提供器。
         /// </summary>
         public IUnityGuiProvider UnityGui { get; }
@@ -67,7 +72,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
                     UnityGui.ExpandWidth(true));
             }
             if (newValue != value)
-                context.ChangeSink.SetValue(entry, newValue);
+                context.ChangeSink.SetValue(entry, newValue, delay: DelayApplyDuration);
         }
 
         /// <inheritdoc/>

@@ -23,6 +23,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 
             // Assert
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
+            Assert.Equal(0.1f, editor.DelayApplyDuration);
         }
 
         [Fact]
@@ -75,16 +76,17 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Act
             editor.DrawValue(entryMock.Object, new EditableGuiContext());
 
-            // Assert
+            // Assert：回显值不变不产生提交，缓冲区也不应留下暂存输入。
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
             Assert.Equal(currentValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Toggle(currentValue, TranslatorResource.On.ToString(), It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);
         }
 
         [Fact]
-        public void DrawValue_WhenToggleReturnsDifferentValue_UpdatesEntry()
+        public void DrawValue_WhenToggleReturnsDifferentValue_QueuesDelayedCommit()
         {
-            // Arrange
+            // Arrange：开关的新输入先暂存到缓冲区，倒计时结束前条目值保持不变。
             const bool currentValue = false;
             const bool newValue = true;
             var unityGuiMock = new Mock<IUnityGuiProvider>(MockBehavior.Strict);
@@ -93,12 +95,20 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
                 .Setup(x => x.Toggle(currentValue, TranslatorResource.Off.ToString(), It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)))
                 .Returns(newValue);
             var editor = new BooleanEditor(unityGuiMock.Object);
+            var state = new EditableGuiContext();
+            var changeSink = state.ChangeSink;
             var entryMock = CreateEntry("BooleanEntry", currentValue);
 
             // Act
-            editor.DrawValue(entryMock.Object, new EditableGuiContext());
+            editor.DrawValue(entryMock.Object, state);
+            changeSink.FlushValue(0.05f);
+            var valueBeforeDelayExpires = entryMock.Object.Value;
+            var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
+            changeSink.FlushValue(0.05f);
 
             // Assert
+            Assert.Equal(newValue, bufferedValueBeforeDelayExpires);
+            Assert.Equal(currentValue, valueBeforeDelayExpires);
             Assert.Equal(newValue, entryMock.Object.Value);
             unityGuiMock.Verify(x => x.ExpandWidth(true), Times.Once);
             unityGuiMock.Verify(x => x.Toggle(currentValue, TranslatorResource.Off.ToString(), It.Is<GUILayoutOption[]>(options => options.Length == 1 && options[0] == null)), Times.Once);

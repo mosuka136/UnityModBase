@@ -16,6 +16,11 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
     /// </remarks>
     public sealed class EnumEditor : IValueEditor
     {
+        /// <summary>
+        /// 获取或设置停止输入后的提交延迟，单位为秒；默认 0.07 秒，小于等于 0 时立即提交。
+        /// </summary>
+        public float DelayApplyDuration { get; set; } = 0.07f;
+
         // 映射列表保存“可见选项索引 -> Enum.GetValues 原始索引”，避免隐藏项破坏 SelectionGrid 的索引对应关系。
         private readonly Dictionary<IEntryBinding, (Array values, List<int> mapIndex, string[] names)> _cacheEnumInfo =
             new Dictionary<IEntryBinding, (Array values, List<int> mapIndex, string[] names)>();
@@ -117,7 +122,7 @@ namespace UnityModBase.HGuiSpace.Editor.ValueEditor
             if (currentIndex != newIndex)
             {
                 context.ExpandedEnumKey = string.Empty;
-                context.ChangeSink.SetValue(entry, values.GetValue(mapIndexList[newIndex]));
+                context.ChangeSink.SetValue(entry, values.GetValue(mapIndexList[newIndex]), delay: DelayApplyDuration);
             }
         }
 

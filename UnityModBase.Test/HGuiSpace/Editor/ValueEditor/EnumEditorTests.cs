@@ -23,6 +23,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
 
             // Assert
             Assert.Same(unityGuiMock.Object, editor.UnityGui);
+            Assert.Equal(0.07f, editor.DelayApplyDuration);
         }
 
         [Theory]
@@ -282,8 +283,9 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             // Act
             editor.DrawExtra(entryMock.Object, state);
 
-            // Assert
+            // Assert：选择未变化不产生提交，缓冲区也不应留下暂存输入。
             Assert.Equal(entryMock.Object.Key, state.ExpandedEnumKey);
+            Assert.False(entryMock.Object.EditBuffer.IsUsing);
             Assert.Equal(VisibleEnum.Visible, entryMock.Object.Value);
             unityGuiMock.VerifyGet(x => x.BoxStyle, Times.Once);
             unityGuiMock.Verify(x => x.BeginHorizontal(), Times.Once);
@@ -332,7 +334,7 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
         }
 
         [Fact]
-        public void DrawExtra_WhenCurrentValueIsHidden_FallsBackToFirstVisibleOptionAndUpdatesEntry()
+        public void DrawExtra_WhenCurrentValueIsHidden_FallsBackToFirstVisibleOptionAndQueuesDelayedCommit()
         {
             // Arrange
             GUIStyle boxStyle = null;
@@ -357,10 +359,15 @@ namespace UnityModBase.Test.HGuiSpace.Editor.ValueEditor
             };
             state.ExpandedEnumKey = entryMock.Object.Key;
 
-            // Act
+            // Act：展开状态立即收起，选择的新值先暂存，倒计时结束前条目值保持不变。
             editor.DrawExtra(entryMock.Object, state);
+            var valueBeforeDelayExpires = entryMock.Object.Value;
+            var bufferedValueBeforeDelayExpires = ValueProvider.GetValue(entryMock.Object);
+            state.ChangeSink.FlushValue(editor.DelayApplyDuration);
 
             // Assert
+            Assert.Equal(VisibleEnum.AnotherVisible, bufferedValueBeforeDelayExpires);
+            Assert.Equal(VisibleEnum.Hidden, valueBeforeDelayExpires);
             Assert.Equal(string.Empty, state.ExpandedEnumKey);
             Assert.Equal(VisibleEnum.AnotherVisible, entryMock.Object.Value);
             unityGuiMock.VerifyGet(x => x.BoxStyle, Times.Once);
